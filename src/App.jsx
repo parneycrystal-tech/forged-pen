@@ -54,6 +54,10 @@ const LOAD = ["Reading. Give me a second.","Sitting with this.","Let me think ab
 function loadStored(key) { try { const v = localStorage.getItem(key); return v ? JSON.parse(v) : null; } catch { return null; } }
 function saveStored(key, val) { try { localStorage.setItem(key, JSON.stringify(val)); } catch {} }
 
+function FormField({label,k,ph,multi,value,onChange}){return <div style={{marginBottom:14}}><label style={{fontSize:12,color:"#8a7e72",display:"block",marginBottom:5}}>{label}</label>{multi?<textarea className="fi" rows={4} placeholder={ph} value={value} onChange={e=>onChange(k,e.target.value)} style={{resize:"vertical"}}/>:<input className="fi" placeholder={ph} value={value} onChange={e=>onChange(k,e.target.value)}/>}</div>}
+function Btn({children,onClick,s}){return <button onClick={onClick} style={{background:"#2a2420",border:"1px solid #3a3028",borderRadius:10,color:"#d4c8b8",fontSize:13,padding:"10px 16px",fontFamily:"'DM Sans',sans-serif",cursor:"pointer",...s}}>{children}</button>}
+function BibTab({id,label,active,onClick}){return <button onClick={()=>onClick(id)} style={{background:active?"#2a2420":"none",border:active?"1px solid #3a3028":"1px solid transparent",borderRadius:8,color:active?"#c4956a":"#6d6358",fontSize:12,padding:"6px 14px",cursor:"pointer",fontFamily:"'DM Sans',sans-serif"}}>{label}</button>}
+
 export default function App() {
   const [mode, setMode] = useState(null);
   const [msgs, setMsgs] = useState([]);
@@ -121,9 +125,7 @@ export default function App() {
   };
 
   const handleSetup=async()=>{const p={...pForm,updated:new Date().toLocaleDateString()};setProject(p);saveStored("tt-project",p);setScreen("home")};
-  const I=({label,k,ph,multi})=><div style={{marginBottom:14}}><label style={{fontSize:12,color:"#8a7e72",display:"block",marginBottom:5}}>{label}</label>{multi?<textarea className="fi" rows={4} placeholder={ph} value={pForm[k]} onChange={e=>setPForm({...pForm,[k]:e.target.value})} style={{resize:"vertical"}}/>:<input className="fi" placeholder={ph} value={pForm[k]} onChange={e=>setPForm({...pForm,[k]:e.target.value})}/>}</div>;
-  const Btn=({children,onClick,s})=><button onClick={onClick} style={{background:"#2a2420",border:"1px solid #3a3028",borderRadius:10,color:"#d4c8b8",fontSize:13,padding:"10px 16px",fontFamily:"'DM Sans',sans-serif",cursor:"pointer",...s}}>{children}</button>;
-  const Tab=({id,label})=><button onClick={()=>setBibTab(id)} style={{background:bibTab===id?"#2a2420":"none",border:bibTab===id?"1px solid #3a3028":"1px solid transparent",borderRadius:8,color:bibTab===id?"#c4956a":"#6d6358",fontSize:12,padding:"6px 14px",cursor:"pointer",fontFamily:"'DM Sans',sans-serif"}}>{label}</button>;
+  const updateField=(k,v)=>setPForm(prev=>({...prev,[k]:v}));
 
   return (
     <div style={S.app}>
@@ -145,6 +147,7 @@ export default function App() {
         .fi{background:#201c17;border:1px solid #2a2420;border-radius:10px;padding:10px 14px;color:#e8ddd0;font-family:'DM Sans',sans-serif;font-size:14px;width:100%;outline:none}.fi:focus{border-color:#c4956a60}
       `}</style>
 
+      {/* WELCOME */}
       {screen==="welcome"&&<div onClick={()=>setScreen("home")} style={{position:"fixed",top:0,left:0,right:0,bottom:0,background:"#1a1612",zIndex:200,display:"flex",alignItems:"center",justifyContent:"center",padding:24,cursor:"pointer"}}>
         <div style={{maxWidth:480,textAlign:"center",animation:"fi .6s ease-out"}}>
           <div style={{fontSize:32,marginBottom:16}}>{"\uD83D\uDD25"}</div>
@@ -170,20 +173,22 @@ export default function App() {
         {screen==="chat"&&mode&&<div style={S.tabs}>{MODES.map(m=><button key={m.id} className="mt" onClick={()=>pick(m)} style={{...S.tab,...(mode.id===m.id?{background:"#2a2420",color:CATS[m.cat].c}:{})}}><span style={{marginRight:4}}>{m.icon}</span><span style={{fontSize:11}}>{m.label}</span></button>)}</div>}
       </header>
 
+      {/* STORY BIBLE SETUP */}
       {screen==="setup"&&<main style={S.mn}><div style={{...S.in,animation:"fu .5s ease-out"}}>
         <div style={{fontSize:11,textTransform:"uppercase",letterSpacing:".12em",color:"#6a9ec4",fontWeight:600,marginBottom:8}}>Story Bible Setup</div>
         <p style={{fontSize:13,color:"#a89a8c",marginBottom:16,lineHeight:1.6}}>Tell Finn about your project. The more he knows, the better he can coach you. Everything saves between sessions.</p>
         <div style={{display:"flex",gap:6,marginBottom:16,flexWrap:"wrap"}}>
-          <Tab id="overview" label="Overview"/><Tab id="characters" label="Characters"/><Tab id="world" label="World"/><Tab id="chapters" label="Chapters"/><Tab id="current" label="Current Chapter"/>
+          <BibTab id="overview" label="Overview" active={bibTab==="overview"} onClick={setBibTab}/><BibTab id="characters" label="Characters" active={bibTab==="characters"} onClick={setBibTab}/><BibTab id="world" label="World" active={bibTab==="world"} onClick={setBibTab}/><BibTab id="chapters" label="Chapters" active={bibTab==="chapters"} onClick={setBibTab}/><BibTab id="current" label="Current Chapter" active={bibTab==="current"} onClick={setBibTab}/>
         </div>
-        {bibTab==="overview"&&<><I label="Project title" k="title" ph="My Novel"/><I label="Genre" k="genre" ph="Contemporary fiction, fantasy, memoir..."/><I label="Synopsis (the whole arc, spoilers welcome)" k="synopsis" ph="Kris inherits a lakehouse, meets Keyan, confronts her past..." multi/><I label="Where are you right now?" k="where" ph="Chapter 3, Kris just arrived"/><I label="What are you stuck on?" k="stuck" ph="Not sure how to write the first conversation between..."/><I label="What excites you most?" k="excites" ph="The slow burn, Kris finding her voice..." multi/></>}
-        {bibTab==="characters"&&<><I label="Main characters (names, roles, descriptions, arcs)" k="chars" ph="Kris: 34, healing from controlling relationship, guarded but observant. Keyan: 28, medical student, warm, sees through people's walls..." multi/></>}
-        {bibTab==="world"&&<><I label="World-building, settings, rules, atmosphere" k="world" ph="Northern Michigan lakehouse, small town, late summer. The lake is central to the story's mood..." multi/></>}
-        {bibTab==="chapters"&&<><I label="Chapter summaries (what's happened so far)" k="chapters" ph="Ch1: Kris arrives at lakehouse, unpacks, finds grandmother's letters. Ch2: Meets Keyan at the general store..." multi/></>}
-        {bibTab==="current"&&<><p style={{fontSize:12,color:"#8a7e72",marginBottom:8,lineHeight:1.5}}>Paste the chapter you're currently working on. Finn will reference this text directly when coaching you.</p><I label="Current chapter text" k="currentChapter" ph="Paste your current chapter here..." multi/></>}
+        {bibTab==="overview"&&<><FormField label="Project title" k="title" ph="My Novel" value={pForm.title} onChange={updateField}/><FormField label="Genre" k="genre" ph="Contemporary fiction, fantasy, memoir..." value={pForm.genre} onChange={updateField}/><FormField label="Synopsis (the whole arc, spoilers welcome)" k="synopsis" ph="Kris inherits a lakehouse, meets Keyan, confronts her past..." value={pForm.synopsis} onChange={updateField} multi/><FormField label="Where are you right now?" k="where" ph="Chapter 3, Kris just arrived" value={pForm.where} onChange={updateField}/><FormField label="What are you stuck on?" k="stuck" ph="Not sure how to write the first conversation between..." value={pForm.stuck} onChange={updateField}/><FormField label="What excites you most?" k="excites" ph="The slow burn, Kris finding her voice..." value={pForm.excites} onChange={updateField} multi/></>}
+        {bibTab==="characters"&&<><FormField label="Main characters (names, roles, descriptions, arcs)" k="chars" ph="Kris: 34, healing from controlling relationship, guarded but observant. Keyan: 28, medical student, warm, sees through people's walls..." value={pForm.chars} onChange={updateField} multi/></>}
+        {bibTab==="world"&&<><FormField label="World-building, settings, rules, atmosphere" k="world" ph="Northern Michigan lakehouse, small town, late summer. The lake is central to the story's mood..." value={pForm.world} onChange={updateField} multi/></>}
+        {bibTab==="chapters"&&<><FormField label="Chapter summaries (what's happened so far)" k="chapters" ph="Ch1: Kris arrives at lakehouse, unpacks, finds grandmother's letters. Ch2: Meets Keyan at the general store..." value={pForm.chapters} onChange={updateField} multi/></>}
+        {bibTab==="current"&&<><p style={{fontSize:12,color:"#8a7e72",marginBottom:8,lineHeight:1.5}}>Paste the chapter you're currently working on. Finn will reference this text directly when coaching you.</p><FormField label="Current chapter text" k="currentChapter" ph="Paste your current chapter here..." value={pForm.currentChapter} onChange={updateField} multi/></>}
         <Btn onClick={handleSetup} s={{width:"100%",background:"#6a9ec430",borderColor:"#6a9ec460",fontWeight:600,marginTop:8}}>{project?"Update":"Save"} Story Bible</Btn>
       </div></main>}
 
+      {/* PROJECT MEMORY VIEW */}
       {screen==="project"&&project&&<main style={S.mn}><div style={{...S.in,animation:"fu .5s ease-out"}}>
         <div style={{fontSize:11,textTransform:"uppercase",letterSpacing:".12em",color:"#6a9ec4",fontWeight:600,marginBottom:12}}>Finn's Story Bible</div>
         <div style={{background:"#201c17",border:"1px solid #2a2420",borderRadius:14,padding:"20px"}}>
@@ -199,6 +204,7 @@ export default function App() {
         </>}
       </div></main>}
 
+      {/* HOME */}
       {screen==="home"&&<main style={S.mn}><div style={S.in}>
         <div style={{textAlign:"center",padding:"24px 0 18px",animation:"fu .6s ease-out"}}>
           <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:18,fontStyle:"italic",color:"#c4956a",lineHeight:1.6,maxWidth:440,margin:"0 auto"}}>"{tk.q}"</div>
@@ -233,6 +239,7 @@ export default function App() {
         <p style={{fontSize:9,color:"#3a3028",textAlign:"center",marginTop:14}}>Tale & Torch is a writing craft tool, not a mental health service.</p>
       </div></main>}
 
+      {/* DAILY TORCH */}
       {screen==="torch"&&<main style={S.mn}><div style={{...S.in,animation:"fu .5s ease-out"}}>
         <div style={{textAlign:"center",padding:"20px 0 14px"}}>
           <div style={{fontSize:11,textTransform:"uppercase",letterSpacing:".12em",color:"#c4956a",fontWeight:600,marginBottom:10}}>{"\uD83D\uDD25"} Daily Torch</div>
@@ -257,6 +264,7 @@ export default function App() {
         </div>
       </div></main>}
 
+      {/* CHAT */}
       {screen==="chat"&&mode&&<main style={S.ch}>
         <div style={S.msa}>
           {msgs.map((m,i)=><div key={i} className={m.role==="assistant"?"ma":"mu"} style={{display:"flex",width:"100%",justifyContent:m.role==="user"?"flex-end":"flex-start"}}>
