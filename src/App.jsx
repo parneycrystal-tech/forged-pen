@@ -1,31 +1,51 @@
 import { useState, useRef, useEffect } from "react";
 
 const FINN = `You are Finn (short for Finnigan), the writing coach behind Tale & Torch. Lit major, psych minor. Old soul, sharp but never cutting, dry wit, warm underneath. You ask the one question that unlocks everything.
-RULES: Never write prose for the writer. ONE illustrative sentence max. Lead with genuine strengths (RSD-aware). Never say "just focus," "push through," "be disciplined," or "try harder." Never use em dashes. Never evaluate talent or predict publishability. Find what's working, coach from there. Every writer who opens this app is a writer. Full stop.`;
+
+RULES: Never write prose for the writer. ONE illustrative sentence max to demo a technique. Lead with genuine strengths (RSD-aware). Never say "just focus," "push through," "be disciplined," or "try harder." Never use em dashes. Never evaluate talent or predict publishability. Find what's working, coach from there. Every writer who opens this app is a writer. Full stop.
+
+MOTIVATION FRAMEWORK (Self-Determination Theory): Support the writer's three basic psychological needs:
+- AUTONOMY: Always offer choices, never command. "Here are two paths. Which feels right?" not "Do this next." The writer owns every decision.
+- COMPETENCE: Name specific craft growth you observe. "The last scene had exposition in the dialogue. This one doesn't. That's real growth." Celebrate completed scenes as finished things: "Scene done. That's a finished thing. Your brain just got a completion signal. Notice how that feels."
+- RELATEDNESS: Acknowledge the ongoing relationship. Reference past work. "You've been showing me this story for weeks. I've watched this character come alive." The writer is not alone.
+Never use external motivators like word count goals, streaks, or scores. These thwart intrinsic motivation in neurodivergent brains.
+
+EXECUTION AWARENESS: If the writer has a detailed Story Bible with characters, world, and plot, and they continue brainstorming instead of writing scenes, gently name the pattern: "You have everything you need to write the next scene. I think your brain is in planning mode because planning feels safer than writing. That's normal. Want to go back to the page?" Do NOT block or redirect harshly. Name the pattern, validate it, then guide toward execution.
+
+COHERENCE CHECKING: When reviewing the writer's work, check for character inconsistencies, tone drift, and plot contradictions against the Story Bible. If found, frame as questions: "In your Story Bible you said Emma's magic only works outdoors. In this scene she's using it in the kitchen. Is that intentional or did the rule shift?" Allow the writer to decide.`;
 
 const sp = (x) => `${FINN}\n\n${x}`;
 
 const MODES = [
   { id:"diagnose", label:"Diagnose My Block", icon:"\uD83D\uDD0D", cat:"craft", sub:"Find what's really stopping you", ph:"Paste a paragraph or describe what's happening.", sys: sp("MODE: DIAGNOSE. Identify craft cause OR neurological cause. Explain principle or offer micro-step. 1-2 questions. Under 300 words.") },
   { id:"craft", label:"Craft Challenge", icon:"\u26A1", cat:"craft", sub:"A targeted exercise", ph:"Tell me what you're working on. Genre, where you are.", sys: sp("MODE: CRAFT CHALLENGE. Design 10-20 min exercise. Word count, time, constraint. Under 250 words.") },
-  { id:"scene", label:"Scene Surgery", icon:"\uD83E\uDE7A", cat:"craft", sub:"Craft feedback, no rewrites", ph:"Paste a scene. Whatever you paste is brave.", sys: sp("MODE: SCENE SURGERY. RSD-AWARE: 1) Lead with what WORKS 2) 1-3 craft issues 3) Principle 4) Strategy not text. Under 350 words.") },
+  { id:"scene", label:"Scene Surgery", icon:"\uD83E\uDE7A", cat:"craft", sub:"Craft feedback, no rewrites", ph:"Paste a scene. Whatever you paste is brave.", sys: sp("MODE: SCENE SURGERY. RSD-AWARE: 1) Lead with what WORKS, be specific, quote their words 2) 1-3 craft issues 3) Principle 4) Strategy not text. COHERENCE CHECK: Compare scene against Story Bible for character inconsistencies, tone drift, or plot contradictions. If found, flag gently as a question, not an error. If the writer completed a scene, acknowledge it: 'Scene done. That exists now. That's not nothing.' Under 350 words.") },
   { id:"character", label:"Character Deep Dive", icon:"\uD83E\uDE9E", cat:"craft", sub:"Unlock your character", ph:"Describe the character giving you trouble.", sys: sp("MODE: CHARACTER. 3-5 probing questions. Follow up. Under 200 words.") },
-  { id:"plot", label:"Plot Compass", icon:"\uD83E\uDDED", cat:"craft", sub:"Untangle storylines", ph:"Describe your plot situation.", sys: sp("MODE: PLOT. Never plot FOR them. Identify issue, principle, questions. ONE thread at a time. Under 300 words.") },
+  { id:"plot", label:"Plot Compass", icon:"\uD83E\uDDED", cat:"craft", sub:"Untangle storylines", ph:"Describe your plot situation.", sys: sp("MODE: PLOT. Never plot FOR them. Identify issue, principle, questions. ONE thread at a time. COHERENCE CHECK: Compare against Story Bible for contradictions in timeline, character behavior, or world rules. Flag gently as questions. Under 300 words.") },
   { id:"voice", label:"Voice & Style", icon:"\u270D\uFE0F", cat:"craft", sub:"Find what makes your voice yours", ph:"Paste a page of your writing.", sys: sp("MODE: VOICE. Identify what makes their voice theirs. Strengths. 1-2 generic spots. Help them turn it up. Under 300 words.") },
   { id:"micro", label:"Micro-Mode", icon:"\uD83E\uDDE9", cat:"neuro", sub:"When frozen, one tiny step", ph:"Tell me what you're working on.", sys: sp("MODE: MICRO. ONE task under 5 min. Frozen is neurological, not laziness. Under 150 words.") },
   { id:"perfectionism", label:"Perfectionism Bypass", icon:"\uD83D\uDD25", cat:"neuro", sub:"Break the paralysis", ph:"Tell me what you can't start or stop perfecting.", sys: sp("MODE: PERFECTIONISM. 1) Name it 2) Timed freewrite 5-10 min 3) No backspace 4) 'Write the worst version.' If they return: ONE alive moment. Under 200 words.") },
   { id:"smoke", label:"Through the Smoke", icon:"\uD83C\uDF2B\uFE0F", cat:"neuro", sub:"When your work suddenly feels worthless", ph:"Tell me what happened. Did your writing go from feeling good to feeling terrible?", sys: sp(`MODE: THROUGH THE SMOKE. The writer's dopamine has crashed. Work that felt brilliant now feels worthless. THIS IS NEUROLOGICAL, NOT RATIONAL. Their writing did not change. Their brain chemistry did.
-YOUR JOB: 1) Name what's happening: "This is the dopamine perception shift. Your work didn't get worse. Your brain's ability to perceive its quality changed. During the high phase, you saw through elevated dopamine. Now you're seeing through depleted dopamine. Neither view is fully accurate. The truth is in the middle."
-2) If they have flagged Dopamine Map moments, reference them: "You flagged [moment] as exciting when your brain was in a different state. Read it again. Not to judge. Just to remember."
-3) Give a smoke-specific task: "Don't evaluate anything today. Don't reread your manuscript. Open the document, add one sentence to wherever you left off. You can hate it. The sentence isn't the point. Touching the manuscript is. You're building the neural pathway between showing up and reward."
+SCIENCE: Brain imaging research (Volkow et al., Molecular Psychiatry) has shown that ADHD brains have fewer dopamine receptors in the reward pathway. This means the motivation and reward system is running on reduced hardware. When dopamine depletes after sustained creative effort, the brain literally cannot perceive value in its own work. This is not a judgment call. It is a neurochemical state.
+YOUR JOB: 1) Name what's happening: "This is the dopamine perception shift. Your brain has fewer dopamine receptors in the reward pathway than a neurotypical brain. That's not a flaw, it's hardware. When those receptors are depleted from sustained work, your brain can't feel the value of what you created. The work didn't change. Your neurochemistry did."
+2) If they have flagged Dopamine Map moments, reference them: "You flagged [moment] as exciting when your brain was in a different state. Read it again. Not to judge. Just to remember what it felt like when your reward system was online."
+3) Give a smoke-specific task: "Don't evaluate anything today. Don't reread your manuscript. Open the document, add one sentence to wherever you left off. You can hate it. The sentence isn't the point. Touching the manuscript is. You're building the neural pathway between showing up and reward. That pathway only gets built by showing up when it feels pointless."
 4) NEVER say "it's actually good" or offer false reassurance. Name the science. Provide evidence from their own flagged moments. Give one tiny action. That's it.
-TONE: Steady, grounded, no cheerleading. Like a friend who's been through this and knows the smoke clears. Under 250 words.`) },
+TONE: Steady, grounded, no cheerleading. Like a friend who's been through this and knows the smoke clears. Under 300 words.`) },
   { id:"instinct", label:"Instinct Check", icon:"\uD83D\uDD2E", cat:"intuition", sub:"Trust your gut", ph:"Describe what you're wrestling with.", sys: sp("MODE: INSTINCT. Not technical. 'If this scene were a body sensation, where?' 'What are you afraid to write?' Honor answers. 2-3 questions. Under 200 words.") },
   { id:"simmer", label:"Simmer Mode", icon:"\u2615", cat:"rest", sub:"Brain solves it offline", ph:"Tell me what you're stuck on.", sys: sp("MODE: SIMMER. Default mode network science. 1) Validate 2) Load the problem 3) Boring physical activity 4) 'Keep notepad nearby.' Under 250 words.") },
+  { id:"forge", label:"The Forge", icon:"\uD83D\uDD28", cat:"forge", sub:"Stop planning. Start writing.", ph:"Tell me what scene needs to exist next.", sys: sp(`MODE: THE FORGE. The writer has enough material to write. Your job is to move them from planning to execution.
+1) Ask what scene needs to exist next. If they have a Story Bible, reference it: "Based on where you are, the next scene that needs to exist is probably [X]. Sound right?"
+2) Give a SCENE DIRECTIVE: 3-5 lines max. Character, setting, conflict, emotional tone. "You are writing the scene where Kris sees Keyan for the first time at the general store. She's guarded. He's warm. Neither knows what the other is carrying. Go."
+3) Suggest a timer: "Set a timer for 20 minutes. Write this scene. It doesn't have to be good. It has to exist."
+4) If they come back with a completed scene, celebrate the completion: "That scene exists now. It didn't before. That's the whole game."
+5) If they try to brainstorm or plan instead of write, name it gently: "That's planning energy. It feels productive but it's not the scene. You have enough to write. What's stopping you from starting?"
+6) Do NOT write the scene for them. Give the directive and get out of the way.
+TONE: Direct but warm. A coach on the sideline, not a drill sergeant. Under 200 words.`) },
   { id:"reentry", label:"Re-Entry Ramp", icon:"\uD83D\uDEA4", cat:"jarvis", sub:"Come back to your project", ph:"Just tell me you're back.", sys: sp("MODE: RE-ENTRY. Writer returned after time away. You have project details. 1) Welcome warmly, no guilt 2) Brief reminder of where they left off 3) ONE gentle question. Small, casual. Under 200 words.") }
 ];
 
-const CATS = { craft:{l:"Craft Coaching",c:"#c4956a"}, neuro:{l:"Neurodivergent Support",c:"#7ea88e"}, intuition:{l:"Trust Your Intuition",c:"#9b8ec4"}, rest:{l:"Strategic Rest",c:"#c49a8e"}, jarvis:{l:"Project Memory",c:"#6a9ec4"} };
+const CATS = { craft:{l:"Craft Coaching",c:"#c4956a"}, neuro:{l:"Neurodivergent Support",c:"#7ea88e"}, intuition:{l:"Trust Your Intuition",c:"#9b8ec4"}, rest:{l:"Strategic Rest",c:"#c49a8e"}, forge:{l:"Execution",c:"#d4a574"}, jarvis:{l:"Project Memory",c:"#6a9ec4"} };
 
 const TORCHES = [
   {q:"If there\u2019s a book that you want to read, but it hasn\u2019t been written yet, then you must write it.",a:"Toni Morrison",p:"Write 100 words about a door your character is afraid to open.",cn:"Subtext",cl:"The most powerful moments happen between the lines.",cx:"Rewrite your last dialogue so neither character says what they mean."},
@@ -43,17 +63,18 @@ const TORCHES = [
 ];
 
 const INTROS = {
-  diagnose:"Alright, tell me what you've got and where it stalled.",
-  craft:"What are you working on? I'll build you an exercise.",
-  scene:"Whatever you paste here is brave. Show me the scene.",
-  character:"Who's giving you trouble? Tell me about them.",
-  plot:"Lay it on me. What's tangled?",
-  voice:"Paste a page. I'll show you what makes your voice yours.",
-  micro:"Hey. You're frozen. That's your brain, not a character flaw. Tell me what you're working on.",
-  perfectionism:"Nothing feels good enough? That's not a lack of talent. Tell me what you're stuck on.",
-  smoke:"So the fire cooled down and now everything looks different. Worse, probably. That's the smoke. It distorts how you see your own work. Your writing didn't change. Your brain chemistry did. Tell me what's happening.",
-  instinct:"Let's skip the technical stuff. What is your gut telling you about this story?",
-  simmer:"Your brain is cooked. Tell me the one question your story needs answered, then I'm sending you to do the dishes.",
+  diagnose:"Alright, tell me what you've got and where it stalled. No judgment here, just detective work.",
+  craft:"What are you working on? I'll build you an exercise that targets exactly the right muscle.",
+  scene:"Whatever you paste here is brave. Rough drafts, polished drafts, the thing you wrote at 2am that you're not sure about. All welcome. Show me the scene.",
+  character:"Who's giving you trouble? Tell me about them. Sometimes the character knows more than you do.",
+  plot:"Lay it on me. What's tangled? We'll pull one thread at a time.",
+  voice:"Paste a page. Any page, any draft stage. I'll show you what makes your voice yours.",
+  micro:"Hey. You're frozen. That's your brain doing a thing, not a character flaw. You don't need to explain why. Just tell me what you're supposed to be working on and I'll give you one step. Just one.",
+  perfectionism:"Nothing feels good enough? Yeah. That's not a lack of talent, that's your brain's protection system running too hot. It thinks if you never finish, you can never be judged. Tell me what you're stuck on.",
+  smoke:"So the fire cooled down and now everything looks different. Worse, probably. Maybe you're wondering why you ever thought this was worth your time. That's the smoke talking. Not you. Your writing didn't change. Your brain chemistry did. Tell me what's happening.",
+  instinct:"Let's skip the technical stuff. Your gut has been trying to tell you something about this story. Let's listen.",
+  simmer:"Your brain is cooked. That's not failure, that's your prefrontal cortex tapping out after real work. Tell me the one question your story needs answered, then I'm sending you to do the dishes. There's neuroscience behind it.",
+  forge:"You've done the thinking. You've built the world. You know the characters. Now it's time to put words on the page. Tell me what scene needs to exist next.",
   reentry:""
 };
 
@@ -77,8 +98,9 @@ export default function App() {
   const [flipped, setFlipped] = useState(false);
   const [loadMsg] = useState(LOAD[Math.floor(Math.random()*LOAD.length)]);
   const [project, setProject] = useState(null);
-  const [pForm, setPForm] = useState({title:"",genre:"",synopsis:"",protagonist:"",supporting:"",antagonist:"",worldSetting:"",worldRules:"",worldBeliefs:"",worldDanger:"",worldTone:"",chapters:"",where:"",stuck:"",excites:"",currentChapter:""});
+  const [pForm, setPForm] = useState({title:"",genre:"",synopsis:"",protagonist:"",supporting:"",antagonist:"",worldSetting:"",worldRules:"",worldBeliefs:"",worldDanger:"",worldTone:"",chapters:[{num:1,summary:""}],where:"",stuck:"",excites:"",currentChapter:""});
   const [sparks, setSparks] = useState([]);
+  const [flaggedIdx, setFlaggedIdx] = useState(null);
   const [bibTab, setBibTab] = useState("overview");
   const endRef = useRef(null);
   const taRef = useRef(null);
@@ -117,11 +139,13 @@ export default function App() {
 
   const goHome=()=>{cancelReq();setMode(null);setScreen("home");setMsgs([]);setInput("")};
   const cancelReq=()=>{if(abortRef.current){abortRef.current.abort();abortRef.current=null;setLoading(false)}};
-  const flagSpark=(c)=>{const ns=[...sparks,{text:c.substring(0,200),date:new Date().toLocaleDateString()}];setSparks(ns);saveStored("tt-sparks",ns)};
+  const sparkMsgs=["Saved. Future you will thank you for this.","Flagged. This is a breadcrumb back to the fire.","Noted. This one has heat.","Saved. When the smoke comes, this is your proof."];
+  const flagSpark=(c,idx)=>{const ns=[...sparks,{text:c.substring(0,200),date:new Date().toLocaleDateString()}];setSparks(ns);saveStored("tt-sparks",ns);setFlaggedIdx(idx);setTimeout(()=>setFlaggedIdx(null),2500)};
 
   const send=async()=>{
     if(!input.trim()||loading)return;
-    const pCtx = project ? `\n\nPROJECT: "${project.title}". Genre: ${project.genre}. Synopsis: ${project.synopsis}. Protagonist: ${project.protagonist}. Supporting Characters: ${project.supporting}. Antagonist: ${project.antagonist}. Core Setting: ${project.worldSetting}. World Rules: ${project.worldRules}. What People Believe vs Reality: ${project.worldBeliefs}. What Makes This World Dangerous: ${project.worldDanger}. World Tone: ${project.worldTone}. Chapters so far: ${project.chapters}. Current point: ${project.where}. Stuck on: ${project.stuck}. What excites them: ${project.excites}.${project.currentChapter?` CURRENT CHAPTER TEXT: ${project.currentChapter}`:""}` : "";
+    const chapStr = project?.chapters ? (Array.isArray(project.chapters) ? project.chapters.filter(c=>c.summary).map(c=>`Ch${c.num}: ${c.summary}`).join(". ") : project.chapters) : "";
+    const pCtx = project ? `\n\nPROJECT: "${project.title}". Genre: ${project.genre}. Synopsis: ${project.synopsis}. Protagonist: ${project.protagonist}. Supporting Characters: ${project.supporting}. Antagonist: ${project.antagonist}. Core Setting: ${project.worldSetting}. World Rules: ${project.worldRules}. What People Believe vs Reality: ${project.worldBeliefs}. What Makes This World Dangerous: ${project.worldDanger}. World Tone: ${project.worldTone}. Chapters so far: ${chapStr}. Current point: ${project.where}. Stuck on: ${project.stuck}. What excites them: ${project.excites}.${project.currentChapter?` CURRENT CHAPTER TEXT: ${project.currentChapter}`:""}` : "";
     const sparkCtx = sparks.length > 0 ? `\n\nDOPAMINE MAP (moments the writer flagged as exciting): ${sparks.map(s=>s.text).join(" | ")}` : "";
     const nm=[...msgs,{role:"user",content:input.trim()}];setMsgs(nm);setInput("");setLoading(true);
     const ctrl=new AbortController();abortRef.current=ctrl;
@@ -147,6 +171,9 @@ export default function App() {
 
   const handleSetup=async()=>{const p={...pForm,updated:new Date().toLocaleDateString()};setProject(p);saveStored("tt-project",p);setScreen("home")};
   const updateField=(k,v)=>setPForm(prev=>({...prev,[k]:v}));
+  const addChapter=()=>setPForm(prev=>({...prev,chapters:[...prev.chapters,{num:prev.chapters.length+1,summary:""}]}));
+  const removeChapter=(idx)=>setPForm(prev=>({...prev,chapters:prev.chapters.filter((_,i)=>i!==idx).map((c,i)=>({...c,num:i+1}))}));
+  const updateChapter=(idx,val)=>setPForm(prev=>({...prev,chapters:prev.chapters.map((c,i)=>i===idx?{...c,summary:val}:c)}));
 
   return (
     <div style={S.app}>
@@ -197,15 +224,15 @@ export default function App() {
       {/* STORY BIBLE SETUP */}
       {screen==="setup"&&<main style={S.mn}><div style={{...S.in,animation:"fu .5s ease-out"}}>
         <div style={{fontSize:11,textTransform:"uppercase",letterSpacing:".12em",color:"#6a9ec4",fontWeight:600,marginBottom:8}}>Story Bible Setup</div>
-        <p style={{fontSize:13,color:"#a89a8c",marginBottom:16,lineHeight:1.6}}>Tell Finn about your project. The more he knows, the better he can coach you. Everything saves between sessions.</p>
+        <p style={{fontSize:13,color:"#a89a8c",marginBottom:16,lineHeight:1.6}}>This might feel like a lot. It's not. Fill in what you can. Skip what you can't. Come back later. None of this has to be perfect and Finn doesn't grade you.</p>
         <div style={{display:"flex",gap:6,marginBottom:16,flexWrap:"wrap"}}>
           <BibTab id="overview" label="Overview" active={bibTab==="overview"} onClick={setBibTab}/><BibTab id="characters" label="Characters" active={bibTab==="characters"} onClick={setBibTab}/><BibTab id="world" label="World" active={bibTab==="world"} onClick={setBibTab}/><BibTab id="chapters" label="Chapters" active={bibTab==="chapters"} onClick={setBibTab}/><BibTab id="current" label="Current Chapter" active={bibTab==="current"} onClick={setBibTab}/>
         </div>
-        {bibTab==="overview"&&<><FormField label="Project title" k="title" ph="My Novel" value={pForm.title} onChange={updateField}/><FormField label="Genre" k="genre" ph="Contemporary fiction, fantasy, memoir..." value={pForm.genre} onChange={updateField}/><FormField label="Synopsis (the whole arc, spoilers welcome)" k="synopsis" ph="Kris inherits a lakehouse, meets Keyan, confronts her past..." value={pForm.synopsis} onChange={updateField} multi/><FormField label="Where are you right now?" k="where" ph="Chapter 3, Kris just arrived" value={pForm.where} onChange={updateField}/><FormField label="What are you stuck on?" k="stuck" ph="Not sure how to write the first conversation between..." value={pForm.stuck} onChange={updateField}/><FormField label="What excites you most?" k="excites" ph="The slow burn, Kris finding her voice..." value={pForm.excites} onChange={updateField} multi/></>}
+        {bibTab==="overview"&&<><FormField label="Project title" k="title" ph="My Novel" value={pForm.title} onChange={updateField}/><FormField label="Genre" k="genre" ph="Contemporary fiction, fantasy, memoir..." value={pForm.genre} onChange={updateField}/><FormField label="Synopsis (the whole arc, spoilers welcome)" k="synopsis" ph="Kris inherits a lakehouse, meets Keyan, confronts her past..." value={pForm.synopsis} onChange={updateField} multi/><FormField label="Where are you right now?" k="where" ph="Chapter 3, Kris just arrived" value={pForm.where} onChange={updateField}/><FormField label="What are you stuck on?" k="stuck" ph="If you don't know, that counts as an answer. 'I don't know why I stopped' is something Finn can work with." value={pForm.stuck} onChange={updateField}/><p style={{fontSize:11,color:"#6d6358",marginTop:-8,marginBottom:14,fontStyle:"italic"}}>This matters more than you think. When the dopamine crashes and everything feels pointless, this is what Finn will remind you of.</p><FormField label="What excites you most about this project?" k="excites" ph="The slow burn, Kris finding her voice, the lakehouse at sunset..." value={pForm.excites} onChange={updateField} multi/></>}
         {bibTab==="characters"&&<><FormField label="Protagonist (name, age, core trait, internal conflict, external conflict, arc)" k="protagonist" ph="Emma Mae (12): Imaginative, emotionally intuitive. Believes she can fix things if she tries hard enough. Her magic is growing unstable as her grandmother's health declines..." value={pForm.protagonist} onChange={updateField} multi/><FormField label="Supporting Characters (one per paragraph works best)" k="supporting" ph="Grandma Edna (56): Caregiver, warm, resilient. Knows Emma's magic is real but fears what it could become...&#10;&#10;Michael (13): Best friend, loyal, curious. Encourages Emma to use her magic..." value={pForm.supporting} onChange={updateField} multi/><FormField label="Antagonist (person, force, or system)" k="antagonist" ph="The Lady in the Trees (Evangeline/Eva): Mysterious, bound to the forest. Can only reach Emma through limited, unnatural means..." value={pForm.antagonist} onChange={updateField} multi/></>}
         {bibTab==="world"&&<><p style={{fontSize:12,color:"#8a7e72",marginBottom:14,lineHeight:1.5}}>Define the rules of your world in short, clear statements. Decisions, not descriptions. 1-3 sentences per field.</p><WorldField label="Core Setting" helper="When and where does this story take place? Be specific enough that a reader could picture it." example="Northern Michigan, late summer, a lakehouse on a quiet inland lake surrounded by old-growth forest." k="worldSetting" value={pForm.worldSetting} onChange={updateField}/><WorldField label="World Rules (Non-Negotiable)" helper="What can and cannot happen here? Especially magic, technology, or realism constraints." example="Magic exists but only manifests in children before puberty. Adults cannot see it. Using it has a physical cost." k="worldRules" value={pForm.worldRules} onChange={updateField}/><WorldField label="What People Believe vs. Reality" helper="What do characters assume is true that isn't? This is where tension hides." example="The town believes the forest fires are natural. In reality, they're caused by uncontrolled magic from kids who don't know what they have." k="worldBeliefs" value={pForm.worldBeliefs} onChange={updateField}/><WorldField label="What Makes This World Dangerous" helper="What creates real stakes? What can go wrong and actually hurt someone?" example="If Emma uses too much magic, her grandmother's heart condition worsens. The magic is literally draining her." k="worldDanger" value={pForm.worldDanger} onChange={updateField}/><div style={{borderTop:"1px solid #2a2420",paddingTop:14,marginTop:6}}><p style={{fontSize:10,color:"#6d6358",marginBottom:8,textTransform:"uppercase",letterSpacing:".1em"}}>Optional</p><WorldField label="Tone / Aesthetic" helper="What does this world feel like? Not what it looks like, what it feels like." example="Warm but uneasy. Like the last golden hour before a storm. Beautiful and wrong at the same time." k="worldTone" value={pForm.worldTone} onChange={updateField}/></div></>}
-        {bibTab==="chapters"&&<><FormField label="Chapter summaries (what's happened so far)" k="chapters" ph="Ch1: Kris arrives at lakehouse, unpacks, finds grandmother's letters. Ch2: Meets Keyan at the general store..." value={pForm.chapters} onChange={updateField} multi/></>}
-        {bibTab==="current"&&<><p style={{fontSize:12,color:"#8a7e72",marginBottom:8,lineHeight:1.5}}>Paste the chapter you're currently working on. Finn will reference this text directly when coaching you.</p><FormField label="Current chapter text" k="currentChapter" ph="Paste your current chapter here..." value={pForm.currentChapter} onChange={updateField} multi/></>}
+        {bibTab==="chapters"&&<><p style={{fontSize:12,color:"#8a7e72",marginBottom:14,lineHeight:1.5}}>One field per chapter. Keep summaries short: what happens, who's involved, what changes.</p>{pForm.chapters.map((ch,idx)=><div key={idx} style={{marginBottom:14,position:"relative"}}><div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:5}}><label style={{fontSize:13,color:"#c4956a",fontWeight:600}}>Chapter {ch.num}</label>{pForm.chapters.length>1&&<span onClick={()=>removeChapter(idx)} style={{fontSize:11,color:"#6d6358",cursor:"pointer"}}>Remove</span>}</div><textarea className="fi" rows={2} placeholder={`Ch${ch.num}: What happens in this chapter...`} value={ch.summary} onChange={e=>updateChapter(idx,e.target.value)} style={{resize:"vertical",fontSize:13}}/></div>)}<Btn onClick={addChapter} s={{width:"100%",background:"none",borderStyle:"dashed",borderColor:"#3a3028",color:"#8a7e72",marginBottom:8}}>+ Add Chapter</Btn></>}
+        {bibTab==="current"&&<><p style={{fontSize:12,color:"#8a7e72",marginBottom:8,lineHeight:1.5}}>Paste the chapter you're currently working on. If you have six half-written versions, paste whichever you touched last. Don't pick the best one. Pick the most recent one. Finn will reference this text directly when coaching you.</p><FormField label="Current chapter text" k="currentChapter" ph="Paste your current chapter here..." value={pForm.currentChapter} onChange={updateField} multi/></>}
         <Btn onClick={handleSetup} s={{width:"100%",background:"#6a9ec430",borderColor:"#6a9ec460",fontWeight:600,marginTop:8}}>{project?"Update":"Save"} Story Bible</Btn>
       </div></main>}
 
@@ -214,10 +241,11 @@ export default function App() {
         <div style={{fontSize:11,textTransform:"uppercase",letterSpacing:".12em",color:"#6a9ec4",fontWeight:600,marginBottom:12}}>Finn's Story Bible</div>
         <div style={{background:"#201c17",border:"1px solid #2a2420",borderRadius:14,padding:"20px"}}>
           <h3 style={{fontFamily:"'Cormorant Garamond',serif",fontSize:20,color:"#e8ddd0",marginBottom:14}}>{project.title||"Untitled"}</h3>
-          {[["Genre",project.genre],["Synopsis",project.synopsis],["Protagonist",project.protagonist],["Supporting Characters",project.supporting],["Antagonist",project.antagonist],["Core Setting",project.worldSetting],["World Rules",project.worldRules],["Beliefs vs Reality",project.worldBeliefs],["What's Dangerous",project.worldDanger],["World Tone",project.worldTone],["Chapters",project.chapters],["Current point",project.where],["Stuck on",project.stuck],["Excites you",project.excites],["Current chapter",project.currentChapter?"["+project.currentChapter.substring(0,100)+"...]":""]].map(([l,v])=>v?<div key={l} style={{marginBottom:10}}><p style={{fontSize:10,textTransform:"uppercase",letterSpacing:".1em",color:"#6a9ec4",fontWeight:600,marginBottom:3}}>{l}</p><p style={{fontSize:13,color:"#d4c8b8",lineHeight:1.6}}>{v}</p></div>:null)}
+          {[["Genre",project.genre],["Synopsis",project.synopsis],["Protagonist",project.protagonist],["Supporting Characters",project.supporting],["Antagonist",project.antagonist],["Core Setting",project.worldSetting],["World Rules",project.worldRules],["Beliefs vs Reality",project.worldBeliefs],["What's Dangerous",project.worldDanger],["World Tone",project.worldTone],["Current point",project.where],["Stuck on",project.stuck],["Excites you",project.excites],["Current chapter",project.currentChapter?"["+project.currentChapter.substring(0,100)+"...]":""]].map(([l,v])=>v?<div key={l} style={{marginBottom:10}}><p style={{fontSize:10,textTransform:"uppercase",letterSpacing:".1em",color:"#6a9ec4",fontWeight:600,marginBottom:3}}>{l}</p><p style={{fontSize:13,color:"#d4c8b8",lineHeight:1.6}}>{v}</p></div>:null)}
+          {project.chapters&&Array.isArray(project.chapters)&&project.chapters.some(c=>c.summary)&&<div style={{marginBottom:10}}><p style={{fontSize:10,textTransform:"uppercase",letterSpacing:".1em",color:"#6a9ec4",fontWeight:600,marginBottom:6}}>Chapters</p>{project.chapters.filter(c=>c.summary).map((c,i)=><p key={i} style={{fontSize:13,color:"#d4c8b8",lineHeight:1.6,marginBottom:4}}><span style={{color:"#c4956a",fontWeight:600}}>Ch{c.num}:</span> {c.summary}</p>)}</div>}
         </div>
         <div style={{display:"flex",gap:10,marginTop:14}}>
-          <Btn onClick={()=>{setPForm(project);setScreen("setup")}} s={{flex:1}}>Edit Story Bible</Btn>
+          <Btn onClick={()=>{const pf={...project};if(!Array.isArray(pf.chapters))pf.chapters=pf.chapters?[{num:1,summary:pf.chapters}]:[{num:1,summary:""}];setPForm(pf);setScreen("setup")}} s={{flex:1}}>Edit Story Bible</Btn>
           <Btn onClick={()=>pick(MODES.find(m=>m.id==="reentry"))} s={{flex:1,background:"#6a9ec420"}}>Re-Entry Ramp</Btn>
         </div>
         {sparks.length>0&&<><div style={{fontSize:11,textTransform:"uppercase",letterSpacing:".12em",color:"#c4956a",fontWeight:600,marginTop:20,marginBottom:10}}>{"\u2728"} Dopamine Map ({sparks.length})</div>
@@ -240,7 +268,7 @@ export default function App() {
 
         {project&&<div className="spb" onClick={()=>pick(MODES.find(m=>m.id==="reentry"))} style={{background:"#201c17",border:"1px solid #2a2420",borderRadius:14,padding:"14px 18px",marginBottom:8,display:"flex",alignItems:"center",gap:12}}>
           <div style={{fontSize:20,width:38,height:38,display:"flex",alignItems:"center",justifyContent:"center",background:"#6a9ec420",borderRadius:10,flexShrink:0}}>{"\uD83D\uDEA4"}</div>
-          <div style={{flex:1}}><div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:15,fontWeight:600,color:"#e8ddd0"}}>Re-Entry Ramp</div><div style={{fontSize:11,color:"#8a7e72"}}>Ease back into your project</div></div>
+          <div style={{flex:1}}><div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:15,fontWeight:600,color:"#e8ddd0"}}>Re-Entry Ramp</div><div style={{fontSize:11,color:"#8a7e72"}}>Been a while? That's okay. The project didn't go anywhere.</div></div>
         </div>}
 
         <div className="spb" onClick={()=>setScreen("torch")} style={{background:"#201c17",border:"1px solid #2a2420",borderRadius:14,padding:"14px 18px",marginBottom:14,display:"flex",alignItems:"center",gap:12}}>
@@ -257,7 +285,7 @@ export default function App() {
             </div>)}
           </div>
         </div>)}
-        <p style={{fontSize:9,color:"#3a3028",textAlign:"center",marginTop:14}}>Tale & Torch is a writing craft tool, not a mental health service.</p>
+        <p style={{fontSize:9,color:"#3a3028",textAlign:"center",marginTop:14}}>Tale & Torch is a writing craft tool, not a mental health service. If you're in crisis, please reach out to someone who can help. You deserve support beyond what an app can give.</p>
       </div></main>}
 
       {/* DAILY TORCH */}
@@ -292,7 +320,7 @@ export default function App() {
             <div style={{...S.bb,...(m.role==="user"?S.ub:S.ab)}}>
               {m.role==="assistant"&&<div style={{fontSize:11,fontWeight:600,color:CATS[mode.cat].c,textTransform:"uppercase",letterSpacing:".08em",marginBottom:8}}>{"\uD83D\uDD25"} Finn</div>}
               <div style={{color:"#d4c8b8",fontSize:14,lineHeight:1.7}}>{m.content.split("\n").map((l,j)=><p key={j} style={{marginBottom:l?10:4,minHeight:l?undefined:4}}>{l}</p>)}</div>
-              {m.role==="assistant"&&i>0&&<button onClick={()=>flagSpark(m.content)} style={{background:"none",border:"1px solid #2a2420",borderRadius:8,color:"#8a7e72",fontSize:11,padding:"4px 10px",marginTop:8,cursor:"pointer",fontFamily:"'DM Sans',sans-serif"}}>{"\u2728"} This excites me</button>}
+              {m.role==="assistant"&&i>0&&<>{flaggedIdx===i?<span style={{fontSize:11,color:"#c4956a",fontStyle:"italic",marginTop:8,display:"block"}}>{sparkMsgs[Math.floor(Math.random()*sparkMsgs.length)]}</span>:<button onClick={()=>flagSpark(m.content,i)} style={{background:"none",border:"1px solid #2a2420",borderRadius:8,color:"#8a7e72",fontSize:11,padding:"4px 10px",marginTop:8,cursor:"pointer",fontFamily:"'DM Sans',sans-serif"}}>{"\u2728"} This excites me</button>}</>}
             </div>
           </div>)}
           {loading&&<div className="ma" style={{display:"flex",width:"100%",alignItems:"flex-start",gap:8}}>
