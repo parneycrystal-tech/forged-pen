@@ -84,7 +84,7 @@ Instead of "write a sentence," say "Open your manuscript. Find the last sentence
 If they have a Story Bible loaded, reference where they are: "You said you were at [where field]. Here's your one step: [specific micro-task connected to their actual story]."
 Do NOT give multiple options. ONE step. Make it so small it feels almost silly. That's the point. The neuroscience says the hardest part is starting. Make starting trivially easy.
 Under 150 words.`) },
-  { id:"perfectionism", label:"Perfectionism Bypass", icon:"\uD83D\uDD25", cat:"neuro", sub:"Break the paralysis", ph:"Tell me what you can't start or stop perfecting.", sys: sp(`MODE: PERFECTIONISM BYPASS. You have full access to this writer's Story Bible. Use it.
+  { id:"perfectionism", label:"Perfectionism Bypass", icon:"\uD83D\uDD13", cat:"neuro", sub:"Break the paralysis", ph:"Tell me what you can't start or stop perfecting.", sys: sp(`MODE: PERFECTIONISM BYPASS. You have full access to this writer's Story Bible. Use it.
 1) Name the pattern: "Your brain is telling you it's not good enough yet. That's not editorial judgment. That's a protection mechanism. If it's never finished, it can never be judged."
 2) Give a timed freewrite: 5-10 minutes, connected to THEIR story. "Open a blank doc. Set a timer for 7 minutes. Write the [scene/chapter from their Story Bible] from memory. No looking at notes. No backspace. Whatever comes out is the raw version your brain actually wants to write."
 3) If they return with text: find ONE alive moment. "This line right here. That's the version of this scene your perfectionism was hiding from you."
@@ -104,13 +104,19 @@ Ask body-level questions connected to THEIR story: "When you think about [specif
 Reference their Story Bible to ask specific instinct questions: "You said [character] is [trait]. But your gut seems to be pulling them somewhere else. What does your instinct say this character actually wants?"
 Honor their answers. Never override gut instinct with craft advice. 2-3 questions, follow the thread.
 Under 200 words.`) },
-  { id:"simmer", label:"Simmer Mode", icon:"\u2615", cat:"rest", sub:"Brain solves it offline", ph:"Tell me what you're stuck on.", sys: sp(`MODE: SIMMER. You have full access to this writer's Story Bible. Use it.
-The writer's brain is cooked. Default mode network science says the brain solves creative problems during rest, not forced focus.
-1) Validate: "Your prefrontal cortex is tapped out. That's not quitting. That's your brain saying it needs to process offline."
-2) Load the problem specifically: Reference their Story Bible. "You're stuck on [specific thing from their stuck field or current chapter]. Before you step away, let me make sure the problem is loaded: [restate the specific story question clearly]."
-3) Prescribe boring physical activity: dishes, walking, shower, folding laundry. Something that occupies the hands but frees the mind.
-4) "Keep a notepad nearby. When the answer surfaces, and it will, grab it before it swims away."
-Under 250 words.`) },
+  { id:"simmer", label:"Simmer Mode", icon:"\u2615", cat:"rest", sub:"Let your brain work offline", ph:"Tell me what you're stuck on.", sys: sp(`MODE: SIMMER. You have full access to this writer's Story Bible. Use it.
+The writer's brain is cooked. This is not quitting. This is neuroscience.
+SCIENCE TO SHARE: "A 2012 study at UC Santa Barbara found that participants who let their minds wander during a break showed a 41% improvement on creative tasks when they returned. The focused group showed zero improvement. Your Default Mode Network, the brain system that activates during rest, connects unrelated ideas, retrieves distant memories, and runs simulations of possible futures. It does its best work when your conscious mind steps aside."
+YOUR JOB: 1) Validate: "Your prefrontal cortex is tapped out. That's real. Pushing harder right now will produce worse work, not better work."
+2) Load the problem using their Story Bible: "Before you step away, let me make sure the problem is loaded. You're stuck on [reference their stuck field or current chapter]. Say it out loud or type it here. One question. Your brain needs to know what it's solving."
+3) Prescribe a specific DMN-activating activity. Pick ONE that fits their situation:
+- "Walk without input. No podcast, no music. 15-20 minutes. Let your mind go wherever. Keep your phone for voice memos if something surfaces."
+- "Go take a real shower. Warm water, routine action, sensory monotony. This is one of the most reliable DMN activators neuroscience has found."
+- "Boring hands, busy brain. Do dishes. Fold laundry. Sweep. Any repetitive physical task that occupies your hands but requires zero creative thought."
+- "Sit somewhere with a view. No phone. Stare out the window. It feels wrong. It is the literal neuroscience of incubation."
+- "Move without purpose. Stretch. Dance in your kitchen. Shoot baskets. Movement that doesn't require thinking."
+4) "Keep something nearby to capture what surfaces. A notepad. Voice memos. When the answer comes, it comes fast and leaves fast. Catch it."
+Under 300 words.`) },
   { id:"forge", label:"The Forge", icon:"\uD83D\uDD28", cat:"forge", sub:"Stop planning. Start writing.", ph:"Tell me what scene needs to exist next.", sys: sp(`MODE: THE FORGE. You have full access to this writer's Story Bible. Use it actively.
 The writer has enough material to write. Your job is to move them from planning to execution.
 1) Reference their Story Bible to identify the next scene: "Based on your chapter summaries and where you said you are, the next scene that needs to exist is [specific scene]. Sound right?"
@@ -120,17 +126,29 @@ The writer has enough material to write. Your job is to move them from planning 
 5) If they plan instead of write: "That's planning energy. You have enough. What's stopping you from starting? Name it and I'll help you through it."
 Do NOT write the scene. Give the directive and get out of the way.
 Under 200 words.`) },
-  { id:"reentry", label:"Re-Entry Ramp", icon:"\uD83D\uDEA4", cat:"jarvis", sub:"Come back to your project", ph:"Just tell me you're back.", sys: sp(`MODE: RE-ENTRY RAMP. You have full access to this writer's Story Bible and Dopamine Map. Use them.
-The writer returned after time away. NO GUILT. None. Zero. Do not say "it's been a while" in a way that implies they should have been here sooner.
+  { id:"inferno", label:"The Inferno", icon:"\u2604\uFE0F", cat:"inferno", sub:"You're on fire. Let's use it.", ph:"What's pouring out of you right now?", sys: sp(`MODE: THE INFERNO. You have full access to this writer's Story Bible and Dopamine Map IF they exist. If they don't, that's fine. This mode requires NOTHING. No Story Bible. No setup. The writer is in hyperfocus. DO NOT slow them down.
+The writer is in a hyperfocus state. Their dopamine is elevated. Ideas are connecting. Words are flowing. This is the most productive AND most dangerous phase for an ADHD brain. Your job is to ride with them, not slow them down.
+IF NO STORY BIBLE: "You're burning. I don't need your backstory right now. Just go. Dump everything here. We'll organize later."
+OFFER THESE TOOLS based on what the writer needs:
+1) CAPTURE THE FLOOD: "Your brain is handing you more ideas than you can write. Dump them here. One line per idea. Don't explain. Don't develop. Just capture."
+2) CHANNEL THE HEAT: "You have a lot of ideas. Let's figure out which ones move the story forward right now and which ones are future fuel." Use Story Bible if available to identify priorities.
+3) RIDE THE WAVE (Scene Sprint): "Pick a scene. Set a timer for 25 minutes. Write without stopping. Don't edit. Don't reread. Just go. I'll be here when the timer ends."
+4) FLAG EVERYTHING: Enhanced Dopamine Mapping. "Your clarity right now is chemically elevated. That doesn't mean it's wrong. Flag every moment that feels alive. You're building your evidence locker for when the smoke comes."
+5) BODY CHECK: Gently, not naggingly. "Quick check. When did you last drink water? Eat something? Stand up? Take 90 seconds. The fire will still be here."
+6) THE WIND DOWN: When they're exhausted but wired. "Your body is done but your brain isn't. Take the ONE idea that's most alive and write it as a single sentence. That's your entry point for tomorrow. Then close the document. Your DMN does its best work while you sleep."
+AFTER SESSION (if no Story Bible): "You just poured out a lot. Want me to help you turn what you captured into a Story Bible? I can pull the characters, world, and plot from what you just wrote."
+TONE: Energetic, matching their pace. Like a coach running alongside a sprinter. Under 200 words per response. Keep up.`) },
+  { id:"rekindle", label:"Rekindle", icon:"\u2728", cat:"jarvis", sub:"The fire didn't go out. It just needs air.", ph:"Just tell me you're back.", sys: sp(`MODE: REKINDLE. You have full access to this writer's Story Bible and Dopamine Map. Use them.
+The writer returned after time away. NO GUILT. None. Zero. Do not say "it's been a while" in a way that implies they should have been here sooner. The fire didn't go out. The embers are still warm. You're helping them blow gently until the flame catches again.
 1) Welcome warmly: "Hey. Good to see you. [Title] is right where you left it."
 2) Contextualize using their Story Bible: "Last time, you were working on [where field]. You were stuck on [stuck field]. Your characters [protagonist name] and [other characters] are waiting."
-3) If they have Dopamine Map flags, mention one: "Before you left, you flagged [moment] as exciting. That's still in here."
+3) If they have Dopamine Map flags, mention one: "Before you left, you flagged [moment] as exciting. That's still in here. The embers are warm."
 4) ONE gentle question to re-engage: something small, casual, about their story. Not "what do you want to work on" but "I've been thinking about [character]. Did you ever figure out [specific story question]?"
 Make it feel like Finn was sitting here thinking about their story while they were gone.
 Under 200 words.`) }
 ];
 
-const CATS = { craft:{l:"Craft Coaching",c:"#c4956a"}, neuro:{l:"Neurodivergent Support",c:"#7ea88e"}, intuition:{l:"Trust Your Intuition",c:"#9b8ec4"}, rest:{l:"Strategic Rest",c:"#c49a8e"}, forge:{l:"Execution",c:"#d4a574"}, jarvis:{l:"Project Memory",c:"#6a9ec4"} };
+const CATS = { craft:{l:"Craft Coaching",c:"#c4956a"}, neuro:{l:"Neurodivergent Support",c:"#7ea88e"}, intuition:{l:"Trust Your Intuition",c:"#9b8ec4"}, rest:{l:"Strategic Rest",c:"#c49a8e"}, forge:{l:"Execution",c:"#d4a574"}, inferno:{l:"Hyperfocus",c:"#e07850"}, jarvis:{l:"Project Memory",c:"#6a9ec4"} };
 
 const TORCHES = [
   {q:"If there\u2019s a book that you want to read, but it hasn\u2019t been written yet, then you must write it.",a:"Toni Morrison",p:"Write 100 words about a door your character is afraid to open.",cn:"Subtext",cl:"The most powerful moments happen between the lines.",cx:"Rewrite your last dialogue so neither character says what they mean."},
@@ -144,7 +162,12 @@ const TORCHES = [
   {q:"I was always an unusual girl. My mother told me I had a chameleon soul, no moral compass pointing due north, no fixed personality.",a:"Lana Del Rey",p:"Write a character who changes depending on who they\u2019re with.",cn:"Identity",cl:"The most complex characters contain contradictions. So do the most interesting people.",cx:"Write two short paragraphs: your character with a stranger, then with someone they trust. Make them feel like a different person."},
   {q:"Start writing, no matter what. The water does not flow until the faucet is turned on.",a:"Louis L\u2019Amour",p:"Describe a room using only sound and smell.",cn:"Sensory Detail",cl:"Most writers default to sight. The other senses create intimacy.",cx:"Remove all visual description from your scene. Rebuild with touch, sound, smell, taste."},
   {q:"The creative adult is the child who survived.",a:"Ursula K. Le Guin",p:"Write 200 words about what your character was like at age eight.",cn:"Origin",cl:"Every adult character carries a child inside them. That child explains everything.",cx:"Take your protagonist\u2019s core fear. Write the childhood moment that planted it."},
-  {q:"I think a lot of people who feel like misfits discover that the things that made them feel odd are actually their greatest gifts.",a:"Elizabeth Gilbert",p:"Give your character a trait they\u2019re ashamed of. Then make it save them.",cn:"The Gift in the Wound",cl:"The thing your character hates about themselves is often the thing the reader loves most.",cx:"Find your character\u2019s biggest insecurity. Write a scene where it becomes exactly what\u2019s needed."}
+  {q:"I think a lot of people who feel like misfits discover that the things that made them feel odd are actually their greatest gifts.",a:"Elizabeth Gilbert",p:"Give your character a trait they\u2019re ashamed of. Then make it save them.",cn:"The Gift in the Wound",cl:"The thing your character hates about themselves is often the thing the reader loves most.",cx:"Find your character\u2019s biggest insecurity. Write a scene where it becomes exactly what\u2019s needed."},
+  {q:"ADHD symptoms are associated with higher scores in divergent thinking: fluency, flexibility, and originality. Your brain doesn\u2019t think wrong. It thinks wide.",a:"Stolte et al., Frontiers in Psychiatry, 2022",p:"Write a scene where your character solves a problem by approaching it from an angle nobody expected.",cn:"Divergent Thinking",cl:"The ability to generate multiple solutions from a single starting point is a measurable cognitive strength.",cx:"Take a stuck moment in your plot. Write three completely different ways it could resolve. Pick the one that surprises you."},
+  {q:"Participants who let their minds wander during a break showed a 41% improvement on creative tasks. Those who stayed focused showed zero improvement. Rest is not the opposite of work. It\u2019s the other half of it.",a:"Baird et al., UC Santa Barbara, 2012",p:"Step away from your manuscript for 15 minutes. Walk without input. Come back and write the first sentence that surfaces.",cn:"Incubation",cl:"Your Default Mode Network solves problems while your conscious mind rests. Walking away is not quitting. It\u2019s processing.",cx:"Identify the one question your story needs answered. Say it out loud. Then go do the dishes. Write down whatever surfaces."},
+  {q:"The motivation deficit in ADHD is associated with dysfunction of the dopamine reward pathway. When you can\u2019t start, that\u2019s neurochemistry, not character.",a:"Volkow et al., Molecular Psychiatry, 2011",p:"Write a character who is paralyzed by something invisible to everyone around them.",cn:"The Invisible Wall",cl:"Executive dysfunction is not visible from the outside. Your character\u2019s internal experience is the story.",cx:"Write a scene from inside a character\u2019s paralysis. Not what they do. What it feels like to not be able to move."},
+  {q:"Motivation in ADHD improves when three needs are met: autonomy (feeling you have a choice), competence (feeling capable), and relatedness (feeling connected). Sound familiar?",a:"Morsink et al., Self-Determination Theory, 2022",p:"Write a scene where your character finally feels seen by someone.",cn:"Connection",cl:"Relatedness is a basic psychological need. Characters who feel truly seen by another person change in front of the reader.",cx:"Find a moment in your story where your character is performing. Rewrite it so someone sees through the performance."},
+  {q:"The Default Mode Network activates when you stop focusing. It connects unrelated ideas, retrieves distant memories, and runs simulations of futures. Your best ideas come in the shower because your brain finally has room to work.",a:"Neuroscience of the DMN",p:"Write a scene that takes place in a transitional moment: a drive, a shower, falling asleep.",cn:"Threshold Moments",cl:"Characters have their most honest thoughts in the spaces between events.",cx:"Find a scene with a lot of action. Insert a quiet transitional moment before or after it. Let your character think."}
 ];
 
 const INTROS = {
@@ -158,9 +181,10 @@ const INTROS = {
   perfectionism:"Nothing feels good enough? Yeah. That's not a lack of talent, that's your brain's protection system running too hot. It thinks if you never finish, you can never be judged. Tell me what you're stuck on.",
   smoke:"So the fire cooled down and now everything looks different. Worse, probably. Maybe you're wondering why you ever thought this was worth your time. That's the smoke talking. Not you. Your writing didn't change. Your brain chemistry did. Tell me what's happening.",
   instinct:"Let's skip the technical stuff. Your gut has been trying to tell you something about this story. Let's listen.",
-  simmer:"Your brain is cooked. That's not failure, that's your prefrontal cortex tapping out after real work. Tell me the one question your story needs answered, then I'm sending you to do the dishes. There's neuroscience behind it.",
+  simmer:"Your brain is cooked. That's not failure, that's your prefrontal cortex tapping out after real work. Here's the thing: a study at UC Santa Barbara found that people who let their minds wander showed a 41% improvement on creative tasks. The focused group? Zero improvement. So I'm going to help you step away strategically. Tell me the one question your story needs answered.",
   forge:"You've done the thinking. You've built the world. You know the characters. Now it's time to put words on the page. Tell me what scene needs to exist next.",
-  reentry:""
+  inferno:"You're in it. I can tell because you're here and you're not stuck. Your brain is making connections faster than usual right now. This is hyperfocus. Let's use every minute of it. What's pouring out of you?",
+  rekindle:""
 };
 
 const LOAD = ["Reading. Give me a second.","Sitting with this.","Let me think about what you've got here."];
@@ -188,6 +212,7 @@ export default function App() {
   const [flaggedIdx, setFlaggedIdx] = useState(null);
   const [lastSession, setLastSession] = useState(null);
   const [bibTab, setBibTab] = useState("overview");
+  const [subMenu, setSubMenu] = useState(null);
   const endRef = useRef(null);
   const taRef = useRef(null);
   const abortRef = useRef(null);
@@ -228,7 +253,7 @@ export default function App() {
     const saved = loadStored("tt-chat-"+m.id);
     if(saved&&saved.length>0){
       setMsgs(saved);
-    } else if(m.id==="reentry"&&project){
+    } else if(m.id==="rekindle"&&project){
       setMsgs([{role:"assistant",content:`Welcome back. You've been working on "${project.title}." ${project.where?`Last time: ${project.where}.`:""} ${project.stuck?`You were stuck on: ${project.stuck}.`:""}\n\nLet me ask you something small to get your brain back in the story.`}]);
     } else { setMsgs([{role:"assistant",content:INTROS[m.id]}]); }
     setInput("");
@@ -237,12 +262,12 @@ export default function App() {
   const newChat=()=>{
     if(!mode)return;
     saveStored("tt-chat-"+mode.id,null);
-    if(mode.id==="reentry"&&project){
+    if(mode.id==="rekindle"&&project){
       setMsgs([{role:"assistant",content:`Welcome back. You've been working on "${project.title}." ${project.where?`Last time: ${project.where}.`:""} ${project.stuck?`You were stuck on: ${project.stuck}.`:""}\n\nLet me ask you something small to get your brain back in the story.`}]);
     } else { setMsgs([{role:"assistant",content:INTROS[mode.id]}]); }
   };
 
-  const goHome=()=>{cancelReq();setMode(null);setScreen("home");setMsgs([]);setInput("")};
+  const goHome=()=>{cancelReq();setMode(null);setScreen("home");setSubMenu(null);setMsgs([]);setInput("")};
   const cancelReq=()=>{if(abortRef.current){abortRef.current.abort();abortRef.current=null;setLoading(false)}};
   const sparkMsgs=["Saved. Future you will thank you for this.","Flagged. This is a breadcrumb back to the fire.","Noted. This one has heat.","Saved. When the smoke comes, this is your proof."];
   const flagSpark=(c,idx)=>{const ns=[...sparks,{text:c.substring(0,200),date:new Date().toLocaleDateString()}];setSparks(ns);saveStored("tt-sparks",ns);setFlaggedIdx(idx);setTimeout(()=>setFlaggedIdx(null),2500)};
@@ -351,7 +376,7 @@ export default function App() {
 
       <header style={S.hdr}>
         <div style={S.hi}>
-          {screen!=="home"&&screen!=="welcome"&&<button className="hb" onClick={goHome} style={S.hb2}>{"\u2190"} Back</button>}
+          {screen!=="home"&&screen!=="welcome"&&<button className="hb" onClick={screen==="submenu"?()=>{setSubMenu(null);setScreen("home")}:goHome} style={S.hb2}>{"\u2190"} Back</button>}
           <div style={{flex:1}}><h1 style={S.logo}>Tale & Torch</h1><p style={S.tag}>Your writing coach, not your ghostwriter</p></div>
         </div>
         {screen==="chat"&&mode&&<div style={S.tabs}>{MODES.map(m=><button key={m.id} className="mt" onClick={()=>pick(m)} style={{...S.tab,...(mode.id===m.id?{background:"#2a2420",color:CATS[m.cat].c}:{})}}><span style={{marginRight:4}}>{m.icon}</span><span style={{fontSize:11}}>{m.label}</span></button>)}</div>}
@@ -375,53 +400,106 @@ export default function App() {
       {/* PROJECT MEMORY VIEW */}
       {screen==="project"&&project&&<main style={S.mn}><div style={{...S.in,animation:"fu .5s ease-out"}}>
         <div style={{fontSize:11,textTransform:"uppercase",letterSpacing:".12em",color:"#6a9ec4",fontWeight:600,marginBottom:12}}>Finn's Story Bible</div>
+        <div style={{display:"flex",gap:10,marginBottom:14}}>
+          <Btn onClick={()=>{const pf={...project};if(!Array.isArray(pf.chapters))pf.chapters=pf.chapters?[{num:1,summary:pf.chapters}]:[{num:1,summary:""}];setPForm(pf);setScreen("setup")}} s={{flex:1}}>Edit Story Bible</Btn>
+          <Btn onClick={()=>pick(MODES.find(m=>m.id==="rekindle"))} s={{flex:1,background:"#6a9ec420"}}>Rekindle</Btn>
+        </div>
+        {sparks.length>0&&<div style={{marginBottom:14}}><div style={{fontSize:11,textTransform:"uppercase",letterSpacing:".12em",color:"#c4956a",fontWeight:600,marginBottom:10}}>{"\u2728"} Dopamine Map ({sparks.length})</div>
+          {sparks.map((s,i)=><div key={i} style={{background:"#201c17",border:"1px solid #2a2420",borderRadius:10,padding:"10px 14px",marginBottom:6}}><p style={{fontSize:12,color:"#d4c8b8",lineHeight:1.5}}>"{s.text}"</p><p style={{fontSize:10,color:"#4a4038",marginTop:4}}>{s.date}</p></div>)}
+        </div>}
         <div style={{background:"#201c17",border:"1px solid #2a2420",borderRadius:14,padding:"20px"}}>
           <h3 style={{fontFamily:"'Cormorant Garamond',serif",fontSize:20,color:"#e8ddd0",marginBottom:14}}>{project.title||"Untitled"}</h3>
           {[["Genre",project.genre],["Synopsis",project.synopsis],["Protagonist",project.protagonist],["Supporting Characters",project.supporting],["Antagonist",project.antagonist],["Core Setting",project.worldSetting],["World Rules",project.worldRules],["Beliefs vs Reality",project.worldBeliefs],["What's Dangerous",project.worldDanger],["World Tone",project.worldTone],["Current point",project.where],["Stuck on",project.stuck],["Excites you",project.excites],["Current chapter",project.currentChapter?"["+project.currentChapter.substring(0,100)+"...]":""]].map(([l,v])=>v?<div key={l} style={{marginBottom:10}}><p style={{fontSize:10,textTransform:"uppercase",letterSpacing:".1em",color:"#6a9ec4",fontWeight:600,marginBottom:3}}>{l}</p><p style={{fontSize:13,color:"#d4c8b8",lineHeight:1.6}}>{v}</p></div>:null)}
           {project.chapters&&Array.isArray(project.chapters)&&project.chapters.some(c=>c.summary)&&<div style={{marginBottom:10}}><p style={{fontSize:10,textTransform:"uppercase",letterSpacing:".1em",color:"#6a9ec4",fontWeight:600,marginBottom:6}}>Chapters</p>{project.chapters.filter(c=>c.summary).map((c,i)=><p key={i} style={{fontSize:13,color:"#d4c8b8",lineHeight:1.6,marginBottom:4}}><span style={{color:"#c4956a",fontWeight:600}}>Ch{c.num}:</span> {c.summary}</p>)}</div>}
         </div>
-        <div style={{display:"flex",gap:10,marginTop:14}}>
-          <Btn onClick={()=>{const pf={...project};if(!Array.isArray(pf.chapters))pf.chapters=pf.chapters?[{num:1,summary:pf.chapters}]:[{num:1,summary:""}];setPForm(pf);setScreen("setup")}} s={{flex:1}}>Edit Story Bible</Btn>
-          <Btn onClick={()=>pick(MODES.find(m=>m.id==="reentry"))} s={{flex:1,background:"#6a9ec420"}}>Re-Entry Ramp</Btn>
-        </div>
-        {sparks.length>0&&<><div style={{fontSize:11,textTransform:"uppercase",letterSpacing:".12em",color:"#c4956a",fontWeight:600,marginTop:20,marginBottom:10}}>{"\u2728"} Dopamine Map ({sparks.length})</div>
-          {sparks.map((s,i)=><div key={i} style={{background:"#201c17",border:"1px solid #2a2420",borderRadius:10,padding:"10px 14px",marginBottom:6}}><p style={{fontSize:12,color:"#d4c8b8",lineHeight:1.5}}>"{s.text}"</p><p style={{fontSize:10,color:"#4a4038",marginTop:4}}>{s.date}</p></div>)}
-        </>}
       </div></main>}
 
-      {/* HOME */}
+      {/* HOME - 8 Card Grid */}
       {screen==="home"&&<main style={S.mn}><div style={S.in}>
         <div style={{textAlign:"center",padding:"24px 0 18px",animation:"fu .6s ease-out"}}>
           <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:18,fontStyle:"italic",color:"#c4956a",lineHeight:1.6,maxWidth:440,margin:"0 auto"}}>"{tk.q}"</div>
           <div style={{fontSize:12,color:"#6d6358",marginTop:8}}>{"\u2014"} {tk.a}</div>
         </div>
 
-        <div className="spb" onClick={()=>project?setScreen("project"):setScreen("setup")} style={{background:"linear-gradient(135deg,#1a2430,#1a1e28)",border:"1px solid #2a3440",borderRadius:14,padding:"14px 18px",marginBottom:8,display:"flex",alignItems:"center",gap:12,animation:project?"none":"gl 3s ease-in-out infinite"}}>
-          <div style={{fontSize:20,width:38,height:38,display:"flex",alignItems:"center",justifyContent:"center",background:"#6a9ec420",borderRadius:10,flexShrink:0}}>{"\uD83E\uDDE0"}</div>
-          <div style={{flex:1}}><div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:15,fontWeight:600,color:"#e8ddd0"}}>{project?`Story Bible: ${project.title}`:"Set Up Story Bible"}</div><div style={{fontSize:11,color:"#8a7e72"}}>{project?"Finn knows your story":"Tell Finn about your project"}</div></div>
-          <div style={{color:"#6d6358"}}>{"\u2192"}</div>
-        </div>
-
-        {project&&<div className="spb" onClick={()=>pick(MODES.find(m=>m.id==="reentry"))} style={{background:"#201c17",border:"1px solid #2a2420",borderRadius:14,padding:"14px 18px",marginBottom:8,display:"flex",alignItems:"center",gap:12}}>
-          <div style={{fontSize:20,width:38,height:38,display:"flex",alignItems:"center",justifyContent:"center",background:"#6a9ec420",borderRadius:10,flexShrink:0}}>{"\uD83D\uDEA4"}</div>
-          <div style={{flex:1}}><div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:15,fontWeight:600,color:"#e8ddd0"}}>Re-Entry Ramp</div><div style={{fontSize:11,color:"#8a7e72"}}>Been a while? That's okay. The project didn't go anywhere.</div></div>
-        </div>}
-
-        <div className="spb" onClick={()=>setScreen("torch")} style={{background:"#201c17",border:"1px solid #2a2420",borderRadius:14,padding:"14px 18px",marginBottom:14,display:"flex",alignItems:"center",gap:12}}>
-          <div style={{fontSize:20,width:38,height:38,display:"flex",alignItems:"center",justifyContent:"center",background:"#c4956a20",borderRadius:10,flexShrink:0}}>{"\uD83D\uDD25"}</div>
-          <div style={{flex:1}}><div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:15,fontWeight:600,color:"#e8ddd0"}}>Daily Torch</div><div style={{fontSize:11,color:"#8a7e72"}}>Quote, prompt & card pull</div></div>
-        </div>
-
-        {Object.entries(CATS).filter(([k])=>k!=="jarvis").map(([k,v])=><div key={k}>
-          <div style={{fontSize:10,textTransform:"uppercase",letterSpacing:".12em",fontWeight:600,marginBottom:6,marginTop:12,color:v.c}}>{v.l}</div>
-          <div style={{display:"flex",flexDirection:"column",gap:5}}>
-            {MODES.filter(m=>m.cat===k).map(m=><div key={m.id} className="mc" onClick={()=>pick(m)} style={{display:"flex",alignItems:"center",gap:12,padding:"11px 14px",background:"#201c17",border:"1px solid #2a2420",borderRadius:11}}>
-              <div style={{fontSize:16,width:32,height:32,display:"flex",alignItems:"center",justifyContent:"center",background:`${v.c}18`,borderRadius:8,flexShrink:0}}>{m.icon}</div>
-              <div><div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:14,fontWeight:600,color:"#e8ddd0"}}>{m.label}</div><div style={{fontSize:11,color:"#8a7e72"}}>{m.sub}</div></div>
-            </div>)}
+        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
+          {/* Story Bible */}
+          <div className="mc" onClick={()=>project?setScreen("project"):setScreen("setup")} style={{background:"linear-gradient(135deg,#1a2430,#1a1e28)",border:"1px solid #2a3440",borderRadius:14,padding:"16px",animation:project?"none":"gl 3s ease-in-out infinite"}}>
+            <div style={{fontSize:22,marginBottom:8}}>{"\uD83D\uDCD6"}</div>
+            <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:15,fontWeight:600,color:"#e8ddd0",marginBottom:4}}>{project?"Story Bible":"Story Bible"}</div>
+            <div style={{fontSize:11,color:"#8a7e72"}}>{project?project.title:"Your story lives here"}</div>
           </div>
-        </div>)}
+
+          {/* Rekindle */}
+          <div className="mc" onClick={()=>project?pick(MODES.find(m=>m.id==="rekindle")):null} style={{background:"#201c17",border:"1px solid #2a2420",borderRadius:14,padding:"16px",opacity:project?1:.4}}>
+            <div style={{fontSize:22,marginBottom:8}}>{"\u2728"}</div>
+            <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:15,fontWeight:600,color:"#e8ddd0",marginBottom:4}}>Rekindle</div>
+            <div style={{fontSize:11,color:"#8a7e72"}}>The fire didn't go out</div>
+          </div>
+
+          {/* Daily Torch */}
+          <div className="mc" onClick={()=>setScreen("torch")} style={{background:"#201c17",border:"1px solid #2a2420",borderRadius:14,padding:"16px"}}>
+            <div style={{fontSize:22,marginBottom:8}}>{"\uD83D\uDD25"}</div>
+            <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:15,fontWeight:600,color:"#e8ddd0",marginBottom:4}}>Daily Torch</div>
+            <div style={{fontSize:11,color:"#8a7e72"}}>Quote, prompt & card pull</div>
+          </div>
+
+          {/* Finn's Workshop */}
+          <div className="mc" onClick={()=>{setSubMenu("workshop");setScreen("submenu")}} style={{background:"#201c17",border:"1px solid #2a2420",borderRadius:14,padding:"16px"}}>
+            <div style={{fontSize:22,marginBottom:8}}>{"\uD83D\uDEE0\uFE0F"}</div>
+            <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:15,fontWeight:600,color:"#c4956a",marginBottom:4}}>Finn's Workshop</div>
+            <div style={{fontSize:11,color:"#8a7e72"}}>Craft coaching & feedback</div>
+          </div>
+
+          {/* Neurodivergent Support */}
+          <div className="mc" onClick={()=>{setSubMenu("neuro");setScreen("submenu")}} style={{background:"#201c17",border:"1px solid #2a2420",borderRadius:14,padding:"16px"}}>
+            <div style={{fontSize:22,marginBottom:8}}>{"\uD83E\uDDE9"}</div>
+            <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:15,fontWeight:600,color:"#7ea88e",marginBottom:4}}>ND Support</div>
+            <div style={{fontSize:11,color:"#8a7e72"}}>For when your brain won't cooperate</div>
+          </div>
+
+          {/* The Forge */}
+          <div className="mc" onClick={()=>pick(MODES.find(m=>m.id==="forge"))} style={{background:"#201c17",border:"1px solid #2a2420",borderRadius:14,padding:"16px"}}>
+            <div style={{fontSize:22,marginBottom:8}}>{"\uD83D\uDD28"}</div>
+            <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:15,fontWeight:600,color:"#d4a574",marginBottom:4}}>The Forge</div>
+            <div style={{fontSize:11,color:"#8a7e72"}}>Stop planning. Start writing.</div>
+          </div>
+
+          {/* Simmer Mode */}
+          <div className="mc" onClick={()=>pick(MODES.find(m=>m.id==="simmer"))} style={{background:"#201c17",border:"1px solid #2a2420",borderRadius:14,padding:"16px"}}>
+            <div style={{fontSize:22,marginBottom:8}}>{"\u2615"}</div>
+            <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:15,fontWeight:600,color:"#c49a8e",marginBottom:4}}>Simmer Mode</div>
+            <div style={{fontSize:11,color:"#8a7e72"}}>Let your brain work offline</div>
+          </div>
+
+          {/* The Inferno */}
+          <div className="mc" onClick={()=>pick(MODES.find(m=>m.id==="inferno"))} style={{background:"linear-gradient(135deg,#2a1a15,#1e1210)",border:"1px solid #4a2a20",borderRadius:14,padding:"16px"}}>
+            <div style={{fontSize:22,marginBottom:8}}>{"\u2604\uFE0F"}</div>
+            <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:15,fontWeight:600,color:"#e07850",marginBottom:4}}>The Inferno</div>
+            <div style={{fontSize:11,color:"#8a7e72"}}>You're on fire. Let's use it.</div>
+          </div>
+        </div>
+
         <p style={{fontSize:9,color:"#3a3028",textAlign:"center",marginTop:14}}>Tale & Torch is a writing craft tool, not a mental health service. If you're in crisis, please reach out to someone who can help. You deserve support beyond what an app can give.</p>
+      </div></main>}
+
+      {/* SUBMENU - Workshop & ND Support */}
+      {screen==="submenu"&&<main style={S.mn}><div style={{...S.in,animation:"fu .4s ease-out"}}>
+        {subMenu==="workshop"&&<>
+          <div style={{fontSize:11,textTransform:"uppercase",letterSpacing:".12em",color:"#c4956a",fontWeight:600,marginBottom:14}}>Finn's Workshop</div>
+          <p style={{fontSize:13,color:"#a89a8c",marginBottom:16,lineHeight:1.6}}>Bring your work. Finn will find what's strong, name what's off, and help you see what you missed.</p>
+          {MODES.filter(m=>m.cat==="craft"||m.cat==="intuition").map(m=><div key={m.id} className="mc" onClick={()=>pick(m)} style={{display:"flex",alignItems:"center",gap:12,padding:"12px 14px",background:"#201c17",border:"1px solid #2a2420",borderRadius:11,marginBottom:6}}>
+            <div style={{fontSize:16,width:34,height:34,display:"flex",alignItems:"center",justifyContent:"center",background:"#c4956a18",borderRadius:8,flexShrink:0}}>{m.icon}</div>
+            <div><div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:14,fontWeight:600,color:"#e8ddd0"}}>{m.label}</div><div style={{fontSize:11,color:"#8a7e72"}}>{m.sub}</div></div>
+          </div>)}
+        </>}
+        {subMenu==="neuro"&&<>
+          <div style={{fontSize:11,textTransform:"uppercase",letterSpacing:".12em",color:"#7ea88e",fontWeight:600,marginBottom:14}}>Neurodivergent Support</div>
+          <p style={{fontSize:13,color:"#a89a8c",marginBottom:16,lineHeight:1.6}}>For when your brain is the obstacle, not your story. These modes meet you where you are.</p>
+          {MODES.filter(m=>m.cat==="neuro").map(m=><div key={m.id} className="mc" onClick={()=>pick(m)} style={{display:"flex",alignItems:"center",gap:12,padding:"12px 14px",background:"#201c17",border:"1px solid #2a2420",borderRadius:11,marginBottom:6}}>
+            <div style={{fontSize:16,width:34,height:34,display:"flex",alignItems:"center",justifyContent:"center",background:"#7ea88e18",borderRadius:8,flexShrink:0}}>{m.icon}</div>
+            <div><div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:14,fontWeight:600,color:"#e8ddd0"}}>{m.label}</div><div style={{fontSize:11,color:"#8a7e72"}}>{m.sub}</div></div>
+          </div>)}
+        </>}
       </div></main>}
 
       {/* DAILY TORCH */}
