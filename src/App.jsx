@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from "react";
 
-const FINN = `You are Finn (short for Finnigan), the writing coach behind Tale & Torch. Lit major, psych minor. Old soul, sharp but never cutting, dry wit, warm underneath. You ask the one question that unlocks everything.
+const FINN = `You are Finn (short for Finnigan), the writing coach behind ScatterSpark. Lit major, psych minor. Old soul, sharp but never cutting, dry wit, warm underneath. You ask the one question that unlocks everything.
 
 RULES: Never write prose for the writer. ONE illustrative sentence max to demo a technique. Lead with genuine strengths (RSD-aware). Never say "just focus," "push through," "be disciplined," or "try harder." Never use em dashes. Never evaluate talent or predict publishability. Find what's working, coach from there. Every writer who opens this app is a writer. Full stop.
 
@@ -163,7 +163,7 @@ YOUR JOB:
 TONE: Clear, organized, warm. Like a trusted assistant who read all your notes and made sense of them. Under 500 words.`) }
 ];
 
-const CATS = { craft:{l:"Craft Coaching",c:"#c4956a"}, neuro:{l:"Neurodivergent Support",c:"#7ea88e"}, intuition:{l:"Trust Your Intuition",c:"#9b8ec4"}, rest:{l:"Strategic Rest",c:"#c49a8e"}, forge:{l:"Execution",c:"#d4a574"}, inferno:{l:"Hyperfocus",c:"#e07850"}, contain:{l:"Synthesis",c:"#b8956a"}, jarvis:{l:"Project Memory",c:"#6a9ec4"} };
+const CATS = { craft:{l:"Craft Coaching",c:"#d4a04a"}, neuro:{l:"Neurodivergent Support",c:"#7ea88e"}, intuition:{l:"Trust Your Intuition",c:"#9b8ec4"}, rest:{l:"Strategic Rest",c:"#c49a8e"}, forge:{l:"Execution",c:"#daa860"}, inferno:{l:"Hyperfocus",c:"#e07850"}, contain:{l:"Synthesis",c:"#c4a050"}, jarvis:{l:"Project Memory",c:"#6a9ec4"} };
 
 const TORCHES = [
   {q:"If there\u2019s a book that you want to read, but it hasn\u2019t been written yet, then you must write it.",a:"Toni Morrison",p:"Write 100 words about a door your character is afraid to open.",cn:"Subtext",cl:"The most powerful moments happen between the lines.",cx:"Rewrite your last dialogue so neither character says what they mean."},
@@ -209,9 +209,9 @@ function loadStored(key) { try { const v = localStorage.getItem(key); return v ?
 function saveStored(key, val) { try { localStorage.setItem(key, JSON.stringify(val)); } catch {} }
 
 function FormField({label,k,ph,multi,value,onChange}){return <div style={{marginBottom:14}}><label style={{fontSize:12,color:"#8a7e72",display:"block",marginBottom:5}}>{label}</label>{multi?<textarea className="fi" rows={4} placeholder={ph} value={value} onChange={e=>onChange(k,e.target.value)} style={{resize:"vertical"}}/>:<input className="fi" placeholder={ph} value={value} onChange={e=>onChange(k,e.target.value)}/>}</div>}
-function WorldField({label,helper,example,k,value,onChange}){return <div style={{marginBottom:18}}><label style={{fontSize:13,color:"#c4956a",display:"block",marginBottom:3,fontWeight:600}}>{label}</label><p style={{fontSize:11,color:"#8a7e72",marginBottom:4,lineHeight:1.4}}>{helper}</p><textarea className="fi" rows={2} placeholder={example} value={value} onChange={e=>onChange(k,e.target.value)} style={{resize:"vertical",fontSize:13}}/></div>}
+function WorldField({label,helper,example,k,value,onChange}){return <div style={{marginBottom:18}}><label style={{fontSize:13,color:"#d4a04a",display:"block",marginBottom:3,fontWeight:600}}>{label}</label><p style={{fontSize:11,color:"#8a7e72",marginBottom:4,lineHeight:1.4}}>{helper}</p><textarea className="fi" rows={2} placeholder={example} value={value} onChange={e=>onChange(k,e.target.value)} style={{resize:"vertical",fontSize:13}}/></div>}
 function Btn({children,onClick,s}){return <button onClick={onClick} style={{background:"#2a2420",border:"1px solid #3a3028",borderRadius:10,color:"#d4c8b8",fontSize:13,padding:"10px 16px",fontFamily:"'DM Sans',sans-serif",cursor:"pointer",...s}}>{children}</button>}
-function BibTab({id,label,active,onClick}){return <button onClick={()=>onClick(id)} style={{background:active?"#2a2420":"none",border:active?"1px solid #3a3028":"1px solid transparent",borderRadius:8,color:active?"#c4956a":"#6d6358",fontSize:12,padding:"6px 14px",cursor:"pointer",fontFamily:"'DM Sans',sans-serif"}}>{label}</button>}
+function BibTab({id,label,active,onClick}){return <button onClick={()=>onClick(id)} style={{background:active?"#2a2420":"none",border:active?"1px solid #3a3028":"1px solid transparent",borderRadius:8,color:active?"#d4a04a":"#6d6358",fontSize:12,padding:"6px 14px",cursor:"pointer",fontFamily:"'DM Sans',sans-serif"}}>{label}</button>}
 
 export default function App() {
   const [mode, setMode] = useState(null);
@@ -339,19 +339,19 @@ export default function App() {
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,600;0,700;1,400&family=DM+Sans:wght@300;400;500;600&display=swap');
         *{box-sizing:border-box;margin:0;padding:0}body{background:#1a1612}
-        ::selection{background:#c4956a40}textarea::placeholder,input::placeholder{color:#8a7e72;font-style:italic}
+        ::selection{background:#d4a04a40}textarea::placeholder,input::placeholder{color:#8a7e72;font-style:italic}
         @keyframes fu{from{opacity:0;transform:translateY(16px)}to{opacity:1;transform:translateY(0)}}
         @keyframes fi{from{opacity:0}to{opacity:1}}
         @keyframes pu{0%,100%{opacity:.4}50%{opacity:1}}
         @keyframes gl{0%{box-shadow:0 0 20px #6a9ec420}50%{box-shadow:0 0 40px #6a9ec440}100%{box-shadow:0 0 20px #6a9ec420}}
-        .mc{cursor:pointer;transition:all .3s}.mc:hover{transform:translateY(-2px);border-color:#c4956a60!important}
+        .mc{cursor:pointer;transition:all .3s}.mc:hover{transform:translateY(-2px);border-color:#d4a04a60!important}
         .ma,.mu{animation:fu .4s ease-out}
-        .sb{transition:all .2s}.sb:hover:not(:disabled){background:#d4a574!important;transform:scale(1.05)}
-        .hb{transition:all .2s}.hb:hover{color:#c4956a!important}
-        .mt{transition:all .2s;cursor:pointer}.mt:hover{background:#2a2420!important;color:#c4956a!important}
+        .sb{transition:all .2s}.sb:hover:not(:disabled){background:#daa860!important;transform:scale(1.05)}
+        .hb{transition:all .2s}.hb:hover{color:#d4a04a!important}
+        .mt{transition:all .2s;cursor:pointer}.mt:hover{background:#2a2420!important;color:#d4a04a!important}
         .spb{transition:all .3s;cursor:pointer}.spb:hover{transform:translateY(-2px)}
         .cp{cursor:pointer;transition:all .5s}.cp:hover{transform:scale(1.02)}
-        .fi{background:#201c17;border:1px solid #2a2420;border-radius:10px;padding:10px 14px;color:#e8ddd0;font-family:'DM Sans',sans-serif;font-size:14px;width:100%;outline:none}.fi:focus{border-color:#c4956a60}
+        .fi{background:#201c17;border:1px solid #2a2420;border-radius:10px;padding:10px 14px;color:#e8ddd0;font-family:'DM Sans',sans-serif;font-size:14px;width:100%;outline:none}.fi:focus{border-color:#d4a04a60}
       `}</style>
 
       {/* WELCOME */}
@@ -368,7 +368,7 @@ export default function App() {
               const modeLabel = lastMode ? MODES.find(m=>m.id===lastMode)?.label : null;
               const isLongAway = away && (away.includes("day") || (away.includes("hour") && parseInt(away)>=12));
               return <>
-                <h2 style={{fontFamily:"'Cormorant Garamond',serif",fontSize:24,color:"#c4956a",marginBottom:12}}>
+                <h2 style={{fontFamily:"'Cormorant Garamond',serif",fontSize:24,color:"#d4a04a",marginBottom:12}}>
                   {isLongAway ? "Hey. I've been thinking about your story." : away ? "Welcome back." : "Hey."}
                 </h2>
                 <p style={{fontSize:15,color:"#d4c8b8",lineHeight:1.8,marginBottom:8}}>
@@ -381,7 +381,7 @@ export default function App() {
                 {hasStuck&&<p style={{fontSize:14,color:"#a89a8c",lineHeight:1.7,marginBottom:6}}>
                   You were stuck on: {project.stuck}
                 </p>}
-                {sparkCount>0&&<p style={{fontSize:13,color:"#c4956a",lineHeight:1.7,marginBottom:6}}>
+                {sparkCount>0&&<p style={{fontSize:13,color:"#d4a04a",lineHeight:1.7,marginBottom:6}}>
                   Your Dopamine Map has {sparkCount} flag{sparkCount>1?"s":""}. {isLongAway?"Those moments are still in here.":""}
                 </p>}
                 <p style={{fontSize:15,color:"#d4c8b8",lineHeight:1.8,marginTop:12,marginBottom:24}}>
@@ -392,9 +392,9 @@ export default function App() {
               </>;
             })()}
           </>:<>
-            <h2 style={{fontFamily:"'Cormorant Garamond',serif",fontSize:24,color:"#c4956a",marginBottom:8}}>Hey. I'm Finnigan.</h2>
+            <h2 style={{fontFamily:"'Cormorant Garamond',serif",fontSize:24,color:"#d4a04a",marginBottom:8}}>Hey. I'm Finnigan.</h2>
             <p style={{fontSize:13,color:"#8a7e72",marginBottom:20,fontStyle:"italic"}}>But call me Finn.</p>
-            <p style={{fontSize:15,color:"#d4c8b8",lineHeight:1.8,marginBottom:12}}>I'm the coach behind Tale & Torch. I ask the question you've been circling around, you realize you knew the answer the whole time, then you go write something extraordinary.</p>
+            <p style={{fontSize:15,color:"#d4c8b8",lineHeight:1.8,marginBottom:12}}>I'm the coach behind ScatterSpark. I ask the question you've been circling around, you realize you knew the answer the whole time, then you go write something extraordinary.</p>
             <p style={{fontSize:15,color:"#a89a8c",lineHeight:1.8,marginBottom:24}}>I don't write for you. Your voice is more interesting than mine.</p>
           </>}
           <p style={{fontSize:12,color:"#6d6358",fontStyle:"italic"}}>Tap anywhere to begin</p>
@@ -404,7 +404,7 @@ export default function App() {
       <header style={S.hdr}>
         <div style={S.hi}>
           {screen!=="home"&&screen!=="welcome"&&<button className="hb" onClick={screen==="submenu"?()=>{setSubMenu(null);setScreen("home")}:goHome} style={S.hb2}>{"\u2190"} Back</button>}
-          <div style={{flex:1}}><h1 style={S.logo}>Tale & Torch</h1><p style={S.tag}>Your writing coach, not your ghostwriter</p></div>
+          <div style={{flex:1}}><h1 style={S.logo}>ScatterSpark</h1><p style={S.tag}>Your writing coach, not your ghostwriter</p></div>
         </div>
         {screen==="chat"&&mode&&<div style={S.tabs}>{MODES.map(m=><button key={m.id} className="mt" onClick={()=>pick(m)} style={{...S.tab,...(mode.id===m.id?{background:"#2a2420",color:CATS[m.cat].c}:{})}}><span style={{marginRight:4}}>{m.icon}</span><span style={{fontSize:11}}>{m.label}</span></button>)}</div>}
       </header>
@@ -419,7 +419,7 @@ export default function App() {
         {bibTab==="overview"&&<><FormField label="Project title" k="title" ph="My Novel" value={pForm.title} onChange={updateField}/><FormField label="Genre" k="genre" ph="Contemporary fiction, fantasy, memoir..." value={pForm.genre} onChange={updateField}/><FormField label="Synopsis (the whole arc, spoilers welcome)" k="synopsis" ph="Kris inherits a lakehouse, meets Keyan, confronts her past..." value={pForm.synopsis} onChange={updateField} multi/><FormField label="Where are you right now?" k="where" ph="Chapter 3, Kris just arrived" value={pForm.where} onChange={updateField}/><FormField label="What are you stuck on?" k="stuck" ph="If you don't know, that counts as an answer. 'I don't know why I stopped' is something Finn can work with." value={pForm.stuck} onChange={updateField}/><p style={{fontSize:11,color:"#6d6358",marginTop:-8,marginBottom:14,fontStyle:"italic"}}>This matters more than you think. When the dopamine crashes and everything feels pointless, this is what Finn will remind you of.</p><FormField label="What excites you most about this project?" k="excites" ph="The slow burn, Kris finding her voice, the lakehouse at sunset..." value={pForm.excites} onChange={updateField} multi/></>}
         {bibTab==="characters"&&<><FormField label="Protagonist (name, age, core trait, internal conflict, external conflict, arc)" k="protagonist" ph="Emma Mae (12): Imaginative, emotionally intuitive. Believes she can fix things if she tries hard enough. Her magic is growing unstable as her grandmother's health declines..." value={pForm.protagonist} onChange={updateField} multi/><FormField label="Supporting Characters (one per paragraph works best)" k="supporting" ph="Grandma Edna (56): Caregiver, warm, resilient. Knows Emma's magic is real but fears what it could become...&#10;&#10;Michael (13): Best friend, loyal, curious. Encourages Emma to use her magic..." value={pForm.supporting} onChange={updateField} multi/><FormField label="Antagonist (person, force, or system)" k="antagonist" ph="The Lady in the Trees (Evangeline/Eva): Mysterious, bound to the forest. Can only reach Emma through limited, unnatural means..." value={pForm.antagonist} onChange={updateField} multi/></>}
         {bibTab==="world"&&<><p style={{fontSize:12,color:"#8a7e72",marginBottom:14,lineHeight:1.5}}>Define the rules of your world in short, clear statements. Decisions, not descriptions. 1-3 sentences per field.</p><WorldField label="Core Setting" helper="When and where does this story take place? Be specific enough that a reader could picture it." example="Northern Michigan, late summer, a lakehouse on a quiet inland lake surrounded by old-growth forest." k="worldSetting" value={pForm.worldSetting} onChange={updateField}/><WorldField label="World Rules (Non-Negotiable)" helper="What can and cannot happen here? Especially magic, technology, or realism constraints." example="Magic exists but only manifests in children before puberty. Adults cannot see it. Using it has a physical cost." k="worldRules" value={pForm.worldRules} onChange={updateField}/><WorldField label="What People Believe vs. Reality" helper="What do characters assume is true that isn't? This is where tension hides." example="The town believes the forest fires are natural. In reality, they're caused by uncontrolled magic from kids who don't know what they have." k="worldBeliefs" value={pForm.worldBeliefs} onChange={updateField}/><WorldField label="What Makes This World Dangerous" helper="What creates real stakes? What can go wrong and actually hurt someone?" example="If Emma uses too much magic, her grandmother's heart condition worsens. The magic is literally draining her." k="worldDanger" value={pForm.worldDanger} onChange={updateField}/><div style={{borderTop:"1px solid #2a2420",paddingTop:14,marginTop:6}}><p style={{fontSize:10,color:"#6d6358",marginBottom:8,textTransform:"uppercase",letterSpacing:".1em"}}>Optional</p><WorldField label="Tone / Aesthetic" helper="What does this world feel like? Not what it looks like, what it feels like." example="Warm but uneasy. Like the last golden hour before a storm. Beautiful and wrong at the same time." k="worldTone" value={pForm.worldTone} onChange={updateField}/></div></>}
-        {bibTab==="chapters"&&<><p style={{fontSize:12,color:"#8a7e72",marginBottom:14,lineHeight:1.5}}>One field per chapter. Keep summaries short: what happens, who's involved, what changes.</p>{pForm.chapters.map((ch,idx)=><div key={idx} style={{marginBottom:14,position:"relative"}}><div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:5}}><label style={{fontSize:13,color:"#c4956a",fontWeight:600}}>Chapter {ch.num}</label>{pForm.chapters.length>1&&<span onClick={()=>removeChapter(idx)} style={{fontSize:11,color:"#6d6358",cursor:"pointer"}}>Remove</span>}</div><textarea className="fi" rows={2} placeholder={`Ch${ch.num}: What happens in this chapter...`} value={ch.summary} onChange={e=>updateChapter(idx,e.target.value)} style={{resize:"vertical",fontSize:13}}/></div>)}<Btn onClick={addChapter} s={{width:"100%",background:"none",borderStyle:"dashed",borderColor:"#3a3028",color:"#8a7e72",marginBottom:8}}>+ Add Chapter</Btn></>}
+        {bibTab==="chapters"&&<><p style={{fontSize:12,color:"#8a7e72",marginBottom:14,lineHeight:1.5}}>One field per chapter. Keep summaries short: what happens, who's involved, what changes.</p>{pForm.chapters.map((ch,idx)=><div key={idx} style={{marginBottom:14,position:"relative"}}><div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:5}}><label style={{fontSize:13,color:"#d4a04a",fontWeight:600}}>Chapter {ch.num}</label>{pForm.chapters.length>1&&<span onClick={()=>removeChapter(idx)} style={{fontSize:11,color:"#6d6358",cursor:"pointer"}}>Remove</span>}</div><textarea className="fi" rows={2} placeholder={`Ch${ch.num}: What happens in this chapter...`} value={ch.summary} onChange={e=>updateChapter(idx,e.target.value)} style={{resize:"vertical",fontSize:13}}/></div>)}<Btn onClick={addChapter} s={{width:"100%",background:"none",borderStyle:"dashed",borderColor:"#3a3028",color:"#8a7e72",marginBottom:8}}>+ Add Chapter</Btn></>}
         {bibTab==="current"&&<><p style={{fontSize:12,color:"#8a7e72",marginBottom:8,lineHeight:1.5}}>Paste the chapter you're currently working on. If you have six half-written versions, paste whichever you touched last. Don't pick the best one. Pick the most recent one. Finn will reference this text directly when coaching you.</p><FormField label="Current chapter text" k="currentChapter" ph="Paste your current chapter here..." value={pForm.currentChapter} onChange={updateField} multi/></>}
         <Btn onClick={handleSetup} s={{width:"100%",background:"#6a9ec430",borderColor:"#6a9ec460",fontWeight:600,marginTop:8}}>{project?"Update":"Save"} Story Bible</Btn>
       </div></main>}
@@ -431,20 +431,20 @@ export default function App() {
           <Btn onClick={()=>{const pf={...project};if(!Array.isArray(pf.chapters))pf.chapters=pf.chapters?[{num:1,summary:pf.chapters}]:[{num:1,summary:""}];setPForm(pf);setScreen("setup")}} s={{flex:1}}>Edit Story Bible</Btn>
           <Btn onClick={()=>pick(MODES.find(m=>m.id==="rekindle"))} s={{flex:1,background:"#6a9ec420"}}>Rekindle</Btn>
         </div>
-        {sparks.length>0&&<div style={{marginBottom:14}}><div style={{fontSize:11,textTransform:"uppercase",letterSpacing:".12em",color:"#c4956a",fontWeight:600,marginBottom:10}}>{"\u2728"} Dopamine Map ({sparks.length})</div>
+        {sparks.length>0&&<div style={{marginBottom:14}}><div style={{fontSize:11,textTransform:"uppercase",letterSpacing:".12em",color:"#d4a04a",fontWeight:600,marginBottom:10}}>{"\u2728"} Dopamine Map ({sparks.length})</div>
           {sparks.map((s,i)=><div key={i} style={{background:"#201c17",border:"1px solid #2a2420",borderRadius:10,padding:"10px 14px",marginBottom:6}}><p style={{fontSize:12,color:"#d4c8b8",lineHeight:1.5}}>"{s.text}"</p><p style={{fontSize:10,color:"#4a4038",marginTop:4}}>{s.date}</p></div>)}
         </div>}
         <div style={{background:"#201c17",border:"1px solid #2a2420",borderRadius:14,padding:"20px"}}>
           <h3 style={{fontFamily:"'Cormorant Garamond',serif",fontSize:20,color:"#e8ddd0",marginBottom:14}}>{project.title||"Untitled"}</h3>
           {[["Genre",project.genre],["Synopsis",project.synopsis],["Protagonist",project.protagonist],["Supporting Characters",project.supporting],["Antagonist",project.antagonist],["Core Setting",project.worldSetting],["World Rules",project.worldRules],["Beliefs vs Reality",project.worldBeliefs],["What's Dangerous",project.worldDanger],["World Tone",project.worldTone],["Current point",project.where],["Stuck on",project.stuck],["Excites you",project.excites],["Current chapter",project.currentChapter?"["+project.currentChapter.substring(0,100)+"...]":""]].map(([l,v])=>v?<div key={l} style={{marginBottom:10}}><p style={{fontSize:10,textTransform:"uppercase",letterSpacing:".1em",color:"#6a9ec4",fontWeight:600,marginBottom:3}}>{l}</p><p style={{fontSize:13,color:"#d4c8b8",lineHeight:1.6}}>{v}</p></div>:null)}
-          {project.chapters&&Array.isArray(project.chapters)&&project.chapters.some(c=>c.summary)&&<div style={{marginBottom:10}}><p style={{fontSize:10,textTransform:"uppercase",letterSpacing:".1em",color:"#6a9ec4",fontWeight:600,marginBottom:6}}>Chapters</p>{project.chapters.filter(c=>c.summary).map((c,i)=><p key={i} style={{fontSize:13,color:"#d4c8b8",lineHeight:1.6,marginBottom:4}}><span style={{color:"#c4956a",fontWeight:600}}>Ch{c.num}:</span> {c.summary}</p>)}</div>}
+          {project.chapters&&Array.isArray(project.chapters)&&project.chapters.some(c=>c.summary)&&<div style={{marginBottom:10}}><p style={{fontSize:10,textTransform:"uppercase",letterSpacing:".1em",color:"#6a9ec4",fontWeight:600,marginBottom:6}}>Chapters</p>{project.chapters.filter(c=>c.summary).map((c,i)=><p key={i} style={{fontSize:13,color:"#d4c8b8",lineHeight:1.6,marginBottom:4}}><span style={{color:"#d4a04a",fontWeight:600}}>Ch{c.num}:</span> {c.summary}</p>)}</div>}
         </div>
       </div></main>}
 
       {/* HOME - 8 Card Grid */}
       {screen==="home"&&<main style={S.mn}><div style={S.in}>
         <div style={{textAlign:"center",padding:"24px 0 18px",animation:"fu .6s ease-out"}}>
-          <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:18,fontStyle:"italic",color:"#c4956a",lineHeight:1.6,maxWidth:440,margin:"0 auto"}}>"{tk.q}"</div>
+          <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:18,fontStyle:"italic",color:"#d4a04a",lineHeight:1.6,maxWidth:440,margin:"0 auto"}}>"{tk.q}"</div>
           <div style={{fontSize:12,color:"#6d6358",marginTop:8}}>{"\u2014"} {tk.a}</div>
         </div>
 
@@ -463,17 +463,17 @@ export default function App() {
             <div style={{fontSize:11,color:"#8a7e72"}}>The fire didn't go out</div>
           </div>
 
-          {/* Daily Torch */}
+          {/* Daily Spark */}
           <div className="mc" onClick={()=>setScreen("torch")} style={{background:"#201c17",border:"1px solid #2a2420",borderRadius:14,padding:"16px"}}>
-            <div style={{fontSize:22,marginBottom:8}}>{"\uD83D\uDD25"}</div>
-            <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:15,fontWeight:600,color:"#e8ddd0",marginBottom:4}}>Daily Torch</div>
+            <div style={{fontSize:22,marginBottom:8}}>{"\u2728"}</div>
+            <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:15,fontWeight:600,color:"#e8ddd0",marginBottom:4}}>Daily Spark</div>
             <div style={{fontSize:11,color:"#8a7e72"}}>Quote, prompt & card pull</div>
           </div>
 
           {/* Finn's Workshop */}
           <div className="mc" onClick={()=>{setSubMenu("workshop");setScreen("submenu")}} style={{background:"#201c17",border:"1px solid #2a2420",borderRadius:14,padding:"16px"}}>
             <div style={{fontSize:22,marginBottom:8}}>{"\uD83D\uDEE0\uFE0F"}</div>
-            <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:15,fontWeight:600,color:"#c4956a",marginBottom:4}}>Finn's Workshop</div>
+            <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:15,fontWeight:600,color:"#d4a04a",marginBottom:4}}>Finn's Workshop</div>
             <div style={{fontSize:11,color:"#8a7e72"}}>Craft coaching & feedback</div>
           </div>
 
@@ -487,7 +487,7 @@ export default function App() {
           {/* The Forge */}
           <div className="mc" onClick={()=>pick(MODES.find(m=>m.id==="forge"))} style={{background:"#201c17",border:"1px solid #2a2420",borderRadius:14,padding:"16px"}}>
             <div style={{fontSize:22,marginBottom:8}}>{"\uD83D\uDD28"}</div>
-            <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:15,fontWeight:600,color:"#d4a574",marginBottom:4}}>The Forge</div>
+            <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:15,fontWeight:600,color:"#daa860",marginBottom:4}}>The Forge</div>
             <div style={{fontSize:11,color:"#8a7e72"}}>One scene. One directive. Go write.</div>
           </div>
 
@@ -509,22 +509,22 @@ export default function App() {
           <div className="mc" onClick={()=>pick(MODES.find(m=>m.id==="contain"))} style={{background:"linear-gradient(135deg,#1a1e20,#1e2228)",border:"1px solid #2a3440",borderRadius:14,padding:"16px",gridColumn:"1 / -1"}}>
             <div style={{display:"flex",alignItems:"center",gap:12}}>
               <div style={{fontSize:22}}>{"\uD83C\uDF0A"}</div>
-              <div><div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:15,fontWeight:600,color:"#b8956a"}}>Contain the Flames</div>
+              <div><div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:15,fontWeight:600,color:"#c4a050"}}>Contain the Flames</div>
               <div style={{fontSize:11,color:"#8a7e72"}}>Pull everything together. Finn reads all your sessions and organizes the chaos.</div></div>
             </div>
           </div>
         </div>
 
-        <p style={{fontSize:9,color:"#3a3028",textAlign:"center",marginTop:14}}>Tale & Torch is a writing craft tool, not a mental health service. If you're in crisis, please reach out to someone who can help. You deserve support beyond what an app can give.</p>
+        <p style={{fontSize:9,color:"#3a3028",textAlign:"center",marginTop:14}}>ScatterSpark is a writing craft tool, not a mental health service. If you're in crisis, please reach out to someone who can help. You deserve support beyond what an app can give.</p>
       </div></main>}
 
       {/* SUBMENU - Workshop & ND Support */}
       {screen==="submenu"&&<main style={S.mn}><div style={{...S.in,animation:"fu .4s ease-out"}}>
         {subMenu==="workshop"&&<>
-          <div style={{fontSize:11,textTransform:"uppercase",letterSpacing:".12em",color:"#c4956a",fontWeight:600,marginBottom:14}}>Finn's Workshop</div>
+          <div style={{fontSize:11,textTransform:"uppercase",letterSpacing:".12em",color:"#d4a04a",fontWeight:600,marginBottom:14}}>Finn's Workshop</div>
           <p style={{fontSize:13,color:"#a89a8c",marginBottom:16,lineHeight:1.6}}>Bring your work. Finn will find what's strong, name what's off, and help you see what you missed.</p>
           {MODES.filter(m=>m.cat==="craft"||m.cat==="intuition").map(m=><div key={m.id} className="mc" onClick={()=>pick(m)} style={{display:"flex",alignItems:"center",gap:12,padding:"12px 14px",background:"#201c17",border:"1px solid #2a2420",borderRadius:11,marginBottom:6}}>
-            <div style={{fontSize:16,width:34,height:34,display:"flex",alignItems:"center",justifyContent:"center",background:"#c4956a18",borderRadius:8,flexShrink:0}}>{m.icon}</div>
+            <div style={{fontSize:16,width:34,height:34,display:"flex",alignItems:"center",justifyContent:"center",background:"#d4a04a18",borderRadius:8,flexShrink:0}}>{m.icon}</div>
             <div><div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:14,fontWeight:600,color:"#e8ddd0"}}>{m.label}</div><div style={{fontSize:11,color:"#8a7e72"}}>{m.sub}</div></div>
           </div>)}
         </>}
@@ -541,12 +541,12 @@ export default function App() {
       {/* DAILY TORCH */}
       {screen==="torch"&&<main style={S.mn}><div style={{...S.in,animation:"fu .5s ease-out"}}>
         <div style={{textAlign:"center",padding:"20px 0 14px"}}>
-          <div style={{fontSize:11,textTransform:"uppercase",letterSpacing:".12em",color:"#c4956a",fontWeight:600,marginBottom:10}}>{"\uD83D\uDD25"} Daily Torch</div>
-          <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:18,fontStyle:"italic",color:"#c4956a",lineHeight:1.6,maxWidth:440,margin:"0 auto"}}>"{tk.q}"</div>
+          <div style={{fontSize:11,textTransform:"uppercase",letterSpacing:".12em",color:"#d4a04a",fontWeight:600,marginBottom:10}}>{"\u2728"} Daily Spark</div>
+          <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:18,fontStyle:"italic",color:"#d4a04a",lineHeight:1.6,maxWidth:440,margin:"0 auto"}}>"{tk.q}"</div>
           <div style={{fontSize:12,color:"#6d6358",marginTop:8}}>{"\u2014"} {tk.a}</div>
         </div>
         <div style={{background:"#201c17",border:"1px solid #2a2420",borderRadius:12,padding:"14px 18px",marginBottom:12}}>
-          <div style={{fontSize:10,textTransform:"uppercase",letterSpacing:".1em",color:"#c4956a",fontWeight:600,marginBottom:5}}>Today's Prompt</div>
+          <div style={{fontSize:10,textTransform:"uppercase",letterSpacing:".1em",color:"#d4a04a",fontWeight:600,marginBottom:5}}>Today's Prompt</div>
           <p style={{fontSize:14,color:"#d4c8b8",lineHeight:1.7,fontStyle:"italic"}}>{tk.p}</p>
         </div>
         <div className="cp" onClick={()=>setFlipped(!flipped)} style={{background:flipped?"#201c17":"linear-gradient(135deg,#2a2040,#1e1a2a)",border:`1px solid ${flipped?"#2a2420":"#4a3a60"}`,borderRadius:12,padding:"18px",textAlign:"center",animation:flipped?"none":"gl 3s ease-in-out infinite"}}>
@@ -556,7 +556,7 @@ export default function App() {
             <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:19,color:"#e8ddd0",fontWeight:700,marginBottom:6}}>{tk.cn}</div>
             <p style={{fontSize:12,color:"#a89a8c",lineHeight:1.7,marginBottom:10}}>{tk.cl}</p>
             <div style={{background:"#2a242080",borderRadius:8,padding:"10px 12px"}}>
-              <div style={{fontSize:10,textTransform:"uppercase",letterSpacing:".1em",color:"#c4956a",fontWeight:600,marginBottom:3}}>Micro-Challenge</div>
+              <div style={{fontSize:10,textTransform:"uppercase",letterSpacing:".1em",color:"#d4a04a",fontWeight:600,marginBottom:3}}>Micro-Challenge</div>
               <p style={{fontSize:12,color:"#d4c8b8",lineHeight:1.6}}>{tk.cx}</p>
             </div>
           </div>}
@@ -570,7 +570,7 @@ export default function App() {
             <div style={{...S.bb,...(m.role==="user"?S.ub:S.ab)}}>
               {m.role==="assistant"&&<div style={{fontSize:11,fontWeight:600,color:CATS[mode.cat].c,textTransform:"uppercase",letterSpacing:".08em",marginBottom:8}}>{"\uD83D\uDD25"} Finn</div>}
               <div style={{color:"#d4c8b8",fontSize:14,lineHeight:1.7}}>{m.content.split("\n").map((l,j)=><p key={j} style={{marginBottom:l?10:4,minHeight:l?undefined:4}}>{l}</p>)}</div>
-              {m.role==="assistant"&&i>0&&<>{flaggedIdx===i?<span style={{fontSize:11,color:"#c4956a",fontStyle:"italic",marginTop:8,display:"block"}}>{sparkMsgs[Math.floor(Math.random()*sparkMsgs.length)]}</span>:<button onClick={()=>flagSpark(m.content,i)} style={{background:"none",border:"1px solid #2a2420",borderRadius:8,color:"#8a7e72",fontSize:11,padding:"4px 10px",marginTop:8,cursor:"pointer",fontFamily:"'DM Sans',sans-serif"}}>{"\u2728"} This excites me</button>}</>}
+              {m.role==="assistant"&&i>0&&<>{flaggedIdx===i?<span style={{fontSize:11,color:"#d4a04a",fontStyle:"italic",marginTop:8,display:"block"}}>{sparkMsgs[Math.floor(Math.random()*sparkMsgs.length)]}</span>:<button onClick={()=>flagSpark(m.content,i)} style={{background:"none",border:"1px solid #2a2420",borderRadius:8,color:"#8a7e72",fontSize:11,padding:"4px 10px",marginTop:8,cursor:"pointer",fontFamily:"'DM Sans',sans-serif"}}>{"\u2728"} This excites me</button>}</>}
             </div>
           </div>)}
           {loading&&<div className="ma" style={{display:"flex",width:"100%",alignItems:"flex-start",gap:8}}>
@@ -602,7 +602,7 @@ const S={
   hdr:{borderBottom:"1px solid #2a2420",background:"#1a1612ee",backdropFilter:"blur(12px)",position:"sticky",top:0,zIndex:100},
   hi:{maxWidth:900,margin:"0 auto",padding:"14px 24px",display:"flex",alignItems:"center",gap:16},
   hb2:{background:"none",border:"1px solid #2a2420",color:"#8a7e72",fontFamily:"'DM Sans',sans-serif",fontSize:13,padding:"6px 14px",borderRadius:8,cursor:"pointer"},
-  logo:{fontFamily:"'Cormorant Garamond',serif",fontSize:22,fontWeight:600,color:"#c4956a",letterSpacing:".02em",lineHeight:1.2},
+  logo:{fontFamily:"'Cormorant Garamond',serif",fontSize:24,fontWeight:600,color:"#d4a04a",letterSpacing:".03em",lineHeight:1.2},
   tag:{fontSize:11,color:"#6d6358",fontStyle:"italic",marginTop:2},
   tabs:{display:"flex",gap:2,padding:"0 24px 8px",maxWidth:900,margin:"0 auto",overflowX:"auto"},
   tab:{background:"none",border:"none",color:"#6d6358",fontFamily:"'DM Sans',sans-serif",fontSize:11,padding:"5px 10px",borderRadius:6,cursor:"pointer",whiteSpace:"nowrap",display:"flex",alignItems:"center"},
@@ -616,5 +616,5 @@ const S={
   ia:{padding:"12px 20px 20px",borderTop:"1px solid #2a2420",background:"#1a1612"},
   ib:{display:"flex",gap:10,alignItems:"flex-end",background:"#201c17",border:"1px solid #2a2420",borderRadius:16,padding:"10px 14px"},
   ta:{flex:1,background:"none",border:"none",outline:"none",color:"#e8ddd0",fontFamily:"'DM Sans',sans-serif",fontSize:14,lineHeight:1.6,resize:"none",maxHeight:200},
-  se:{width:36,height:36,borderRadius:10,border:"none",background:"#c4956a",color:"#1a1612",fontSize:18,fontWeight:700,cursor:"pointer",flexShrink:0,display:"flex",alignItems:"center",justifyContent:"center"},
+  se:{width:36,height:36,borderRadius:10,border:"none",background:"#d4a04a",color:"#1a1612",fontSize:18,fontWeight:700,cursor:"pointer",flexShrink:0,display:"flex",alignItems:"center",justifyContent:"center"},
 };
