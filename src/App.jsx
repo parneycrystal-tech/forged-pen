@@ -145,10 +145,25 @@ The writer returned after time away. NO GUILT. None. Zero. Do not say "it's been
 3) If they have Dopamine Map flags, mention one: "Before you left, you flagged [moment] as exciting. That's still in here. The embers are warm."
 4) ONE gentle question to re-engage: something small, casual, about their story. Not "what do you want to work on" but "I've been thinking about [character]. Did you ever figure out [specific story question]?"
 Make it feel like Finn was sitting here thinking about their story while they were gone.
-Under 200 words.`) }
+Under 200 words.`) },
+  { id:"contain", label:"Contain the Flames", icon:"\uD83C\uDF0A", cat:"contain", sub:"Pull it all together", ph:"Tell Finn what you need organized, or just say 'pull it together'.", sys: sp(`MODE: CONTAIN THE FLAMES. You have full access to the writer's Story Bible, Dopamine Map, AND recent conversation summaries from across all modes. This is a SYNTHESIS mode.
+The writer has been pouring ideas, scenes, questions, and breakthroughs into multiple coaching sessions across different modes. The content is scattered. Their ADHD brain can see the pieces but can't hold them all at once. Your job is to be the one who holds it all.
+YOUR JOB:
+1) Review everything provided: Story Bible, Dopamine Map flags, and conversation snippets from all modes.
+2) SYNTHESIZE into a clear picture:
+- Key decisions the writer made across sessions
+- Unresolved questions that came up and haven't been answered
+- Character insights that should be in the Story Bible but aren't yet
+- Plot points discussed but not yet written
+- Contradictions between sessions (different things said about the same character or plot point)
+- The strongest ideas from any Inferno or brainstorming sessions
+- Craft feedback from Scene Surgery or Plot Compass that the writer should remember
+3) Present it organized, not as a wall of text. Group by: Story Bible Updates (what should be added/changed), Unresolved Questions (what still needs deciding), Next Steps (what to write next based on everything discussed), and Strongest Moments (the best ideas and Dopamine Map highlights).
+4) Ask: "Want me to help you update your Story Bible with any of this?"
+TONE: Clear, organized, warm. Like a trusted assistant who read all your notes and made sense of them. Under 500 words.`) }
 ];
 
-const CATS = { craft:{l:"Craft Coaching",c:"#c4956a"}, neuro:{l:"Neurodivergent Support",c:"#7ea88e"}, intuition:{l:"Trust Your Intuition",c:"#9b8ec4"}, rest:{l:"Strategic Rest",c:"#c49a8e"}, forge:{l:"Execution",c:"#d4a574"}, inferno:{l:"Hyperfocus",c:"#e07850"}, jarvis:{l:"Project Memory",c:"#6a9ec4"} };
+const CATS = { craft:{l:"Craft Coaching",c:"#c4956a"}, neuro:{l:"Neurodivergent Support",c:"#7ea88e"}, intuition:{l:"Trust Your Intuition",c:"#9b8ec4"}, rest:{l:"Strategic Rest",c:"#c49a8e"}, forge:{l:"Execution",c:"#d4a574"}, inferno:{l:"Hyperfocus",c:"#e07850"}, contain:{l:"Synthesis",c:"#b8956a"}, jarvis:{l:"Project Memory",c:"#6a9ec4"} };
 
 const TORCHES = [
   {q:"If there\u2019s a book that you want to read, but it hasn\u2019t been written yet, then you must write it.",a:"Toni Morrison",p:"Write 100 words about a door your character is afraid to open.",cn:"Subtext",cl:"The most powerful moments happen between the lines.",cx:"Rewrite your last dialogue so neither character says what they mean."},
@@ -181,10 +196,11 @@ const INTROS = {
   perfectionism:"Nothing feels good enough? Yeah. That's not a lack of talent, that's your brain's protection system running too hot. It thinks if you never finish, you can never be judged. Tell me what you're stuck on.",
   smoke:"So the fire cooled down and now everything looks different. Worse, probably. Maybe you're wondering why you ever thought this was worth your time. That's the smoke talking. Not you. Your writing didn't change. Your brain chemistry did. Tell me what's happening.",
   instinct:"Let's skip the technical stuff. Your gut has been trying to tell you something about this story. Let's listen.",
-  simmer:"Your brain is cooked. That's not failure, that's your prefrontal cortex tapping out after real work. Here's the thing: a study at UC Santa Barbara found that people who let their minds wander showed a 41% improvement on creative tasks. The focused group? Zero improvement. So I'm going to help you step away strategically. Tell me the one question your story needs answered.",
-  forge:"You've done the thinking. You've built the world. You know the characters. Now it's time to put words on the page. Tell me what scene needs to exist next.",
-  inferno:"You're in it. I can tell because you're here and you're not stuck. Your brain is making connections faster than usual right now. This is hyperfocus. Let's use every minute of it. What's pouring out of you?",
-  rekindle:""
+  simmer:"Your brain is cooked. Your prefrontal cortex has tapped out after real work. Here's what actually helps: a walk with no music, a long shower, doing the dishes, folding laundry, staring out a window. These activate the part of your brain that solves problems while your conscious mind rests. A study at UC Santa Barbara proved it: 41% improvement on creative tasks after stepping away. Zero improvement for people who kept pushing. Before you go, tell me the one question your story needs answered.",
+  forge:"You've done the thinking. You know the characters. You know the world. Now we build, one scene at a time. Tell me what scene needs to exist next and I'll give you a directive.",
+  inferno:"You're on fire and you know it. Don't fiddle. Don't organize. Don't second-guess. Your brain is making connections faster than usual right now and I am not going to slow you down. Pour it here. Every idea. Every fragment. Every scene that's flashing. I'll catch it. Go.",
+  rekindle:"",
+  contain:"I've been listening across all your sessions. Let me pull the threads together. Give me a second to read through everything you've given me."
 };
 
 const LOAD = ["Reading. Give me a second.","Sitting with this.","Let me think about what you've got here."];
@@ -277,6 +293,19 @@ export default function App() {
     const chapStr = project?.chapters ? (Array.isArray(project.chapters) ? project.chapters.filter(c=>c.summary).map(c=>`Ch${c.num}: ${c.summary}`).join(". ") : project.chapters) : "";
     const pCtx = project ? `\n\nPROJECT: "${project.title}". Genre: ${project.genre}. Synopsis: ${project.synopsis}. Protagonist: ${project.protagonist}. Supporting Characters: ${project.supporting}. Antagonist: ${project.antagonist}. Core Setting: ${project.worldSetting}. World Rules: ${project.worldRules}. What People Believe vs Reality: ${project.worldBeliefs}. What Makes This World Dangerous: ${project.worldDanger}. World Tone: ${project.worldTone}. Chapters so far: ${chapStr}. Current point: ${project.where}. Stuck on: ${project.stuck}. What excites them: ${project.excites}.${project.currentChapter?` CURRENT CHAPTER TEXT: ${project.currentChapter}`:""}` : "";
     const sparkCtx = sparks.length > 0 ? `\n\nDOPAMINE MAP (moments the writer flagged as exciting): ${sparks.map(s=>s.text).join(" | ")}` : "";
+    let containCtx = "";
+    if(mode.id==="contain"){
+      const modeIds=["diagnose","craft","scene","character","plot","voice","micro","perfectionism","smoke","instinct","simmer","forge","inferno","rekindle"];
+      const snippets=[];
+      modeIds.forEach(mid=>{
+        const saved=loadStored("tt-chat-"+mid);
+        if(saved&&saved.length>1){
+          const recent=saved.slice(-4).filter(m=>m.role==="assistant").map(m=>m.content.substring(0,300)).join(" ... ");
+          if(recent.trim()) snippets.push(`[${mid.toUpperCase()}]: ${recent}`);
+        }
+      });
+      if(snippets.length>0) containCtx=`\n\nRECENT CONVERSATIONS ACROSS ALL MODES (use these to synthesize):\n${snippets.join("\n")}`;
+    }
     const nm=[...msgs,{role:"user",content:input.trim()}];setMsgs(nm);setInput("");setLoading(true);
     const ctrl=new AbortController();abortRef.current=ctrl;
     try{
@@ -284,7 +313,7 @@ export default function App() {
         method:"POST",
         headers:{"Content-Type":"application/json"},
         body:JSON.stringify({
-          system: mode.sys + pCtx + sparkCtx,
+          system: mode.sys + pCtx + sparkCtx + containCtx,
           messages: nm.map(m=>({role:m.role,content:m.content}))
         }),
         signal:ctrl.signal
@@ -357,10 +386,8 @@ export default function App() {
                 </p>}
                 <p style={{fontSize:15,color:"#d4c8b8",lineHeight:1.8,marginTop:12,marginBottom:24}}>
                   {isLongAway
-                    ? "No guilt. The project waited. So did I. Want to ease back in?"
-                    : hasStuck
-                    ? "Want to pick up where you left off, or do something different?"
-                    : "Ready to work?"}
+                    ? "No guilt. The project waited. So did I."
+                    : "Let's get to work."}
                 </p>
               </>;
             })()}
@@ -453,7 +480,7 @@ export default function App() {
           {/* Neurodivergent Support */}
           <div className="mc" onClick={()=>{setSubMenu("neuro");setScreen("submenu")}} style={{background:"#201c17",border:"1px solid #2a2420",borderRadius:14,padding:"16px"}}>
             <div style={{fontSize:22,marginBottom:8}}>{"\uD83E\uDDE9"}</div>
-            <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:15,fontWeight:600,color:"#7ea88e",marginBottom:4}}>ND Support</div>
+            <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:15,fontWeight:600,color:"#7ea88e",marginBottom:4}}>Neurodivergent Support</div>
             <div style={{fontSize:11,color:"#8a7e72"}}>For when your brain won't cooperate</div>
           </div>
 
@@ -461,7 +488,7 @@ export default function App() {
           <div className="mc" onClick={()=>pick(MODES.find(m=>m.id==="forge"))} style={{background:"#201c17",border:"1px solid #2a2420",borderRadius:14,padding:"16px"}}>
             <div style={{fontSize:22,marginBottom:8}}>{"\uD83D\uDD28"}</div>
             <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:15,fontWeight:600,color:"#d4a574",marginBottom:4}}>The Forge</div>
-            <div style={{fontSize:11,color:"#8a7e72"}}>Stop planning. Start writing.</div>
+            <div style={{fontSize:11,color:"#8a7e72"}}>One scene. One directive. Go write.</div>
           </div>
 
           {/* Simmer Mode */}
@@ -475,7 +502,16 @@ export default function App() {
           <div className="mc" onClick={()=>pick(MODES.find(m=>m.id==="inferno"))} style={{background:"linear-gradient(135deg,#2a1a15,#1e1210)",border:"1px solid #4a2a20",borderRadius:14,padding:"16px"}}>
             <div style={{fontSize:22,marginBottom:8}}>{"\u2604\uFE0F"}</div>
             <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:15,fontWeight:600,color:"#e07850",marginBottom:4}}>The Inferno</div>
-            <div style={{fontSize:11,color:"#8a7e72"}}>You're on fire. Let's use it.</div>
+            <div style={{fontSize:11,color:"#8a7e72"}}>Don't fiddle. Let the fire blaze.</div>
+          </div>
+
+          {/* Contain the Flames */}
+          <div className="mc" onClick={()=>pick(MODES.find(m=>m.id==="contain"))} style={{background:"linear-gradient(135deg,#1a1e20,#1e2228)",border:"1px solid #2a3440",borderRadius:14,padding:"16px",gridColumn:"1 / -1"}}>
+            <div style={{display:"flex",alignItems:"center",gap:12}}>
+              <div style={{fontSize:22}}>{"\uD83C\uDF0A"}</div>
+              <div><div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:15,fontWeight:600,color:"#b8956a"}}>Contain the Flames</div>
+              <div style={{fontSize:11,color:"#8a7e72"}}>Pull everything together. Finn reads all your sessions and organizes the chaos.</div></div>
+            </div>
           </div>
         </div>
 
