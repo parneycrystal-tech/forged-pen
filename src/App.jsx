@@ -237,8 +237,15 @@ export default function App() {
   const [bibTab, setBibTab] = useState("overview");
   const [subMenu, setSubMenu] = useState(null);
   const [lastThought, setLastThought] = useState(null);
+  const [scenes, setScenes] = useState([]);
+  const [activeScene, setActiveScene] = useState(null);
+  const [finnOpen, setFinnOpen] = useState(false);
+  const [containerMsgs, setContainerMsgs] = useState([]);
+  const [containerInput, setContainerInput] = useState("");
   const endRef = useRef(null);
   const taRef = useRef(null);
+  const writeRef = useRef(null);
+  const cEndRef = useRef(null);
   const abortRef = useRef(null);
   const tk = TORCHES[ti];
 
@@ -264,15 +271,80 @@ export default function App() {
     const s = loadStored("tt-sparks");
     const sess = loadStored("tt-session");
     const lt = loadStored("tt-lastthought");
+    const sc = loadStored("tt-scenes");
     if (p) setProject(p);
     if (s) setSparks(s);
     if (sess) setLastSession(sess);
     if (lt) setLastThought(lt);
+    if (sc) setScenes(sc);
   },[]);
 
   useEffect(()=>{endRef.current?.scrollIntoView({behavior:"smooth"})},[msgs]);
   useEffect(()=>{if(mode&&msgs.length>0)saveStored("tt-chat-"+mode.id,msgs)},[msgs]);
   useEffect(()=>{if(taRef.current){taRef.current.style.height="auto";taRef.current.style.height=Math.min(taRef.current.scrollHeight,200)+"px"}},[input]);
+  useEffect(()=>{cEndRef.current?.scrollIntoView({behavior:"smooth"})},[containerMsgs]);
+
+  // Scene management
+  const loadScenes=()=>{const s=loadStored("tt-scenes");return s||[]};
+  const saveScenes=(s)=>{setScenes(s);saveStored("tt-scenes",s)};
+  const getWordCount=(text)=>text?text.trim().split(/\s+/).filter(w=>w).length:0;
+  const getTotalWords=()=>scenes.reduce((sum,s)=>sum+getWordCount(s.text),0);
+
+  const initScenes=()=>{
+    const existing=loadStored("tt-scenes");
+    if(existing&&existing.length>0){setScenes(existing);setActiveScene(existing[existing.length-1].id);setScreen("container");return}
+    const first={id:"s_1",chapter:1,scene:1,title:"",text:"",status:"drafting",lastEdited:Date.now()};
+    saveScenes([first]);setActiveScene(first.id);setScreen("container");
+  };
+
+  const addScene=(chapterNum)=>{
+    const chScenes=scenes.filter(s=>s.chapter===chapterNum);
+    const nextNum=chScenes.length>0?Math.max(...chScenes.map(s=>s.scene))+1:1;
+    const ns={id:"s_"+Date.now(),chapter:chapterNum,scene:nextNum,title:"",text:"",status:"drafting",lastEdited:Date.now()};
+    const updated=[...scenes,ns];saveScenes(updated);setActiveScene(ns.id);
+  };
+
+  const addChapterWithScene=()=>{
+    const maxCh=scenes.length>0?Math.max(...scenes.map(s=>s.chapter)):0;
+    const ns={id:"s_"+Date.now(),chapter:maxCh+1,scene:1,title:"",text:"",status:"drafting",lastEdited:Date.now()};
+    const updated=[...scenes,ns];saveScenes(updated);setActiveScene(ns.id);
+  };
+
+  const updateSceneText=(id,text)=>{
+    const updated=scenes.map(s=>s.id===id?{...s,text,lastEdited:Date.now()}:s);
+    setScenes(updated);
+    setLastThought(text.trim().split(/[.!?]+/).filter(s=>s.trim()).pop()?.trim()||null);
+  };
+
+  // Auto-save every 3 seconds when writing
+  useEffect(()=>{
+    if(screen!=="container")return;
+    const timer=setInterval(()=>{if(scenes.length>0)saveStored("tt-scenes",scenes)},3000);
+    return ()=>clearInterval(timer);
+  },[screen,scenes]);
+
+  // Container Finn
+  const CONTAINER_FINN=`${FINN}\n\nMODE: CONTAINER COACHING. You are coaching the writer WHILE they write. They are mid-scene. Be quick and precise. Read their current scene text and Story Bible. You can do anything the regular coaching modes do: diagnose blocks, do scene surgery, deep-dive characters, check plot, analyze voice. The writer doesn't need to leave the container. Adapt to what they ask. If they say "this scene needs surgery," do scene surgery. If they say "I'm stuck," diagnose the block. If they say "break this down," go comprehensive. Default: short, sharp, actionable. Get them back to writing fast. Under 150 words unless they ask for more.`;
+
+  const sendContainer=async()=>{
+    if(!containerInput.trim()||loading)return;
+    const userText=containerInput.trim();
+    setLastThought(userText);saveStored("tt-lastthought",userText);
+    const currentScene=scenes.find(s=>s.id===activeScene);
+    const sceneCtx=currentScene?`\n\nCURRENT SCENE (Chapter ${currentScene.chapter}, Scene ${currentScene.scene}):\n${currentScene.text||"(empty, writer hasn't started yet)"}`:""
+    const chapStr=project?.chapters?(Array.isArray(project.chapters)?project.chapters.filter(c=>c.summary).map(c=>`Ch${c.num}: ${c.summary}`).join(". "):project.chapters):"";
+    const pCtx=project?`\n\nPROJECT: "${project.title}". Genre: ${project.genre}. Synopsis: ${project.synopsis}. Protagonist: ${project.protagonist}. Supporting: ${project.supporting}. Antagonist: ${project.antagonist}. Setting: ${project.worldSetting}. Rules: ${project.worldRules}. Beliefs vs Reality: ${project.worldBeliefs}. Danger: ${project.worldDanger}. Tone: ${project.worldTone}. Chapters: ${chapStr}. Position: ${project.where}. Stuck: ${project.stuck}. Excites: ${project.excites}.`:"";
+    const sparkCtx=sparks.length>0?`\n\nDOPAMINE MAP: ${sparks.map(s=>s.text).join(" | ")}`:"";
+    const nm=[...containerMsgs,{role:"user",content:userText}];setContainerMsgs(nm);setContainerInput("");setLoading(true);
+    const ctrl=new AbortController();abortRef.current=ctrl;
+    try{
+      const r=await fetch("/api/chat",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({system:CONTAINER_FINN+sceneCtx+pCtx+sparkCtx,messages:nm.map(m=>({role:m.role,content:m.content}))}),signal:ctrl.signal});
+      const d=await r.json();
+      if(d.error){setContainerMsgs(p=>[...p,{role:"assistant",content:`Connection issue: ${d.error}`}])}
+      else{setContainerMsgs(p=>[...p,{role:"assistant",content:d.content?.filter(b=>b.type==="text").map(b=>b.text).join("\n")||"Connection hiccup."}])}
+    }catch(e){if(e.name!=="AbortError")setContainerMsgs(p=>[...p,{role:"assistant",content:"Connection hiccup. Try again."}])}
+    setLoading(false);abortRef.current=null;
+  };
 
   const pick=(m)=>{
     setMode(m);setScreen("chat");saveSession(m.id);
@@ -297,7 +369,7 @@ export default function App() {
     } else { setMsgs([{role:"assistant",content:INTROS[mode.id]}]); }
   };
 
-  const goHome=()=>{cancelReq();setMode(null);setScreen("home");setSubMenu(null);setMsgs([]);setInput("")};
+  const goHome=()=>{cancelReq();setMode(null);setScreen("home");setSubMenu(null);setMsgs([]);setInput("");setFinnOpen(false);setContainerMsgs([]);setContainerInput("");if(scenes.length>0)saveStored("tt-scenes",scenes)};
   const getSmartRoute=()=>{
     if(!project) return {msg:"Set up your Story Bible and let Finn learn your project.",action:null,label:"Set Up Story Bible"};
     const away=getTimeAway();
@@ -407,7 +479,7 @@ export default function App() {
       </div>}
 
       {/* HEADER */}
-      {screen!=="welcome"&&<div style={{maxWidth:820,margin:"0 auto",padding:"20px 20px 0"}}>
+      {screen!=="welcome"&&screen!=="container"&&<div style={{maxWidth:820,margin:"0 auto",padding:"20px 20px 0"}}>
         <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:screen==="chat"?0:20}}>
           <div style={{cursor:"pointer"}} onClick={goHome}>
             <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:22,fontWeight:600,color:"#A8884A",letterSpacing:"0.04em"}}>Forged Pen</div>
@@ -454,6 +526,16 @@ export default function App() {
           </div>
           <div style={{fontSize:11,color:"#A8884A",marginLeft:12,animation:"wp 4s ease-in-out infinite"}}>{sparks.length} spark{sparks.length>1?"s":""}</div>
         </div>}
+
+        {/* The Forge - Writing Container */}
+        <div className="card" onClick={initScenes} style={{marginBottom:12,display:"flex",alignItems:"center",gap:14,padding:"14px 18px",border:"1px solid #A8884A20"}}>
+          <svg width="18" height="18" viewBox="0 0 18 18" style={{flexShrink:0}}><path d="M9 1l1.5 4.5L9 16 7.5 5.5z" fill="none" stroke="#A8884A" strokeWidth="0.9"/><rect x="7" y="15" width="4" height="1.5" rx="0.5" fill="#A8884A" opacity="0.3"/></svg>
+          <div style={{flex:1}}>
+            <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:14,fontWeight:600,color:"#A8884A"}}>The Forge</div>
+            <div style={{fontSize:10,color:"#6A6050",marginTop:2}}>{scenes.length>0?`${getTotalWords()} words across ${scenes.length} scene${scenes.length>1?"s":""}. Continue writing.`:"Open your writing space."}</div>
+          </div>
+          <span style={{color:"#6A6050",fontSize:14}}>&#8594;</span>
+        </div>
 
         {/* Card Grid Row 1 */}
         <div id="fp-grid" style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:8,marginBottom:8}}>
@@ -588,6 +670,101 @@ export default function App() {
           </div>}
         </div>
       </div>}
+
+      {/* THE FORGE - WRITING CONTAINER */}
+      {screen==="container"&&(()=>{
+        const currentScene=scenes.find(s=>s.id===activeScene);
+        const chapters=[...new Set(scenes.map(s=>s.chapter))].sort((a,b)=>a-b);
+        return <div style={{height:"100vh",display:"grid",gridTemplateColumns:finnOpen?"180px 1fr 280px":"180px 1fr",transition:"grid-template-columns .3s"}}>
+          {/* Left: Scene Nav */}
+          <div style={{background:"#141210",borderRight:"1px solid #1E1A16",padding:"16px 12px",display:"flex",flexDirection:"column",overflowY:"auto"}}>
+            <div style={{marginBottom:16}}>
+              <div onClick={goHome} style={{fontFamily:"'Cormorant Garamond',serif",fontSize:16,fontWeight:600,color:"#A8884A",cursor:"pointer"}}>Forged Pen</div>
+              <div style={{fontSize:8,color:"#6A6050",marginTop:3}}>THE FORGE</div>
+            </div>
+            <div onClick={()=>{if(scenes.length>0){const last=scenes.reduce((a,b)=>b.lastEdited>a.lastEdited?b:a);setActiveScene(last.id)}}} style={{background:"#A8884A",borderRadius:8,padding:"9px 14px",textAlign:"center",cursor:"pointer",marginBottom:14}}>
+              <span style={{fontSize:11,fontWeight:500,color:"#0F0E0C"}}>Continue writing</span>
+            </div>
+            <div style={{fontSize:9,textTransform:"uppercase",letterSpacing:"0.18em",color:"#6A6050",fontWeight:500,marginBottom:8}}>Chapters</div>
+            <div style={{flex:1,overflowY:"auto"}}>
+              {chapters.map(ch=>{
+                const chScenes=scenes.filter(s=>s.chapter===ch).sort((a,b)=>a.scene-b.scene);
+                return <div key={ch} style={{marginBottom:10}}>
+                  <div style={{fontSize:11,color:"#8A7E6A",fontWeight:500,padding:"4px 0",marginBottom:2}}>Chapter {ch}</div>
+                  {chScenes.map(s=><div key={s.id} onClick={()=>setActiveScene(s.id)} style={{padding:"6px 12px 6px 18px",borderRadius:5,cursor:"pointer",fontSize:11,color:s.id===activeScene?"#D8C8AA":"#6A6050",background:s.id===activeScene?"#A8884A0A":"transparent",borderLeft:s.id===activeScene?"2px solid #A8884A60":"2px solid transparent",transition:"all .2s"}}>{s.title||`Scene ${s.scene}`}<span style={{fontSize:9,color:"#4A4238",marginLeft:6}}>{getWordCount(s.text)}</span></div>)}
+                  <div onClick={()=>addScene(ch)} style={{padding:"4px 12px 4px 18px",fontSize:10,color:"#4A4238",cursor:"pointer",fontStyle:"italic"}}>+ scene</div>
+                </div>;
+              })}
+              <div onClick={addChapterWithScene} style={{fontSize:10,color:"#4A4238",cursor:"pointer",fontStyle:"italic",padding:"4px 0"}}>+ chapter</div>
+            </div>
+            <div style={{borderTop:"1px solid #1E1A16",paddingTop:10,marginTop:"auto"}}>
+              <div style={{fontSize:9,color:"#6A6050"}}>{getTotalWords()} words total</div>
+              <div style={{fontSize:9,color:"#4A4238",marginTop:3}}>Auto-saving</div>
+            </div>
+          </div>
+
+          {/* Center: Writing Area */}
+          <div style={{background:"#161412",display:"flex",flexDirection:"column",overflow:"hidden"}}>
+            {currentScene?<>
+              <div style={{padding:"12px 40px 10px",borderBottom:"1px solid #1E1A16",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+                <div>
+                  <span style={{fontSize:11,color:"#8A7E6A"}}>Chapter {currentScene.chapter}, Scene {currentScene.scene}</span>
+                  <span style={{fontSize:10,color:"#4A4238",marginLeft:12}}>{getWordCount(currentScene.text)} words</span>
+                </div>
+                <div style={{display:"flex",gap:8,alignItems:"center"}}>
+                  <span onClick={()=>{if(currentScene.text){const t=currentScene.text.substring(0,200);const ns=[...sparks,{text:t,date:new Date().toLocaleDateString()}];setSparks(ns);saveStored("tt-sparks",ns)}}} style={{fontSize:10,color:"#6A6050",background:"#1A1816",border:"1px solid #221E1A",borderRadius:4,padding:"3px 8px",cursor:"pointer"}}>This excites me</span>
+                  <input value={currentScene.title||""} onChange={e=>{const updated=scenes.map(s=>s.id===currentScene.id?{...s,title:e.target.value}:s);setScenes(updated)}} placeholder="Scene title (optional)" style={{background:"none",border:"none",outline:"none",color:"#6A6050",fontSize:10,fontFamily:"'DM Sans',sans-serif",width:140,textAlign:"right"}}/>
+                </div>
+              </div>
+              {lastThought&&<div style={{padding:"6px 40px",background:"#1A181640",borderBottom:"1px solid #1E1A1640"}}>
+                <span style={{fontSize:9,color:"#6A6050",letterSpacing:"0.12em",textTransform:"uppercase"}}>LAST THOUGHT </span>
+                <span style={{fontFamily:"'Cormorant Garamond',serif",fontSize:12,color:"#8A7E6A",fontStyle:"italic",marginLeft:6}}>"{(typeof lastThought==="string"?lastThought:"").substring(0,100)}"</span>
+              </div>}
+              <div style={{flex:1,overflow:"auto",padding:"24px 40px"}}>
+                <textarea ref={writeRef} value={currentScene.text||""} onChange={e=>updateSceneText(currentScene.id,e.target.value)} placeholder="Start writing..." style={{width:"100%",height:"100%",minHeight:400,background:"none",border:"none",outline:"none",resize:"none",fontFamily:"'Cormorant Garamond',serif",fontSize:18,color:"#C8B8A0",lineHeight:2,letterSpacing:"0.01em",maxWidth:640}}/>
+              </div>
+              <div style={{padding:"8px 40px 12px",borderTop:"1px solid #1E1A16",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+                <div style={{fontSize:10,color:"#4A4238"}}>Auto-saved</div>
+                <div style={{display:"flex",gap:10}}>
+                  <span onClick={()=>{setFinnOpen(!finnOpen);if(!finnOpen&&containerMsgs.length===0){setContainerMsgs([{role:"assistant",content:`I'm reading Chapter ${currentScene.chapter}, Scene ${currentScene.scene}. ${getWordCount(currentScene.text)>0?"I can see what you're writing. Ask me anything about this scene, or tell me what you need.":"Empty page. Tell me what this scene needs to accomplish and I'll help you find the first line."}`}])}}} style={{fontSize:10,color:finnOpen?"#A8884A":"#6A6050",background:"#1A1816",border:"1px solid #221E1A",borderRadius:6,padding:"5px 12px",cursor:"pointer"}}>{finnOpen?"Close Finn":"Ask Finn"}</span>
+                  <span onClick={goHome} style={{fontSize:10,color:"#4A4238",cursor:"pointer",padding:"5px 0"}}>Home</span>
+                </div>
+              </div>
+            </>:<div style={{flex:1,display:"flex",alignItems:"center",justifyContent:"center"}}><p style={{color:"#6A6050"}}>Select a scene or create one.</p></div>}
+          </div>
+
+          {/* Right: Finn Panel */}
+          {finnOpen&&<div style={{background:"#141210",borderLeft:"1px solid #1E1A16",padding:"16px",display:"flex",flexDirection:"column",overflow:"hidden"}}>
+            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12}}>
+              <div>
+                <div style={{fontSize:9,textTransform:"uppercase",letterSpacing:"0.18em",color:"#A8884A80",fontWeight:500}}>Finn</div>
+                {currentScene&&<div style={{fontSize:10,color:"#4A4238",marginTop:2}}>Ch{currentScene.chapter}, Scene {currentScene.scene}</div>}
+              </div>
+              <span onClick={()=>setFinnOpen(false)} style={{fontSize:10,color:"#4A4238",cursor:"pointer"}}>Close</span>
+            </div>
+            <div style={{flex:1,overflowY:"auto",display:"flex",flexDirection:"column",gap:10}}>
+              {containerMsgs.map((m,i)=><div key={i} style={{background:m.role==="assistant"?"#1A1816":"#1E1A16",border:"1px solid "+(m.role==="assistant"?"#221E1A":"#2A2420"),borderRadius:10,padding:"10px 12px",alignSelf:m.role==="user"?"flex-end":"flex-start",maxWidth:"95%"}}>
+                {m.role==="assistant"&&<div style={{fontSize:9,color:"#A8884A80",textTransform:"uppercase",letterSpacing:"0.1em",marginBottom:5}}>Finn</div>}
+                <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:14,color:"#C8B8A0",lineHeight:1.7}}>{m.content.split("\n").map((l,j)=><p key={j} style={{marginBottom:l?8:3}}>{l}</p>)}</div>
+                {m.role==="assistant"&&i>0&&<span onClick={()=>{const ns=[...sparks,{text:m.content.substring(0,200),date:new Date().toLocaleDateString()}];setSparks(ns);saveStored("tt-sparks",ns)}} style={{fontSize:9,color:"#6A6050",border:"1px solid #221E1A",borderRadius:4,padding:"2px 6px",marginTop:6,display:"inline-block",cursor:"pointer"}}>This excites me</span>}
+              </div>)}
+              {loading&&<div style={{background:"#1A1816",border:"1px solid #221E1A",borderRadius:10,padding:"10px 12px"}}><div style={{fontSize:9,color:"#A8884A80",marginBottom:5}}>Finn</div><span style={{fontSize:13,color:"#6A6050",fontStyle:"italic"}}>Thinking...</span></div>}
+              <div ref={cEndRef}/>
+            </div>
+            <div style={{borderTop:"1px solid #1E1A16",paddingTop:10,marginTop:10}}>
+              <div style={{display:"flex",gap:6,alignItems:"flex-end",background:"#1A1816",border:"1px solid #221E1A",borderRadius:10,padding:"8px 10px"}}>
+                <textarea value={containerInput} onChange={e=>setContainerInput(e.target.value)} onKeyDown={e=>{if(e.key==="Enter"&&!e.shiftKey){e.preventDefault();sendContainer()}}} placeholder="Ask Finn..." rows={1} style={{flex:1,background:"none",border:"none",outline:"none",color:"#D8C8AA",fontFamily:"'Cormorant Garamond',serif",fontSize:14,lineHeight:1.5,resize:"none",maxHeight:100}}/>
+                <button className="sb" onClick={sendContainer} disabled={!containerInput.trim()||loading} style={{width:28,height:28,borderRadius:6,background:"#A8884A",color:"#0F0E0C",fontSize:14,fontWeight:700,border:"none",cursor:"pointer",flexShrink:0,display:"flex",alignItems:"center",justifyContent:"center",opacity:!containerInput.trim()||loading?.3:1}}>{"\u2191"}</button>
+              </div>
+            </div>
+            {project&&<div style={{marginTop:10,paddingTop:8,borderTop:"1px solid #1E1A16"}}>
+              <div style={{fontSize:8,textTransform:"uppercase",letterSpacing:"0.15em",color:"#6A6050",fontWeight:500,marginBottom:4}}>Story Bible</div>
+              <div style={{fontSize:10,color:"#4A4238",lineHeight:1.5}}>{project.protagonist?.substring(0,80)}</div>
+              {sparks.length>0&&<><div style={{fontSize:8,textTransform:"uppercase",letterSpacing:"0.15em",color:"#A8884A50",fontWeight:500,marginTop:8,marginBottom:4}}>Dopamine Map</div><div style={{fontSize:10,color:"#4A4238"}}>{sparks.length} sparks</div></>}
+            </div>}
+          </div>}
+        </div>;
+      })()}
 
       {/* CHAT */}
       {screen==="chat"&&mode&&<div style={{maxWidth:isFocusMode?600:700,margin:"0 auto",display:"flex",flexDirection:"column",height:"calc(100vh - 60px)"}}>
