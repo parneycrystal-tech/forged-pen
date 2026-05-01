@@ -310,6 +310,14 @@ export default function App() {
     const updated=[...scenes,ns];saveScenes(updated);setActiveScene(ns.id);
   };
 
+  const importChaptersToForge=()=>{
+    if(!project||!project.chapters)return;
+    const chaptersWithContent=Array.isArray(project.chapters)?project.chapters.filter(c=>c.summary):[];
+    if(chaptersWithContent.length===0)return;
+    const newScenes=chaptersWithContent.map(c=>({id:"s_imp_"+c.num+"_"+Date.now(),chapter:c.num,scene:1,title:c.summary.substring(0,50),text:"",status:"drafting",lastEdited:Date.now()}));
+    saveScenes(newScenes);setScenes(newScenes);
+  };
+
   const updateSceneText=(id,text)=>{
     const updated=scenes.map(s=>s.id===id?{...s,text,lastEdited:Date.now()}:s);
     setScenes(updated);
@@ -537,7 +545,7 @@ export default function App() {
         </div>}
 
         {/* The Forge - Writing Container */}
-        <div className="card" onClick={initScenes} style={{marginBottom:12,display:"flex",alignItems:"center",gap:14,padding:"14px 18px",border:"1px solid #A8884A20"}}>
+        <div className="card" onClick={initScenes} style={{marginBottom:4,display:"flex",alignItems:"center",gap:14,padding:"14px 18px",border:"1px solid #A8884A20"}}>
           <svg width="18" height="18" viewBox="0 0 18 18" style={{flexShrink:0}}><path d="M9 1l1.5 4.5L9 16 7.5 5.5z" fill="none" stroke="#A8884A" strokeWidth="0.9"/><rect x="7" y="15" width="4" height="1.5" rx="0.5" fill="#A8884A" opacity="0.3"/></svg>
           <div style={{flex:1}}>
             <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:14,fontWeight:600,color:"#A8884A"}}>The Forge</div>
@@ -545,6 +553,7 @@ export default function App() {
           </div>
           <span style={{color:"#6A6050",fontSize:14}}>&#8594;</span>
         </div>
+        {project&&project.chapters&&Array.isArray(project.chapters)&&project.chapters.some(c=>c.summary)&&(scenes.length===0||getTotalWords()===0)&&<div onClick={(e)=>{e.stopPropagation();importChaptersToForge()}} style={{textAlign:"center",padding:"6px 0 12px"}}><span style={{fontSize:11,color:"#A8884A80",cursor:"pointer"}}>Import {project.chapters.filter(c=>c.summary).length} chapters from Story Bible into The Forge</span></div>}
 
         {/* Card Grid Row 1 */}
         <div id="fp-grid" style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:8,marginBottom:8}}>
