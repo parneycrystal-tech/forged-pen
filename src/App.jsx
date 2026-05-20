@@ -269,6 +269,7 @@ export default function App() {
   const [containerMsgs, setContainerMsgs] = useState([]);
   const [containerInput, setContainerInput] = useState("");
   const [pulse, setPulse] = useState(null);
+  const [sidebarCtx, setSidebarCtx] = useState(null);
   const [theme, setTheme] = useState("dark");
   const [finnPanelSize, setFinnPanelSize] = useState("medium");
   const finnWidths = {small:300,medium:360,large:460};
@@ -303,6 +304,7 @@ export default function App() {
     const lt = loadStored("tt-lastthought");
     const sc = loadStored("tt-scenes");
     const pl = loadStored("tt-pulse");
+    const sb = loadStored("tt-sidebarctx");
     const th = loadStored("tt-theme");
     if (p) setProject(p);
     if (s) setSparks(s);
@@ -310,6 +312,7 @@ export default function App() {
     if (lt) setLastThought(lt);
     if (sc) setScenes(sc);
     if (pl) setPulse(pl);
+    if (sb) setSidebarCtx(sb);
     if (th) setTheme(th);
   },[]);
 
@@ -433,7 +436,45 @@ export default function App() {
     } else { setMsgs([{role:"assistant",content:INTROS[mode.id]}]); }
   };
 
-  const goHome=()=>{cancelReq();setMode(null);setScreen("home");setSubMenu(null);setMsgs([]);setInput("");setFinnOpen(false);setContainerMsgs([]);setContainerInput("");if(scenes.length>0)saveStored("tt-scenes",scenes)};
+  const generateSidebarContext=async(sessionMsgs,sessionMode,sceneText)=>{
+    if(!project||sessionMsgs.length<2)return;
+    const recentMsgs=sessionMsgs.slice(-6).map(m=>`${m.role}: ${m.content.substring(0,200)}`).join("\n");
+    const sceneSnippet=sceneText?sceneText.substring(0,500):"";
+    try{
+      const r=await fetch("/api/chat",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({
+        system:`You are a writing session analyzer. Respond ONLY with a JSON object. No markdown. No backticks. No explanation. Just the JSON.`,
+        messages:[{role:"user",content:`A writer just finished a session. Generate sidebar context.
+
+PROJECT: "${project.title}" - ${project.genre}
+MODE USED: ${sessionMode||"The Forge"}
+RECENT CONVERSATION:\n${recentMsgs}
+${sceneSnippet?`SCENE TEXT SNIPPET:\n${sceneSnippet}`:""}
+
+Respond with ONLY this JSON (no markdown, no backticks):
+{"toneWord":"ONE atmosphere word for the scene being worked on","sensoryAnchors":[{"detail":"sensory detail from the scene","sense":"smell/sound/touch/sight/taste"},{"detail":"second detail","sense":"sense"},{"detail":"third detail","sense":"sense"}],"hook":"A provocative question that makes the writer want to return to this scene. Address the character by name. Make it specific to what was discussed.","nextBeat":"What should happen next in the story based on the session","emotionalGoal":"The emotional effect the next scene should achieve in 5 words or less"}`}]
+      })});
+      const d=await r.json();
+      if(!d.error){
+        const raw=d.content?.filter(b=>b.type==="text").map(b=>b.text).join("")||"";
+        const cleaned=raw.replace(/```json\s*/g,"").replace(/```\s*/g,"").trim();
+        try{
+          const ctx=JSON.parse(cleaned);
+          ctx.mode=sessionMode||"The Forge";
+          ctx.time=Date.now();
+          setSidebarCtx(ctx);saveStored("tt-sidebarctx",ctx);
+        }catch(e){console.log("Sidebar parse error",e)}
+      }
+    }catch(e){console.log("Sidebar generation error",e)}
+  };
+
+  const goHome=()=>{
+    const prevMode=mode;const prevMsgs=[...msgs];const prevContainerMsgs=[...containerMsgs];
+    const activeScn=scenes.find(s=>s.id===activeScene);
+    cancelReq();setMode(null);setScreen("home");setSubMenu(null);setMsgs([]);setInput("");setFinnOpen(false);setContainerMsgs([]);setContainerInput("");
+    if(scenes.length>0)saveStored("tt-scenes",scenes);
+    if(prevMsgs.length>=2&&prevMode){generateSidebarContext(prevMsgs,prevMode.label,activeScn?.text||"")}
+    else if(prevContainerMsgs.length>=2){generateSidebarContext(prevContainerMsgs,"The Forge",activeScn?.text||"")}
+  };
   const getSmartRoute=()=>{
     if(!project) return {msg:"Set up your Story Bible and let Finn learn your project.",action:null,label:"Set Up Story Bible"};
     const away=getTimeAway();
@@ -680,27 +721,57 @@ export default function App() {
       {/* DESKTOP RIGHT SIDEBAR */}
       {screen==="home"&&project&&<div className="right-sb" style={{position:"fixed",right:0,top:0,bottom:0,width:260,background:"#141210",borderLeft:"1px solid #1E1A16",padding:"22px 18px",flexDirection:"column",overflowY:"auto"}}>
 
+        {/* Tone Word */}
+        {sidebarCtx?.toneWord?<>
+          <div style={{textAlign:"center",marginBottom:16}}>
+            <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:26,fontWeight:600,color:"#A8884A",letterSpacing:"0.08em",textTransform:"uppercase"}}>{sidebarCtx.toneWord}</div>
+            <div style={{fontSize:9,color:"#4A4238",textTransform:"uppercase",letterSpacing:"0.2em",marginTop:5}}>Scene Atmosphere</div>
+          </div>
+          <div style={{height:1,background:"#1E1A16",marginBottom:16}}/>
+        </>:null}
+
+        {/* Sensory Anchors */}
+        {sidebarCtx?.sensoryAnchors?.length>0?<>
+          <div style={{marginBottom:16}}>
+            <div style={{fontSize:9,textTransform:"uppercase",letterSpacing:"0.2em",color:"#6A6050",fontWeight:500,marginBottom:10}}>Sensory Anchors</div>
+            <div style={{display:"flex",flexDirection:"column",gap:8}}>
+              {sidebarCtx.sensoryAnchors.map((a,i)=><div key={i} style={{display:"flex",alignItems:"center",gap:8}}>
+                <svg width="16" height="16" viewBox="0 0 16 16"><circle cx="8" cy="8" r="3" fill="none" stroke="#A8884A" strokeWidth="0.6" opacity="0.4"/></svg>
+                <div><div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:14,color:"#C8B8A0"}}>{a.detail}</div><div style={{fontSize:10,color:"#6A6050"}}>{a.sense}</div></div>
+              </div>)}
+            </div>
+          </div>
+          <div style={{height:1,background:"#1E1A16",marginBottom:16}}/>
+        </>:null}
+
         {/* The Pulse */}
         {pulse?<div style={{marginBottom:16,cursor:"pointer"}} onClick={()=>{if(pulse.sceneId){setActiveScene(pulse.sceneId);saveStored("tt-activescene",pulse.sceneId);initScenes()}else if(pulse.modeId){const m=MODES.find(x=>x.id===pulse.modeId);if(m)pick(m)}}}>
           <div style={{fontSize:9,textTransform:"uppercase",letterSpacing:"0.2em",color:"#A8884A80",fontWeight:500,marginBottom:8}}>The Pulse</div>
           <div style={{fontSize:12,color:"#8A7E6A",marginBottom:6}}>{pulse.mode}{pulse.scene?` / ${pulse.scene}`:""}</div>
           <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:14,color:"#D8C8AA",lineHeight:1.6,marginBottom:8}}>{pulse.description}</div>
-          {pulse.title&&<div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:14,color:"#A8884A",lineHeight:1.6,fontStyle:"italic"}}>"{pulse.title}"</div>}
-          <div style={{fontSize:10,color:"#A8884A60",marginTop:8}}>Tap to return &#8594;</div>
+          {sidebarCtx?.hook&&<div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:14,color:"#A8884A",lineHeight:1.6,fontStyle:"italic",marginBottom:8}}>"{sidebarCtx.hook}"</div>}
+          <div style={{fontSize:10,color:"#A8884A60",marginTop:4}}>Tap to return &#8594;</div>
         </div>:<div style={{marginBottom:16}}>
           <div style={{fontSize:9,textTransform:"uppercase",letterSpacing:"0.2em",color:"#A8884A80",fontWeight:500,marginBottom:8}}>The Pulse</div>
-          <div style={{fontSize:12,color:"#6A6050",fontStyle:"italic"}}>Start a session to light it up</div>
+          <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:13,color:"#6A6050",fontStyle:"italic"}}>Start a session to light it up</div>
         </div>}
         <div style={{height:1,background:"#1E1A16",marginBottom:16}}/>
 
         {/* Next Beat */}
-        {project.stuck&&project.stuck.trim()&&<>
+        {sidebarCtx?.nextBeat?<>
+          <div style={{marginBottom:16}}>
+            <div style={{fontSize:9,textTransform:"uppercase",letterSpacing:"0.2em",color:"#6A6050",fontWeight:500,marginBottom:8}}>Next Beat</div>
+            <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:14,color:"#D8C8AA",lineHeight:1.6}}>{sidebarCtx.nextBeat}</div>
+            {sidebarCtx.emotionalGoal&&<div style={{fontSize:11,color:"#8A7E6A",marginTop:8,fontStyle:"italic"}}>Emotional goal: {sidebarCtx.emotionalGoal}</div>}
+          </div>
+          <div style={{height:1,background:"#1E1A16",marginBottom:16}}/>
+        </>:project.stuck&&project.stuck.trim()?<>
           <div style={{marginBottom:16}}>
             <div style={{fontSize:9,textTransform:"uppercase",letterSpacing:"0.2em",color:"#6A6050",fontWeight:500,marginBottom:8}}>Next Beat</div>
             <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:14,color:"#D8C8AA",lineHeight:1.6}}>{project.stuck.substring(0,200)}</div>
           </div>
           <div style={{height:1,background:"#1E1A16",marginBottom:16}}/>
-        </>}
+        </>:null}
 
         {/* Latest Spark */}
         {sparks.length>0&&<>
@@ -737,18 +808,32 @@ export default function App() {
         {subMenu==="workshop"&&<>
           <div style={{fontSize:8,textTransform:"uppercase",letterSpacing:"0.25em",color:"#A8884A90",fontWeight:500,marginBottom:8}}>Coaching</div>
           <p style={{fontSize:13,color:"#8A7E6A",marginBottom:20,lineHeight:1.6}}>Bring your work. Finn will find what's strong, name what's off, and help you see what you missed.</p>
-          {MODES.filter(m=>m.cat==="craft"||m.cat==="intuition").map(m=><div key={m.id} className="card" onClick={()=>pick(m)} style={{marginBottom:6,display:"flex",justifyContent:"space-between",alignItems:"center"}}>
-            <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:14,fontWeight:600,color:"#D8C8AA"}}>{m.label}</div>
-            <div style={{fontSize:10,color:"#6A6050"}}>{m.sub}</div>
-          </div>)}
+          {MODES.filter(m=>m.cat==="craft"||m.cat==="intuition").map(m=>{
+            const saved=loadStored("tt-chat-"+m.id);
+            const lastMsg=saved&&saved.length>1?saved.filter(x=>x.role==="user").pop()?.content:"";
+            return <div key={m.id} className="card" onClick={()=>pick(m)} style={{marginBottom:8,padding:"14px 16px"}}>
+              <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+                <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:14,fontWeight:600,color:"#D8C8AA"}}>{m.label}</div>
+                <div style={{fontSize:10,color:"#6A6050"}}>{m.sub}</div>
+              </div>
+              {lastMsg&&<div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:12,color:"#6A6050",marginTop:6,lineHeight:1.5,fontStyle:"italic"}}>Last: "{lastMsg.substring(0,80)}{lastMsg.length>80?"...":""}"</div>}
+            </div>;
+          })}
         </>}
         {subMenu==="neuro"&&<>
           <div style={{fontSize:8,textTransform:"uppercase",letterSpacing:"0.25em",color:"#5A7A5C90",fontWeight:500,marginBottom:8}}>Neurodivergent Support</div>
           <p style={{fontSize:13,color:"#8A7E6A",marginBottom:20,lineHeight:1.6}}>For when your brain is the obstacle, not your story.</p>
-          {MODES.filter(m=>m.cat==="neuro").map(m=><div key={m.id} className="card" onClick={()=>pick(m)} style={{marginBottom:6,display:"flex",justifyContent:"space-between",alignItems:"center"}}>
-            <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:14,fontWeight:600,color:"#D8C8AA"}}>{m.label}</div>
-            <div style={{fontSize:10,color:"#6A6050"}}>{m.sub}</div>
-          </div>)}
+          {MODES.filter(m=>m.cat==="neuro").map(m=>{
+            const saved=loadStored("tt-chat-"+m.id);
+            const lastMsg=saved&&saved.length>1?saved.filter(x=>x.role==="user").pop()?.content:"";
+            return <div key={m.id} className="card" onClick={()=>pick(m)} style={{marginBottom:8,padding:"14px 16px"}}>
+              <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+                <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:14,fontWeight:600,color:"#D8C8AA"}}>{m.label}</div>
+                <div style={{fontSize:10,color:"#6A6050"}}>{m.sub}</div>
+              </div>
+              {lastMsg&&<div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:12,color:"#6A6050",marginTop:6,lineHeight:1.5,fontStyle:"italic"}}>Last: "{lastMsg.substring(0,80)}{lastMsg.length>80?"...":""}"</div>}
+            </div>;
+          })}
         </>}
       </div>}
 
