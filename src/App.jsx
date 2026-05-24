@@ -1,4 +1,10 @@
 import { useState, useRef, useEffect } from "react";
+import { createClient } from "@supabase/supabase-js";
+
+const supabase = createClient(
+  "https://jkygrqexnoiapdubryzy.supabase.co",
+  "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImpreWdycWV4bm9pYXBkdWJyeXp5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzkzMDgxNDYsImV4cCI6MjA5NDg4NDE0Nn0.cLGoSlItw5ABr-fk-NvSr-vyXvu02NCy7mxqGOf0yGc"
+);
 
 const FINN = `You are Finn (short for Finnigan), the writing coach behind Forged Pen. Lit major, psych minor. Old soul, sharp but never cutting, dry wit, warm underneath. You ask the one question that unlocks everything.
 
@@ -60,7 +66,7 @@ Design a 10-20 minute exercise tailored to THEIR story. Not a generic writing pr
 Example: If they're writing a fantasy and stuck on dialogue, don't say "write a conversation between two strangers." Say "Write the scene where [their character] has to lie to [other character] about [specific plot point from their Story Bible]. Give yourself 15 minutes. No backspace."
 Include: time limit, a specific constraint, and connect it to where they are in their story.
 Under 150 words.`) },
-  { id:"scene", label:"Scene Surgery", icon:"\uD83E\uDE7A", cat:"craft", sub:"Craft feedback, no rewrites", ph:"Paste a scene. Whatever you paste is brave.", sys: sp(`MODE: SCENE SURGERY. You have full access to this writer's Story Bible. Use it.
+  { id:"scene", label:"Scene Surgery", icon:"\uD83E\uDE7A", cat:"craft", sub:"Craft feedback", ph:"Paste a scene. Whatever you paste is brave.", sys: sp(`MODE: SCENE SURGERY. You have full access to this writer's Story Bible. Use it.
 RSD-AWARE FEEDBACK ORDER: 1) Lead with what WORKS. Be specific. Quote their actual words. "This line does something: [quote]. That's [technique name]." 2) Identify 1-3 craft issues. 3) For each issue, name the principle and give a strategy, never replacement text.
 PROACTIVE ANALYSIS: Actively scan the scene for:
 - Characters behaving inconsistently with their Story Bible descriptions
@@ -238,7 +244,23 @@ const INTROS = {
 const LOAD = ["Reading. Give me a second.","Sitting with this.","Let me think about what you've got here."];
 
 function loadStored(key) { try { const v = localStorage.getItem(key); return v ? JSON.parse(v) : null; } catch { return null; } }
-function saveStored(key, val) { try { localStorage.setItem(key, JSON.stringify(val)); } catch {} }
+function saveStored(key, val) { try { localStorage.setItem(key, JSON.stringify(val)); cloudSave(key, val); } catch {} }
+async function cloudSave(key, val) {
+  try {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return;
+    await supabase.from("user_store").upsert({ user_id: user.id, key, value: val, updated_at: new Date().toISOString() }, { onConflict: "user_id,key" });
+  } catch {}
+}
+async function cloudLoadAll() {
+  try {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return false;
+    const { data } = await supabase.from("user_store").select("key, value").eq("user_id", user.id);
+    if (data && data.length > 0) { data.forEach(row => { try { localStorage.setItem(row.key, JSON.stringify(row.value)); } catch {} }); }
+    return true;
+  } catch { return false; }
+}
 
 function FormField({label,k,ph,multi,value,onChange}){return <div style={{marginBottom:14}}><label style={{fontSize:12,color:"#8A7E6A",display:"block",marginBottom:5,fontFamily:"'DM Sans',sans-serif"}}>{label}</label>{multi?<textarea className="fi" rows={4} placeholder={ph} value={value} onChange={e=>onChange(k,e.target.value)} style={{resize:"vertical"}}/>:<input className="fi" placeholder={ph} value={value} onChange={e=>onChange(k,e.target.value)}/>}</div>}
 function WorldField({label,helper,example,k,value,onChange}){return <div style={{marginBottom:18}}><label style={{fontSize:13,color:"#A8884A",display:"block",marginBottom:3,fontWeight:600,fontFamily:"'DM Sans',sans-serif"}}>{label}</label><p style={{fontSize:11,color:"#8A7E6A",marginBottom:4,lineHeight:1.4,fontFamily:"'DM Sans',sans-serif"}}>{helper}</p><textarea className="fi" rows={2} placeholder={example} value={value} onChange={e=>onChange(k,e.target.value)} style={{resize:"vertical",fontSize:13}}/></div>}
@@ -247,6 +269,13 @@ function BibTab({id,label,active,onClick}){return <button onClick={()=>onClick(i
 
 
 export default function App() {
+  const [user, setUser] = useState(null);
+  const [authLoading, setAuthLoading] = useState(true);
+  const [authScreen, setAuthScreen] = useState("login");
+  const [authEmail, setAuthEmail] = useState("");
+  const [authPass, setAuthPass] = useState("");
+  const [authError, setAuthError] = useState("");
+  const [authMsg, setAuthMsg] = useState("");
   const [mode, setMode] = useState(null);
   const [msgs, setMsgs] = useState([]);
   const [input, setInput] = useState("");
@@ -297,7 +326,29 @@ export default function App() {
     setLastSession(s);saveStored("tt-session",s);
   };
 
+  // Auth check on mount
   useEffect(()=>{
+    supabase.auth.getSession().then(({data:{session}})=>{
+      if(session?.user){
+        setUser(session.user);
+        cloudLoadAll().then(()=>{
+          loadAllData();
+          migrateLocalToCloud();
+          setAuthLoading(false);
+        });
+      } else { setAuthLoading(false); }
+    });
+    const {data:{subscription}} = supabase.auth.onAuthStateChange((event,session)=>{
+      if(event==="SIGNED_IN"&&session?.user){
+        setUser(session.user);
+        cloudLoadAll().then(()=>{loadAllData();migrateLocalToCloud();setAuthLoading(false)});
+      }
+      if(event==="SIGNED_OUT"){setUser(null);setAuthLoading(false)}
+    });
+    return ()=>subscription.unsubscribe();
+  },[]);
+
+  const loadAllData=()=>{
     const p = loadStored("tt-project");
     const s = loadStored("tt-sparks");
     const sess = loadStored("tt-session");
@@ -314,7 +365,37 @@ export default function App() {
     if (pl) setPulse(pl);
     if (sb) setSidebarCtx(sb);
     if (th) setTheme(th);
-  },[]);
+  };
+
+  const migrateLocalToCloud=async()=>{
+    const migrated=loadStored("tt-migrated");
+    if(migrated)return;
+    const keys=["tt-project","tt-sparks","tt-session","tt-lastthought","tt-scenes","tt-pulse","tt-sidebarctx","tt-theme","tt-activescene"];
+    for(const key of keys){
+      const val=loadStored(key);
+      if(val)await cloudSave(key,val);
+    }
+    const chatKeys=Object.keys(localStorage).filter(k=>k.startsWith("tt-chat-"));
+    for(const key of chatKeys){
+      const val=loadStored(key);
+      if(val)await cloudSave(key,val);
+    }
+    localStorage.setItem("tt-migrated","true");
+  };
+
+  const handleAuth=async(isSignUp)=>{
+    setAuthError("");setAuthMsg("");
+    if(!authEmail.trim()||!authPass.trim()){setAuthError("Email and password required.");return}
+    if(isSignUp){
+      const {error}=await supabase.auth.signUp({email:authEmail,password:authPass});
+      if(error){setAuthError(error.message)}else{setAuthMsg("Check your email for a confirmation link.")}
+    } else {
+      const {error}=await supabase.auth.signInWithPassword({email:authEmail,password:authPass});
+      if(error){setAuthError(error.message)}
+    }
+  };
+
+  const handleLogout=async()=>{await supabase.auth.signOut();setUser(null);setScreen("welcome")};
 
   useEffect(()=>{endRef.current?.scrollIntoView({behavior:"smooth"})},[msgs]);
   useEffect(()=>{if(mode&&msgs.length>0)saveStored("tt-chat-"+mode.id,msgs)},[msgs]);
@@ -570,8 +651,45 @@ Respond with ONLY this JSON (no markdown, no backticks):
         @media(min-width:1100px){.right-sb{display:flex}}
       `}</style>
 
+      {/* LOADING */}
+      {authLoading&&<div style={{position:"fixed",top:0,left:0,right:0,bottom:0,background:"#121010",zIndex:300,display:"flex",alignItems:"center",justifyContent:"center"}}>
+        <div style={{textAlign:"center"}}>
+          <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:28,fontWeight:600,color:"#A8884A"}}>Forged Pen</div>
+          <div style={{fontSize:12,color:"#6A6050",marginTop:12}}>Loading...</div>
+        </div>
+      </div>}
+
+      {/* LOGIN */}
+      {!authLoading&&!user&&<div style={{position:"fixed",top:0,left:0,right:0,bottom:0,background:"#121010",zIndex:300,display:"flex",alignItems:"center",justifyContent:"center",padding:24}}>
+        <div style={{maxWidth:380,width:"100%",textAlign:"center",animation:"fi .6s ease-out"}}>
+          <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:28,fontWeight:600,color:"#A8884A",marginBottom:6}}>Forged Pen</div>
+          <div style={{fontSize:12,color:"#6A6050",marginBottom:32}}>Your writing coach, not your ghostwriter</div>
+          <div style={{textAlign:"left"}}>
+            <div style={{marginBottom:14}}>
+              <label style={{fontSize:11,color:"#8A7E6A",display:"block",marginBottom:5}}>Email</label>
+              <input value={authEmail} onChange={e=>setAuthEmail(e.target.value)} type="email" placeholder="your@email.com" style={{background:"#1A1816",border:"1px solid #221E1A",borderRadius:8,padding:"10px 14px",color:"#D8C8AA",fontFamily:"'DM Sans',sans-serif",fontSize:14,width:"100%",outline:"none"}}/>
+            </div>
+            <div style={{marginBottom:20}}>
+              <label style={{fontSize:11,color:"#8A7E6A",display:"block",marginBottom:5}}>Password</label>
+              <input value={authPass} onChange={e=>setAuthPass(e.target.value)} type="password" placeholder="Min 6 characters" onKeyDown={e=>{if(e.key==="Enter")handleAuth(authScreen==="signup")}} style={{background:"#1A1816",border:"1px solid #221E1A",borderRadius:8,padding:"10px 14px",color:"#D8C8AA",fontFamily:"'DM Sans',sans-serif",fontSize:14,width:"100%",outline:"none"}}/>
+            </div>
+            {authError&&<div style={{fontSize:12,color:"#B06848",marginBottom:12,lineHeight:1.5}}>{authError}</div>}
+            {authMsg&&<div style={{fontSize:12,color:"#5A7A5C",marginBottom:12,lineHeight:1.5}}>{authMsg}</div>}
+            <div className="sb" onClick={()=>handleAuth(authScreen==="signup")} style={{background:"#A8884A",borderRadius:8,padding:"12px",textAlign:"center",cursor:"pointer",marginBottom:12}}>
+              <span style={{fontSize:13,fontWeight:500,color:"#0F0E0C"}}>{authScreen==="signup"?"Create Account":"Sign In"}</span>
+            </div>
+            <div style={{textAlign:"center"}}>
+              <span onClick={()=>{setAuthScreen(authScreen==="login"?"signup":"login");setAuthError("");setAuthMsg("")}} style={{fontSize:12,color:"#6A6050",cursor:"pointer"}}>
+                {authScreen==="login"?"Need an account? Sign up":"Already have an account? Sign in"}
+              </span>
+            </div>
+          </div>
+          <div style={{marginTop:32,fontSize:10,color:"#4A4238",lineHeight:1.6}}>Your writing syncs across all your devices.<br/>Your content is never used to train AI.</div>
+        </div>
+      </div>}
+
       {/* WELCOME */}
-      {screen==="welcome"&&<div onClick={()=>{saveSession(null);setScreen("home")}} style={{position:"fixed",top:0,left:0,right:0,bottom:0,background:"#121010",zIndex:200,display:"flex",alignItems:"center",justifyContent:"center",padding:24,cursor:"pointer"}}>
+      {user&&screen==="welcome"&&<div onClick={()=>{saveSession(null);setScreen("home")}} style={{position:"fixed",top:0,left:0,right:0,bottom:0,background:"#121010",zIndex:200,display:"flex",alignItems:"center",justifyContent:"center",padding:24,cursor:"pointer"}}>
         <div style={{maxWidth:480,textAlign:"center",animation:"fi .6s ease-out"}}>
           <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:28,fontWeight:600,color:"#A8884A",marginBottom:6}}>Forged Pen</div>
           {project?<>
@@ -607,6 +725,7 @@ Respond with ONLY this JSON (no markdown, no backticks):
           </div>
           <div style={{display:"flex",gap:10,alignItems:"center"}}>
             <span onClick={()=>{const next=theme==="dark"?"light":"dark";setTheme(next);saveStored("tt-theme",next)}} style={{fontSize:16,cursor:"pointer",opacity:.4,padding:"2px 6px"}} title="Light mode coming soon">{theme==="dark"?"☀":"☾"}</span>
+            <span onClick={handleLogout} style={{fontSize:10,color:"#4A4238",cursor:"pointer",padding:"2px 6px"}} title="Sign out">Sign out</span>
             {screen==="chat"&&mode&&<span onClick={goHome} style={{fontSize:12,color:"#6A6050",cursor:"pointer",padding:"4px 0"}}>Back</span>}
           </div>
         </div>
