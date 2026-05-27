@@ -154,9 +154,8 @@ Under 200 words.`) },
 The writer has enough material to write. Your job is to move them from planning to execution.
 1) Reference their Story Bible to identify the next scene: "Based on your chapter summaries and where you said you are, the next scene that needs to exist is [specific scene]. Sound right?"
 2) Give a SCENE DIRECTIVE using their actual characters and world: 3-5 lines max. Character, setting, conflict, emotional tone. All pulled from their Story Bible. "You're writing the scene where [character] confronts [character] about [plot point]. Setting: [from world]. She's [emotional state based on arc]. He doesn't know [belief vs reality from world tab]. Go."
-3) Suggest a timer: "Set a timer for 20 minutes. Write this scene. It doesn't have to be good. It has to exist."
-4) Completed scene: "That scene exists now. It didn't before. That's the whole game."
-5) If they plan instead of write: "That's planning energy. You have enough. What's stopping you from starting? Name it and I'll help you through it."
+3) Completed scene: "That scene exists now. It didn't before. That's the whole game."
+4) If they plan instead of write: "That's planning energy. You have enough. What's stopping you from starting? Name it and I'll help you through it."
 Do NOT write the scene. Give the directive and get out of the way.
 Under 150 words.`) },
   { id:"inferno", label:"The Inferno", icon:"\u2604\uFE0F", cat:"inferno", sub:"You're on fire. Let's use it.", ph:"What's pouring out of you right now?", sys: sp(`MODE: THE INFERNO. You have full access to this writer's Story Bible and Dopamine Map IF they exist. If they don't, that's fine. This mode requires NOTHING. No Story Bible. No setup. The writer is in hyperfocus. DO NOT slow them down.
@@ -196,7 +195,7 @@ YOUR JOB:
 TONE: Clear, organized, warm. Like a trusted assistant who read all your notes and made sense of them. Under 350 words.`) }
 ];
 
-const CATS = { craft:{l:"Coaching",c:"#A8884A"}, neuro:{l:"Neurodivergent",c:"#5A7A5C"}, intuition:{l:"Intuition",c:"#7A6EA0"}, rest:{l:"Rest",c:"#907860"}, forge:{l:"Execution",c:"#A8884A"}, inferno:{l:"Hyperfocus",c:"#B06848"}, contain:{l:"Synthesis",c:"#908050"}, jarvis:{l:"Memory",c:"#5A7A8A"} };
+const CATS = { craft:{l:"Coaching",c:"var(--accent)"}, neuro:{l:"Neurodivergent",c:"#5A7A5C"}, intuition:{l:"Intuition",c:"#7A6EA0"}, rest:{l:"Rest",c:"#907860"}, forge:{l:"Execution",c:"var(--accent)"}, inferno:{l:"Hyperfocus",c:"#B06848"}, contain:{l:"Synthesis",c:"#908050"}, jarvis:{l:"Memory",c:"#5A7A8A"} };
 
 const TORCHES = [
   {q:"If there\u2019s a book that you want to read, but it hasn\u2019t been written yet, then you must write it.",a:"Toni Morrison",p:"Write 100 words about a door your character is afraid to open.",cn:"Subtext",cl:"The most powerful moments happen between the lines.",cx:"Rewrite your last dialogue so neither character says what they mean."},
@@ -262,10 +261,10 @@ async function cloudLoadAll() {
   } catch { return false; }
 }
 
-function FormField({label,k,ph,multi,value,onChange}){return <div style={{marginBottom:14}}><label style={{fontSize:12,color:"#8A7E6A",display:"block",marginBottom:5,fontFamily:"'DM Sans',sans-serif"}}>{label}</label>{multi?<textarea className="fi" rows={4} placeholder={ph} value={value} onChange={e=>onChange(k,e.target.value)} style={{resize:"vertical"}}/>:<input className="fi" placeholder={ph} value={value} onChange={e=>onChange(k,e.target.value)}/>}</div>}
-function WorldField({label,helper,example,k,value,onChange}){return <div style={{marginBottom:18}}><label style={{fontSize:13,color:"#A8884A",display:"block",marginBottom:3,fontWeight:600,fontFamily:"'DM Sans',sans-serif"}}>{label}</label><p style={{fontSize:11,color:"#8A7E6A",marginBottom:4,lineHeight:1.4,fontFamily:"'DM Sans',sans-serif"}}>{helper}</p><textarea className="fi" rows={2} placeholder={example} value={value} onChange={e=>onChange(k,e.target.value)} style={{resize:"vertical",fontSize:13}}/></div>}
-function Btn({children,onClick,s}){return <button onClick={onClick} style={{background:"#1E1A16",border:"1px solid #2A2420",borderRadius:8,color:"#C8B8A0",fontSize:13,padding:"10px 16px",fontFamily:"'DM Sans',sans-serif",cursor:"pointer",...s}}>{children}</button>}
-function BibTab({id,label,active,onClick}){return <button onClick={()=>onClick(id)} style={{background:active?"#1E1A16":"none",border:active?"1px solid #2A2420":"1px solid transparent",borderRadius:8,color:active?"#A8884A":"#6A6050",fontSize:12,padding:"6px 14px",cursor:"pointer",fontFamily:"'DM Sans',sans-serif"}}>{label}</button>}
+function FormField({label,k,ph,multi,value,onChange}){return <div style={{marginBottom:14}}><label style={{fontSize:12,color:"var(--text-muted)",display:"block",marginBottom:5,fontFamily:"'DM Sans',sans-serif"}}>{label}</label>{multi?<textarea className="fi" rows={4} placeholder={ph} value={value} onChange={e=>onChange(k,e.target.value)} style={{resize:"vertical"}}/>:<input className="fi" placeholder={ph} value={value} onChange={e=>onChange(k,e.target.value)}/>}</div>}
+function WorldField({label,helper,example,k,value,onChange}){return <div style={{marginBottom:18}}><label style={{fontSize:13,color:"var(--accent)",display:"block",marginBottom:3,fontWeight:600,fontFamily:"'DM Sans',sans-serif"}}>{label}</label><p style={{fontSize:11,color:"var(--text-muted)",marginBottom:4,lineHeight:1.4,fontFamily:"'DM Sans',sans-serif"}}>{helper}</p><textarea className="fi" rows={2} placeholder={example} value={value} onChange={e=>onChange(k,e.target.value)} style={{resize:"vertical",fontSize:13}}/></div>}
+function Btn({children,onClick,s}){return <button onClick={onClick} style={{background:"var(--bg-card-alt)",border:"1px solid var(--border-mid)",borderRadius:8,color:"var(--text-secondary)",fontSize:13,padding:"10px 16px",fontFamily:"'DM Sans',sans-serif",cursor:"pointer",...s}}>{children}</button>}
+function BibTab({id,label,active,onClick}){return <button onClick={()=>onClick(id)} style={{background:active?"var(--bg-card-alt)":"none",border:active?"1px solid var(--border-mid)":"1px solid transparent",borderRadius:8,color:active?"var(--accent)":"var(--text-dim)",fontSize:12,padding:"6px 14px",cursor:"pointer",fontFamily:"'DM Sans',sans-serif"}}>{label}</button>}
 
 
 export default function App() {
@@ -615,7 +614,6 @@ Respond with ONLY this JSON (no markdown, no backticks):
 
   const handleSetup=async()=>{
     const p={...pForm,updated:new Date().toLocaleDateString()};setProject(p);saveStored("tt-project",p);
-    // Scaffold chapters into The Forge if no scenes exist yet
     const existingScenes=loadStored("tt-scenes");
     if((!existingScenes||existingScenes.length===0)&&pForm.chapters&&pForm.chapters.some(c=>c.summary)){
       const newScenes=pForm.chapters.filter(c=>c.summary).map((c,i)=>({id:"s_ch"+c.num,chapter:c.num,scene:1,title:c.summary.substring(0,50),notes:c.summary,text:"",status:"drafting",lastEdited:Date.now()}));
@@ -629,90 +627,156 @@ Respond with ONLY this JSON (no markdown, no backticks):
   const updateChapter=(idx,val)=>setPForm(prev=>({...prev,chapters:prev.chapters.map((c,i)=>i===idx?{...c,summary:val}:c)}));
 
   const isFocusMode = mode && (mode.id==="micro"||mode.id==="smoke");
-  // Theme toggle infrastructure - light mode coming in dedicated session
 
   return (
-    <div style={{fontFamily:"'DM Sans',sans-serif",background:"#121010",color:"#D8C8AA",minHeight:"100vh"}}>
+    <div style={{fontFamily:"'DM Sans',sans-serif",background:"var(--bg-base)",color:"var(--text-primary)",minHeight:"100vh"}} className={theme==="light"?"theme-light":""}>
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;0,700;1,400&family=DM+Sans:wght@300;400;500;600&display=swap');
-        *{box-sizing:border-box;margin:0;padding:0}body{background:#121010}
-        ::selection{background:#A8884A30}textarea::placeholder,input::placeholder{color:#6A6050;font-style:italic}
+        *{box-sizing:border-box;margin:0;padding:0}body{background:var(--bg-base)}
+
+        /* ============================================
+           FORGED PEN THEME SYSTEM
+           Dark Academia (default) + Light Academia (olive)
+           Add class "theme-light" to root div to switch
+        ============================================ */
+
+        :root {
+          --bg-base: #121010;
+          --bg-dark: #141210;
+          --bg-write: #161412;
+          --bg-deepest: #0F0E0C;
+          --bg-card: #1A1816;
+          --bg-card-rgb: 26,24,22;
+          --bg-card-alt: #1E1A16;
+          --border: #221E1A;
+          --border-mid: #2A2420;
+          --accent: #A8884A;
+          --accent-b0: #A8884AB0;
+          --accent-90: #A8884A90;
+          --accent-80: #A8884A80;
+          --accent-70: #A8884A70;
+          --accent-60: #A8884A60;
+          --accent-40: #A8884A40;
+          --accent-30: #A8884A30;
+          --accent-20: #A8884A20;
+          --accent-15: #A8884A15;
+          --accent-0a: #A8884A0A;
+          --accent-08: #A8884A08;
+          --text-primary: #D8C8AA;
+          --text-secondary: #C8B8A0;
+          --text-muted: #8A7E6A;
+          --text-dim: #6A6050;
+          --text-faint: #4A4238;
+          --text-deepfaint: #3A3430;
+        }
+
+        .theme-light {
+          --bg-base: #F0EAE0;
+          --bg-dark: #E8E0D4;
+          --bg-write: #EDE6DA;
+          --bg-deepest: #E0D8CC;
+          --bg-card: #E4DDD0;
+          --bg-card-rgb: 228,221,208;
+          --bg-card-alt: #DDD6C8;
+          --border: #C8C0B0;
+          --border-mid: #D0C8B8;
+          --accent: #5A6B3A;
+          --accent-b0: #5A6B3AB0;
+          --accent-90: #5A6B3A90;
+          --accent-80: #5A6B3A80;
+          --accent-70: #5A6B3A70;
+          --accent-60: #5A6B3A60;
+          --accent-40: #5A6B3A40;
+          --accent-30: #5A6B3A30;
+          --accent-20: #5A6B3A20;
+          --accent-15: #5A6B3A15;
+          --accent-0a: #5A6B3A0A;
+          --accent-08: #5A6B3A08;
+          --text-primary: #1E1C14;
+          --text-secondary: #2C2A1E;
+          --text-muted: #5A5448;
+          --text-dim: #908878;
+          --text-faint: #A09888;
+          --text-deepfaint: #B0A898;
+        }
+
+        ::selection{background:var(--accent-30)}textarea::placeholder,input::placeholder{color:var(--text-dim);font-style:italic}
         @keyframes fu{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:translateY(0)}}
         @keyframes fi{from{opacity:0}to{opacity:1}}
         @keyframes pu{0%,100%{opacity:.3}50%{opacity:.8}}
         @keyframes wp{0%,100%{opacity:.55}50%{opacity:1}}
         .ma,.mu{animation:fu .4s ease-out}
-        .card{background:#1A1816;border:1px solid #221E1A;border-radius:10px;padding:16px;cursor:pointer;transition:all .25s}
-        .card:hover{border-color:#A8884A30;transform:translateY(-1px)}
+        .card{background:var(--bg-card);border:1px solid var(--border);border-radius:10px;padding:16px;cursor:pointer;transition:all .25s}
+        .card:hover{border-color:var(--accent-30);transform:translateY(-1px)}
         .sb{transition:all .2s}.sb:hover:not(:disabled){transform:scale(1.03);filter:brightness(1.1)}
         .cp{cursor:pointer;transition:all .4s}.cp:hover{transform:scale(1.01)}
-        .fi{background:#1A1816;border:1px solid #221E1A;border-radius:8px;padding:10px 14px;color:#D8C8AA;font-family:'Cormorant Garamond',serif;font-size:15px;width:100%;outline:none}.fi:focus{border-color:#A8884A40}
+        .fi{background:var(--bg-card);border:1px solid var(--border);border-radius:8px;padding:10px 14px;color:var(--text-primary);font-family:'Cormorant Garamond',serif;font-size:15px;width:100%;outline:none}.fi:focus{border-color:var(--accent-40)}
         .right-sb{display:none}
         @media(min-width:1100px){.right-sb{display:flex}}
       `}</style>
 
       {/* LOADING */}
-      {authLoading&&<div style={{position:"fixed",top:0,left:0,right:0,bottom:0,background:"#121010",zIndex:300,display:"flex",alignItems:"center",justifyContent:"center"}}>
+      {authLoading&&<div style={{position:"fixed",top:0,left:0,right:0,bottom:0,background:"var(--bg-base)",zIndex:300,display:"flex",alignItems:"center",justifyContent:"center"}}>
         <div style={{textAlign:"center"}}>
-          <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:28,fontWeight:600,color:"#A8884A"}}>Forged Pen</div>
-          <div style={{fontSize:12,color:"#6A6050",marginTop:12}}>Loading...</div>
+          <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:28,fontWeight:600,color:"var(--accent)"}}>Forged Pen</div>
+          <div style={{fontSize:12,color:"var(--text-dim)",marginTop:12}}>Loading...</div>
         </div>
       </div>}
 
       {/* LOGIN */}
-      {!authLoading&&!user&&<div style={{position:"fixed",top:0,left:0,right:0,bottom:0,background:"#121010",zIndex:300,display:"flex",alignItems:"center",justifyContent:"center",padding:24}}>
+      {!authLoading&&!user&&<div style={{position:"fixed",top:0,left:0,right:0,bottom:0,background:"var(--bg-base)",zIndex:300,display:"flex",alignItems:"center",justifyContent:"center",padding:24}}>
         <div style={{maxWidth:380,width:"100%",textAlign:"center",animation:"fi .6s ease-out"}}>
-          <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:28,fontWeight:600,color:"#A8884A",marginBottom:6}}>Forged Pen</div>
-          <div style={{fontSize:12,color:"#6A6050",marginBottom:32}}>Your writing coach, not your ghostwriter</div>
+          <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:28,fontWeight:600,color:"var(--accent)",marginBottom:6}}>Forged Pen</div>
+          <div style={{fontSize:12,color:"var(--text-dim)",marginBottom:32}}>Your writing coach, not your ghostwriter</div>
           <div style={{textAlign:"left"}}>
             <div style={{marginBottom:14}}>
-              <label style={{fontSize:11,color:"#8A7E6A",display:"block",marginBottom:5}}>Email</label>
-              <input value={authEmail} onChange={e=>setAuthEmail(e.target.value)} type="email" placeholder="your@email.com" style={{background:"#1A1816",border:"1px solid #221E1A",borderRadius:8,padding:"10px 14px",color:"#D8C8AA",fontFamily:"'DM Sans',sans-serif",fontSize:14,width:"100%",outline:"none"}}/>
+              <label style={{fontSize:11,color:"var(--text-muted)",display:"block",marginBottom:5}}>Email</label>
+              <input value={authEmail} onChange={e=>setAuthEmail(e.target.value)} type="email" placeholder="your@email.com" style={{background:"var(--bg-card)",border:"1px solid var(--border)",borderRadius:8,padding:"10px 14px",color:"var(--text-primary)",fontFamily:"'DM Sans',sans-serif",fontSize:14,width:"100%",outline:"none"}}/>
             </div>
             <div style={{marginBottom:20}}>
-              <label style={{fontSize:11,color:"#8A7E6A",display:"block",marginBottom:5}}>Password</label>
-              <input value={authPass} onChange={e=>setAuthPass(e.target.value)} type="password" placeholder="Min 6 characters" onKeyDown={e=>{if(e.key==="Enter")handleAuth(authScreen==="signup")}} style={{background:"#1A1816",border:"1px solid #221E1A",borderRadius:8,padding:"10px 14px",color:"#D8C8AA",fontFamily:"'DM Sans',sans-serif",fontSize:14,width:"100%",outline:"none"}}/>
+              <label style={{fontSize:11,color:"var(--text-muted)",display:"block",marginBottom:5}}>Password</label>
+              <input value={authPass} onChange={e=>setAuthPass(e.target.value)} type="password" placeholder="Min 6 characters" onKeyDown={e=>{if(e.key==="Enter")handleAuth(authScreen==="signup")}} style={{background:"var(--bg-card)",border:"1px solid var(--border)",borderRadius:8,padding:"10px 14px",color:"var(--text-primary)",fontFamily:"'DM Sans',sans-serif",fontSize:14,width:"100%",outline:"none"}}/>
             </div>
             {authError&&<div style={{fontSize:12,color:"#B06848",marginBottom:12,lineHeight:1.5}}>{authError}</div>}
             {authMsg&&<div style={{fontSize:12,color:"#5A7A5C",marginBottom:12,lineHeight:1.5}}>{authMsg}</div>}
-            <div className="sb" onClick={()=>handleAuth(authScreen==="signup")} style={{background:"#A8884A",borderRadius:8,padding:"12px",textAlign:"center",cursor:"pointer",marginBottom:12}}>
-              <span style={{fontSize:13,fontWeight:500,color:"#0F0E0C"}}>{authScreen==="signup"?"Create Account":"Sign In"}</span>
+            <div className="sb" onClick={()=>handleAuth(authScreen==="signup")} style={{background:"var(--accent)",borderRadius:8,padding:"12px",textAlign:"center",cursor:"pointer",marginBottom:12}}>
+              <span style={{fontSize:13,fontWeight:500,color:"var(--bg-deepest)"}}>{authScreen==="signup"?"Create Account":"Sign In"}</span>
             </div>
             <div style={{textAlign:"center"}}>
-              <span onClick={()=>{setAuthScreen(authScreen==="login"?"signup":"login");setAuthError("");setAuthMsg("")}} style={{fontSize:12,color:"#6A6050",cursor:"pointer"}}>
+              <span onClick={()=>{setAuthScreen(authScreen==="login"?"signup":"login");setAuthError("");setAuthMsg("")}} style={{fontSize:12,color:"var(--text-dim)",cursor:"pointer"}}>
                 {authScreen==="login"?"Need an account? Sign up":"Already have an account? Sign in"}
               </span>
             </div>
           </div>
-          <div style={{marginTop:32,fontSize:10,color:"#4A4238",lineHeight:1.6}}>Your writing syncs across all your devices.<br/>Your content is never used to train AI.</div>
+          <div style={{marginTop:32,fontSize:10,color:"var(--text-faint)",lineHeight:1.6}}>Your writing syncs across all your devices.<br/>Your content is never used to train AI.</div>
         </div>
       </div>}
 
       {/* WELCOME */}
-      {user&&screen==="welcome"&&<div onClick={()=>{saveSession(null);setScreen("home")}} style={{position:"fixed",top:0,left:0,right:0,bottom:0,background:"#121010",zIndex:200,display:"flex",alignItems:"center",justifyContent:"center",padding:24,cursor:"pointer"}}>
+      {user&&screen==="welcome"&&<div onClick={()=>{saveSession(null);setScreen("home")}} style={{position:"fixed",top:0,left:0,right:0,bottom:0,background:"var(--bg-base)",zIndex:200,display:"flex",alignItems:"center",justifyContent:"center",padding:24,cursor:"pointer"}}>
         <div style={{maxWidth:480,textAlign:"center",animation:"fi .6s ease-out"}}>
-          <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:28,fontWeight:600,color:"#A8884A",marginBottom:6}}>Forged Pen</div>
+          <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:28,fontWeight:600,color:"var(--accent)",marginBottom:6}}>Forged Pen</div>
           {project?<>
             {(()=>{
               const away = getTimeAway();
               const isLongAway = away && (away.includes("day") || (away.includes("hour") && parseInt(away)>=12));
-              const nib = <svg width="10" height="14" viewBox="0 0 10 14" style={{verticalAlign:"middle",marginRight:6,opacity:0.5}}><path d="M5 0L6.2 5L5 12L3.8 5Z" fill="#A8884A"/><circle cx="5" cy="4.5" r="0.8" fill="#A8884A"/></svg>;
+              const nib = <svg width="10" height="14" viewBox="0 0 10 14" style={{verticalAlign:"middle",marginRight:6,opacity:0.5}}><path d="M5 0L6.2 5L5 12L3.8 5Z" fill="var(--accent)"/><circle cx="5" cy="4.5" r="0.8" fill="var(--accent)"/></svg>;
               return <>
-                <p style={{fontFamily:"'Cormorant Garamond',serif",fontSize:16,color:"#D8C8AA",lineHeight:1.8,marginBottom:12,marginTop:16}}>
+                <p style={{fontFamily:"'Cormorant Garamond',serif",fontSize:16,color:"var(--text-primary)",lineHeight:1.8,marginBottom:12,marginTop:16}}>
                   "{project.title}" is right where you left it.{away ? ` It's been ${away}.` : ""}
                 </p>
-                {project.where&&<p style={{fontSize:13,color:"#8A7E6A",lineHeight:1.7,marginBottom:10,textAlign:"left"}}>{nib}{project.where}</p>}
-                {project.stuck&&project.stuck.trim()&&<p style={{fontSize:13,color:"#8A7E6A",lineHeight:1.7,marginBottom:10,textAlign:"left"}}>{nib}<span style={{color:"#A8884A80",fontSize:10,textTransform:"uppercase",letterSpacing:"0.1em"}}>Stuck on: </span>{project.stuck}</p>}
-                {sparks.length>0&&<p style={{fontSize:12,color:"#A8884A80",marginBottom:10,textAlign:"left"}}>{nib}{sparks.length} spark{sparks.length>1?"s":""} saved</p>}
-                <p style={{fontFamily:"'Cormorant Garamond',serif",fontSize:15,color:"#D8C8AA",lineHeight:1.8,marginTop:20,marginBottom:24}}>{isLongAway?"No guilt. The project waited. So did I.":"Let's get to work."}</p>
+                {project.where&&<p style={{fontSize:13,color:"var(--text-muted)",lineHeight:1.7,marginBottom:10,textAlign:"left"}}>{nib}{project.where}</p>}
+                {project.stuck&&project.stuck.trim()&&<p style={{fontSize:13,color:"var(--text-muted)",lineHeight:1.7,marginBottom:10,textAlign:"left"}}>{nib}<span style={{color:"var(--accent-80)",fontSize:10,textTransform:"uppercase",letterSpacing:"0.1em"}}>Stuck on: </span>{project.stuck}</p>}
+                {sparks.length>0&&<p style={{fontSize:12,color:"var(--accent-80)",marginBottom:10,textAlign:"left"}}>{nib}{sparks.length} spark{sparks.length>1?"s":""} saved</p>}
+                <p style={{fontFamily:"'Cormorant Garamond',serif",fontSize:15,color:"var(--text-primary)",lineHeight:1.8,marginTop:20,marginBottom:24}}>{isLongAway?"No guilt. The project waited. So did I.":"Let's get to work."}</p>
               </>;
             })()}
           </>:<>
-            <p style={{fontSize:12,color:"#6A6050",marginTop:4,marginBottom:20}}>Your writing coach, not your ghostwriter</p>
-            <p style={{fontFamily:"'Cormorant Garamond',serif",fontSize:16,color:"#D8C8AA",lineHeight:1.8,marginBottom:8}}>Hey. I'm Finnigan. But call me Finn.</p>
-            <p style={{fontFamily:"'Cormorant Garamond',serif",fontSize:15,color:"#8A7E6A",lineHeight:1.8,marginBottom:24}}>I ask the question you've been circling around, you realize you knew the answer the whole time, then you go write something extraordinary.</p>
+            <p style={{fontSize:12,color:"var(--text-dim)",marginTop:4,marginBottom:20}}>Your writing coach, not your ghostwriter</p>
+            <p style={{fontFamily:"'Cormorant Garamond',serif",fontSize:16,color:"var(--text-primary)",lineHeight:1.8,marginBottom:8}}>Hey. I'm Finnigan. But call me Finn.</p>
+            <p style={{fontFamily:"'Cormorant Garamond',serif",fontSize:15,color:"var(--text-muted)",lineHeight:1.8,marginBottom:24}}>I ask the question you've been circling around, you realize you knew the answer the whole time, then you go write something extraordinary.</p>
           </>}
-          <p style={{fontSize:11,color:"#6A6050"}}>Tap anywhere to begin</p>
+          <p style={{fontSize:11,color:"var(--text-dim)"}}>Tap anywhere to begin</p>
         </div>
       </div>}
 
@@ -720,13 +784,13 @@ Respond with ONLY this JSON (no markdown, no backticks):
       {screen!=="welcome"&&screen!=="container"&&<div style={{maxWidth:820,margin:"0 auto",padding:"20px 20px 0"}}>
         <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:screen==="chat"?0:20}}>
           <div style={{cursor:"pointer"}} onClick={goHome}>
-            <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:22,fontWeight:600,color:"#A8884A",letterSpacing:"0.04em"}}>Forged Pen</div>
-            <div style={{fontSize:9,color:"#6A6050",letterSpacing:"0.08em",marginTop:3}}>YOUR WRITING COACH, NOT YOUR GHOSTWRITER</div>
+            <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:22,fontWeight:600,color:"var(--accent)",letterSpacing:"0.04em"}}>Forged Pen</div>
+            <div style={{fontSize:9,color:"var(--text-dim)",letterSpacing:"0.08em",marginTop:3}}>YOUR WRITING COACH, NOT YOUR GHOSTWRITER</div>
           </div>
           <div style={{display:"flex",gap:10,alignItems:"center"}}>
-            <span onClick={()=>{const next=theme==="dark"?"light":"dark";setTheme(next);saveStored("tt-theme",next)}} style={{fontSize:16,cursor:"pointer",opacity:.4,padding:"2px 6px"}} title="Light mode coming soon">{theme==="dark"?"☀":"☾"}</span>
-            <span onClick={handleLogout} style={{fontSize:10,color:"#4A4238",cursor:"pointer",padding:"2px 6px"}} title="Sign out">Sign out</span>
-            {screen==="chat"&&mode&&<span onClick={goHome} style={{fontSize:12,color:"#6A6050",cursor:"pointer",padding:"4px 0"}}>Back</span>}
+            <span onClick={()=>{const next=theme==="dark"?"light":"dark";setTheme(next);saveStored("tt-theme",next)}} style={{fontSize:16,cursor:"pointer",opacity:.4,padding:"2px 6px"}} title="Toggle theme">{theme==="dark"?"☀":"☾"}</span>
+            <span onClick={handleLogout} style={{fontSize:10,color:"var(--text-faint)",cursor:"pointer",padding:"2px 6px"}} title="Sign out">Sign out</span>
+            {screen==="chat"&&mode&&<span onClick={goHome} style={{fontSize:12,color:"var(--text-dim)",cursor:"pointer",padding:"4px 0"}}>Back</span>}
           </div>
         </div>
       </div>}
@@ -735,89 +799,89 @@ Respond with ONLY this JSON (no markdown, no backticks):
       {screen==="home"&&<div style={{maxWidth:820,margin:"0 auto",padding:"0 20px 20px",animation:"fu .5s ease-out"}}>
         {/* Quote */}
         <div style={{textAlign:"center",padding:"4px 20px 16px"}}>
-          <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:17,fontWeight:600,color:"#A8884AB0",lineHeight:1.7}}>"{tk.q}"</div>
-          <div style={{fontSize:10,color:"#6A6050",marginTop:5}}>{tk.a}</div>
+          <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:17,fontWeight:600,color:"var(--accent-b0)",lineHeight:1.7}}>"{tk.q}"</div>
+          <div style={{fontSize:10,color:"var(--text-dim)",marginTop:5}}>{tk.a}</div>
         </div>
 
         {/* Finn's Read */}
-        {(()=>{const route=getSmartRoute();return <div style={{background:"#1A1816",border:"1px solid #221E1A",borderRadius:10,padding:"18px 20px",marginBottom:12,position:"relative"}}>
-          <div style={{position:"absolute",top:0,left:20,right:20,height:1,background:"linear-gradient(90deg,transparent,#A8884A20,transparent)"}}/>
+        {(()=>{const route=getSmartRoute();return <div style={{background:"var(--bg-card)",border:"1px solid var(--border)",borderRadius:10,padding:"18px 20px",marginBottom:12,position:"relative"}}>
+          <div style={{position:"absolute",top:0,left:20,right:20,height:1,background:`linear-gradient(90deg,transparent,var(--accent-20),transparent)`}}/>
           {project&&<div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12}}>
-            <div style={{fontSize:12,color:"#8A7E6A",letterSpacing:"0.08em",fontWeight:500}}>{project.title?.toUpperCase()}</div>
-            {project.where&&<div style={{fontSize:11,color:"#6A6050"}}>{project.where}</div>}
+            <div style={{fontSize:12,color:"var(--text-muted)",letterSpacing:"0.08em",fontWeight:500}}>{project.title?.toUpperCase()}</div>
+            {project.where&&<div style={{fontSize:11,color:"var(--text-dim)"}}>{project.where}</div>}
           </div>}
-          <div style={{fontSize:8,textTransform:"uppercase",letterSpacing:"0.25em",color:"#A8884A80",fontWeight:500,marginBottom:10}}>Finn's read</div>
-          <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:17,color:"#D8C8AA",lineHeight:1.7,marginBottom:18}}>{route.msg}</div>
+          <div style={{fontSize:8,textTransform:"uppercase",letterSpacing:"0.25em",color:"var(--accent-80)",fontWeight:500,marginBottom:10}}>Finn's read</div>
+          <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:17,color:"var(--text-primary)",lineHeight:1.7,marginBottom:18}}>{route.msg}</div>
           {route.action?<>
-            <div className="sb" onClick={()=>pick(MODES.find(m=>m.id===route.action))} style={{background:"#A8884A",border:"none",borderRadius:8,padding:"11px 24px",textAlign:"center",cursor:"pointer"}}><span style={{fontSize:12,fontWeight:500,color:"#0F0E0C",letterSpacing:"0.03em"}}>{route.label}</span></div>
-            <div style={{textAlign:"center",marginTop:10}}><span onClick={()=>{const el=document.getElementById("fp-grid");if(el)el.scrollIntoView({behavior:"smooth"})}} style={{fontSize:11,color:"#6A6050",cursor:"pointer"}}>I need something different today</span></div>
-          </>:<div className="sb" onClick={()=>setScreen("setup")} style={{background:"#A8884A",border:"none",borderRadius:8,padding:"11px 24px",textAlign:"center",cursor:"pointer"}}><span style={{fontSize:12,fontWeight:500,color:"#0F0E0C",letterSpacing:"0.03em"}}>{route.label}</span></div>}
+            <div className="sb" onClick={()=>pick(MODES.find(m=>m.id===route.action))} style={{background:"var(--accent)",border:"none",borderRadius:8,padding:"11px 24px",textAlign:"center",cursor:"pointer"}}><span style={{fontSize:12,fontWeight:500,color:"var(--bg-deepest)",letterSpacing:"0.03em"}}>{route.label}</span></div>
+            <div style={{textAlign:"center",marginTop:10}}><span onClick={()=>{const el=document.getElementById("fp-grid");if(el)el.scrollIntoView({behavior:"smooth"})}} style={{fontSize:11,color:"var(--text-dim)",cursor:"pointer"}}>I need something different today</span></div>
+          </>:<div className="sb" onClick={()=>setScreen("setup")} style={{background:"var(--accent)",border:"none",borderRadius:8,padding:"11px 24px",textAlign:"center",cursor:"pointer"}}><span style={{fontSize:12,fontWeight:500,color:"var(--bg-deepest)",letterSpacing:"0.03em"}}>{route.label}</span></div>}
         </div>})()}
 
         {/* The Pulse */}
-        {pulse&&<div onClick={()=>{if(pulse.sceneId){setActiveScene(pulse.sceneId);saveStored("tt-activescene",pulse.sceneId);initScenes()}else if(pulse.modeId){const m=MODES.find(x=>x.id===pulse.modeId);if(m)pick(m)}}} style={{background:"#1A1816",border:"1px solid #221E1A",borderRadius:8,padding:"12px 16px",marginBottom:12,cursor:"pointer"}}>
+        {pulse&&<div onClick={()=>{if(pulse.sceneId){setActiveScene(pulse.sceneId);saveStored("tt-activescene",pulse.sceneId);initScenes()}else if(pulse.modeId){const m=MODES.find(x=>x.id===pulse.modeId);if(m)pick(m)}}} style={{background:"var(--bg-card)",border:"1px solid var(--border)",borderRadius:8,padding:"12px 16px",marginBottom:12,cursor:"pointer"}}>
           <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:6}}>
-            <div style={{fontSize:9,textTransform:"uppercase",letterSpacing:"0.18em",color:"#A8884A80",fontWeight:500}}>The Pulse</div>
-            <div style={{fontSize:9,color:"#6A6050"}}>{pulse.mode}{pulse.scene?` / ${pulse.scene}`:""}</div>
+            <div style={{fontSize:9,textTransform:"uppercase",letterSpacing:"0.18em",color:"var(--accent-80)",fontWeight:500}}>The Pulse</div>
+            <div style={{fontSize:9,color:"var(--text-dim)"}}>{pulse.mode}{pulse.scene?` / ${pulse.scene}`:""}</div>
           </div>
-          <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:14,color:"#A89880",lineHeight:1.6}}>{pulse.description}</div>
-          {pulse.title&&<div style={{fontSize:10,color:"#6A6050",marginTop:4}}>{pulse.title}</div>}
+          <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:14,color:"var(--text-secondary)",lineHeight:1.6}}>{pulse.description}</div>
+          {pulse.title&&<div style={{fontSize:10,color:"var(--text-dim)",marginTop:4}}>{pulse.title}</div>}
         </div>}
 
-        {/* Dopamine Map - clickable */}
+        {/* Dopamine Map */}
         {sparks.length>0&&<div onClick={()=>setScreen("sparkmap")} className="card" style={{padding:"12px 16px",marginBottom:16,display:"flex",justifyContent:"space-between",alignItems:"center"}}>
           <div style={{flex:1}}>
-            <div style={{fontSize:9,textTransform:"uppercase",letterSpacing:"0.18em",color:"#A8884A70",fontWeight:500,marginBottom:5}}>Dopamine map</div>
-            <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:14,color:"#8A7E6A",fontStyle:"italic"}}>"{sparks[sparks.length-1]?.text}"</div>
+            <div style={{fontSize:9,textTransform:"uppercase",letterSpacing:"0.18em",color:"var(--accent-70)",fontWeight:500,marginBottom:5}}>Dopamine map</div>
+            <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:14,color:"var(--text-muted)",fontStyle:"italic"}}>"{sparks[sparks.length-1]?.text}"</div>
           </div>
-          <div style={{fontSize:11,color:"#A8884A",marginLeft:12,animation:"wp 4s ease-in-out infinite"}}>{sparks.length} spark{sparks.length>1?"s":""}</div>
+          <div style={{fontSize:11,color:"var(--accent)",marginLeft:12,animation:"wp 4s ease-in-out infinite"}}>{sparks.length} spark{sparks.length>1?"s":""}</div>
         </div>}
 
-        {/* The Forge - Writing Container */}
-        <div className="card" onClick={initScenes} style={{marginBottom:4,display:"flex",alignItems:"center",gap:14,padding:"14px 18px",border:"1px solid #A8884A20"}}>
-          <svg width="18" height="18" viewBox="0 0 18 18" style={{flexShrink:0}}><path d="M9 1l1.5 4.5L9 16 7.5 5.5z" fill="none" stroke="#A8884A" strokeWidth="0.9"/><rect x="7" y="15" width="4" height="1.5" rx="0.5" fill="#A8884A" opacity="0.3"/></svg>
+        {/* The Forge */}
+        <div className="card" onClick={initScenes} style={{marginBottom:4,display:"flex",alignItems:"center",gap:14,padding:"14px 18px",border:"1px solid var(--accent-20)"}}>
+          <svg width="18" height="18" viewBox="0 0 18 18" style={{flexShrink:0}}><path d="M9 1l1.5 4.5L9 16 7.5 5.5z" fill="none" stroke="var(--accent)" strokeWidth="0.9"/><rect x="7" y="15" width="4" height="1.5" rx="0.5" fill="var(--accent)" opacity="0.3"/></svg>
           <div style={{flex:1}}>
-            <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:14,fontWeight:600,color:"#A8884A"}}>The Forge</div>
-            <div style={{fontSize:10,color:"#6A6050",marginTop:2}}>{scenes.length>0?`${getTotalWords()} words across ${scenes.length} scene${scenes.length>1?"s":""}. Continue writing.`:"Open your writing space."}</div>
+            <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:14,fontWeight:600,color:"var(--accent)"}}>The Forge</div>
+            <div style={{fontSize:10,color:"var(--text-dim)",marginTop:2}}>{scenes.length>0?`${getTotalWords()} words across ${scenes.length} scene${scenes.length>1?"s":""}. Continue writing.`:"Open your writing space."}</div>
           </div>
-          <span style={{color:"#6A6050",fontSize:14}}>&#8594;</span>
+          <span style={{color:"var(--text-dim)",fontSize:14}}>&#8594;</span>
         </div>
-        {project&&project.chapters&&Array.isArray(project.chapters)&&project.chapters.some(c=>c.summary)&&getTotalWords()<100&&<div onClick={(e)=>{e.stopPropagation();importChaptersToForge()}} style={{textAlign:"center",padding:"6px 0 12px"}}><span style={{fontSize:11,color:"#A8884A80",cursor:"pointer"}}>Import {project.chapters.filter(c=>c.summary).length} chapters from Story Bible into The Forge</span></div>}
+        {project&&project.chapters&&Array.isArray(project.chapters)&&project.chapters.some(c=>c.summary)&&getTotalWords()<100&&<div onClick={(e)=>{e.stopPropagation();importChaptersToForge()}} style={{textAlign:"center",padding:"6px 0 12px"}}><span style={{fontSize:11,color:"var(--accent-80)",cursor:"pointer"}}>Import {project.chapters.filter(c=>c.summary).length} chapters from Story Bible into The Forge</span></div>}
 
         {/* Card Grid Row 1 */}
         <div id="fp-grid" style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:8,marginBottom:8}}>
           <div className="card" onClick={()=>project?setScreen("project"):setScreen("setup")}>
             <svg width="16" height="16" viewBox="0 0 16 16" style={{marginBottom:8}}><rect x="3" y="1" width="10" height="13" rx="1.5" fill="none" stroke="#5A7A8A" strokeWidth="1"/><path d="M6 4h4M6 6.5h4M6 9h3" stroke="#5A7A8A" strokeWidth="0.6" opacity="0.5"/></svg>
-            <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:13,fontWeight:600,color:"#D8C8AA"}}>Story Bible</div>
-            <div style={{fontSize:9,color:"#6A6050",marginTop:3}}>{project?project.title:"Your story lives here"}</div>
+            <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:13,fontWeight:600,color:"var(--text-primary)"}}>Story Bible</div>
+            <div style={{fontSize:9,color:"var(--text-dim)",marginTop:3}}>{project?project.title:"Your story lives here"}</div>
           </div>
           <div className="card" onClick={()=>setScreen("torch")}>
-            <svg width="16" height="16" viewBox="0 0 16 16" style={{marginBottom:8}}><path d="M8 2L9.2 5.8L13 5.8L10 8L11 12L8 9.5L5 12L6 8L3 5.8L6.8 5.8Z" fill="none" stroke="#A8884A" strokeWidth="0.8"/></svg>
-            <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:13,fontWeight:600,color:"#D8C8AA"}}>Daily Spark</div>
-            <div style={{fontSize:9,color:"#6A6050",marginTop:3}}>Quote, prompt & card</div>
+            <svg width="16" height="16" viewBox="0 0 16 16" style={{marginBottom:8}}><path d="M8 2L9.2 5.8L13 5.8L10 8L11 12L8 9.5L5 12L6 8L3 5.8L6.8 5.8Z" fill="none" stroke="var(--accent)" strokeWidth="0.8"/></svg>
+            <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:13,fontWeight:600,color:"var(--text-primary)"}}>Daily Spark</div>
+            <div style={{fontSize:9,color:"var(--text-dim)",marginTop:3}}>Quote, prompt & card</div>
           </div>
           <div className="card" onClick={()=>pick(MODES.find(m=>m.id==="contain"))}>
             <svg width="16" height="16" viewBox="0 0 16 16" style={{marginBottom:8}}><circle cx="8" cy="8" r="5.5" fill="none" stroke="#908050" strokeWidth="0.9"/><path d="M5 8c1.5-2.5 4.5-2.5 6 0c-1.5 2.5-4.5 2.5-6 0z" fill="#908050" opacity="0.1"/></svg>
-            <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:13,fontWeight:600,color:"#D8C8AA"}}>Contain</div>
-            <div style={{fontSize:9,color:"#6A6050",marginTop:3}}>Pull it all together</div>
+            <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:13,fontWeight:600,color:"var(--text-primary)"}}>Contain</div>
+            <div style={{fontSize:9,color:"var(--text-dim)",marginTop:3}}>Pull it all together</div>
           </div>
         </div>
 
         {/* Card Grid Row 2 */}
         <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:8}}>
           <div className="card" onClick={()=>{setSubMenu("workshop");setScreen("submenu")}} style={{display:"flex",alignItems:"center",gap:10}}>
-            <svg width="16" height="16" viewBox="0 0 16 16" style={{flexShrink:0}}><path d="M4 12L8 3L12 12" fill="none" stroke="#A8884A" strokeWidth="1"/><circle cx="8" cy="9" r="1.2" fill="#A8884A" opacity="0.25"/></svg>
-            <div><div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:13,fontWeight:600,color:"#A8884A"}}>Coaching</div><div style={{fontSize:9,color:"#6A6050"}}>Craft feedback</div></div>
+            <svg width="16" height="16" viewBox="0 0 16 16" style={{flexShrink:0}}><path d="M4 12L8 3L12 12" fill="none" stroke="var(--accent)" strokeWidth="1"/><circle cx="8" cy="9" r="1.2" fill="var(--accent)" opacity="0.25"/></svg>
+            <div><div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:13,fontWeight:600,color:"var(--accent)"}}>Coaching</div><div style={{fontSize:9,color:"var(--text-dim)"}}>Craft feedback</div></div>
           </div>
           <div className="card" onClick={()=>{setSubMenu("neuro");setScreen("submenu")}} style={{display:"flex",alignItems:"center",gap:10}}>
             <svg width="16" height="16" viewBox="0 0 16 16" style={{flexShrink:0}}><circle cx="5.5" cy="5.5" r="3" fill="none" stroke="#5A7A5C" strokeWidth="0.8"/><circle cx="10.5" cy="10.5" r="3" fill="none" stroke="#5A7A5C" strokeWidth="0.8"/></svg>
-            <div><div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:13,fontWeight:600,color:"#5A7A5C"}}>Neurodivergent</div><div style={{fontSize:9,color:"#6A6050"}}>Brain support</div></div>
+            <div><div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:13,fontWeight:600,color:"#5A7A5C"}}>Neurodivergent</div><div style={{fontSize:9,color:"var(--text-dim)"}}>Brain support</div></div>
           </div>
         </div>
 
         {/* Card Grid Row 3 */}
         <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:8,marginBottom:20}}>
-          <div className="card" onClick={()=>pick(MODES.find(m=>m.id==="inferno"))} style={{textAlign:"center",padding:"12px 8px",background:"linear-gradient(135deg,#1E1614,#1A1210)",borderColor:"#2A201A"}}>
+          <div className="card" onClick={()=>pick(MODES.find(m=>m.id==="inferno"))} style={{textAlign:"center",padding:"12px 8px",background:"linear-gradient(135deg,var(--bg-card-alt),var(--bg-card))",borderColor:"var(--border-mid)"}}>
             <svg width="14" height="14" viewBox="0 0 14 14" style={{margin:"0 auto 6px",display:"block"}}><path d="M7 1.5c1.8 1.8 3.5 3.5 2.3 6.5c-.8 2-1.8 1.5-2.3 1.5s-1.5.5-2.3-1.5c-1.2-3 .5-4.7 2.3-6.5z" fill="#B06848" opacity="0.12" stroke="#B06848" strokeWidth="0.8"/></svg>
             <div style={{fontSize:10,fontWeight:500,color:"#B06848"}}>Inferno</div>
           </div>
@@ -826,131 +890,123 @@ Respond with ONLY this JSON (no markdown, no backticks):
             <div style={{fontSize:10,fontWeight:500,color:"#907860"}}>Simmer</div>
           </div>
           <div className="card" onClick={()=>project?pick(MODES.find(m=>m.id==="rekindle")):null} style={{textAlign:"center",padding:"12px 8px",opacity:project?1:.4}}>
-            <svg width="14" height="14" viewBox="0 0 14 14" style={{margin:"0 auto 6px",display:"block"}}><path d="M7 2L8.2 5L11 5L8.8 7L9.5 10L7 8.2L4.5 10L5.2 7L3 5L5.8 5Z" fill="none" stroke="#A8884A" strokeWidth="0.7"/></svg>
-            <div style={{fontSize:10,fontWeight:500,color:"#A8884A"}}>Rekindle</div>
+            <svg width="14" height="14" viewBox="0 0 14 14" style={{margin:"0 auto 6px",display:"block"}}><path d="M7 2L8.2 5L11 5L8.8 7L9.5 10L7 8.2L4.5 10L5.2 7L3 5L5.8 5Z" fill="none" stroke="var(--accent)" strokeWidth="0.7"/></svg>
+            <div style={{fontSize:10,fontWeight:500,color:"var(--accent)"}}>Rekindle</div>
           </div>
         </div>
 
         {/* Disclaimer */}
         <div style={{textAlign:"center",padding:"4px 0 16px"}}>
-          <div style={{fontSize:10,color:"#6A6050",lineHeight:1.6}}>Forged Pen is a writing craft tool, not a mental health service or diagnostic tool.<br/>If you are in crisis, please reach out to a qualified professional.</div>
+          <div style={{fontSize:10,color:"var(--text-dim)",lineHeight:1.6}}>Forged Pen is a writing craft tool, not a mental health service or diagnostic tool.<br/>If you are in crisis, please reach out to a qualified professional.</div>
         </div>
       </div>}
 
       {/* DESKTOP RIGHT SIDEBAR */}
-      {screen==="home"&&project&&<div className="right-sb" style={{position:"fixed",right:0,top:0,bottom:0,width:260,background:"#141210",borderLeft:"1px solid #1E1A16",padding:"22px 18px",flexDirection:"column",overflowY:"auto"}}>
+      {screen==="home"&&project&&<div className="right-sb" style={{position:"fixed",right:0,top:0,bottom:0,width:260,background:"var(--bg-dark)",borderLeft:"1px solid var(--border)",padding:"22px 18px",flexDirection:"column",overflowY:"auto"}}>
 
-        {/* Tone Word */}
         {sidebarCtx?.toneWord?<>
           <div style={{textAlign:"center",marginBottom:16}}>
-            <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:26,fontWeight:600,color:"#A8884A",letterSpacing:"0.08em",textTransform:"uppercase"}}>{sidebarCtx.toneWord}</div>
-            <div style={{fontSize:9,color:"#4A4238",textTransform:"uppercase",letterSpacing:"0.2em",marginTop:5}}>Scene Atmosphere</div>
+            <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:26,fontWeight:600,color:"var(--accent)",letterSpacing:"0.08em",textTransform:"uppercase"}}>{sidebarCtx.toneWord}</div>
+            <div style={{fontSize:9,color:"var(--text-faint)",textTransform:"uppercase",letterSpacing:"0.2em",marginTop:5}}>Scene Atmosphere</div>
           </div>
-          <div style={{height:1,background:"#1E1A16",marginBottom:16}}/>
+          <div style={{height:1,background:"var(--border)",marginBottom:16}}/>
         </>:null}
 
-        {/* Sensory Anchors */}
         {sidebarCtx?.sensoryAnchors?.length>0?<>
           <div style={{marginBottom:16}}>
-            <div style={{fontSize:9,textTransform:"uppercase",letterSpacing:"0.2em",color:"#6A6050",fontWeight:500,marginBottom:10}}>Sensory Anchors</div>
+            <div style={{fontSize:9,textTransform:"uppercase",letterSpacing:"0.2em",color:"var(--text-dim)",fontWeight:500,marginBottom:10}}>Sensory Anchors</div>
             <div style={{display:"flex",flexDirection:"column",gap:8}}>
               {sidebarCtx.sensoryAnchors.map((a,i)=><div key={i} style={{display:"flex",alignItems:"center",gap:8}}>
-                <svg width="16" height="16" viewBox="0 0 16 16"><circle cx="8" cy="8" r="3" fill="none" stroke="#A8884A" strokeWidth="0.6" opacity="0.4"/></svg>
-                <div><div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:14,color:"#C8B8A0"}}>{a.detail}</div><div style={{fontSize:10,color:"#6A6050"}}>{a.sense}</div></div>
+                <svg width="16" height="16" viewBox="0 0 16 16"><circle cx="8" cy="8" r="3" fill="none" stroke="var(--accent)" strokeWidth="0.6" opacity="0.4"/></svg>
+                <div><div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:14,color:"var(--text-secondary)"}}>{a.detail}</div><div style={{fontSize:10,color:"var(--text-dim)"}}>{a.sense}</div></div>
               </div>)}
             </div>
           </div>
-          <div style={{height:1,background:"#1E1A16",marginBottom:16}}/>
+          <div style={{height:1,background:"var(--border)",marginBottom:16}}/>
         </>:null}
 
-        {/* The Pulse */}
         {pulse?<div style={{marginBottom:16,cursor:"pointer"}} onClick={()=>{if(pulse.sceneId){setActiveScene(pulse.sceneId);saveStored("tt-activescene",pulse.sceneId);initScenes()}else if(pulse.modeId){const m=MODES.find(x=>x.id===pulse.modeId);if(m)pick(m)}}}>
-          <div style={{fontSize:9,textTransform:"uppercase",letterSpacing:"0.2em",color:"#A8884A80",fontWeight:500,marginBottom:8}}>The Pulse</div>
-          <div style={{fontSize:12,color:"#8A7E6A",marginBottom:6}}>{pulse.mode}{pulse.scene?` / ${pulse.scene}`:""}</div>
-          <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:14,color:"#D8C8AA",lineHeight:1.6,marginBottom:8}}>{pulse.description}</div>
-          {sidebarCtx?.hook&&<div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:14,color:"#A8884A",lineHeight:1.6,fontStyle:"italic",marginBottom:8}}>"{sidebarCtx.hook}"</div>}
-          <div style={{fontSize:10,color:"#A8884A60",marginTop:4}}>Tap to return &#8594;</div>
+          <div style={{fontSize:9,textTransform:"uppercase",letterSpacing:"0.2em",color:"var(--accent-80)",fontWeight:500,marginBottom:8}}>The Pulse</div>
+          <div style={{fontSize:12,color:"var(--text-muted)",marginBottom:6}}>{pulse.mode}{pulse.scene?` / ${pulse.scene}`:""}</div>
+          <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:14,color:"var(--text-primary)",lineHeight:1.6,marginBottom:8}}>{pulse.description}</div>
+          {sidebarCtx?.hook&&<div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:14,color:"var(--accent)",lineHeight:1.6,fontStyle:"italic",marginBottom:8}}>"{sidebarCtx.hook}"</div>}
+          <div style={{fontSize:10,color:"var(--accent-60)",marginTop:4}}>Tap to return &#8594;</div>
         </div>:<div style={{marginBottom:16}}>
-          <div style={{fontSize:9,textTransform:"uppercase",letterSpacing:"0.2em",color:"#A8884A80",fontWeight:500,marginBottom:8}}>The Pulse</div>
-          <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:13,color:"#6A6050",fontStyle:"italic"}}>Start a session to light it up</div>
+          <div style={{fontSize:9,textTransform:"uppercase",letterSpacing:"0.2em",color:"var(--accent-80)",fontWeight:500,marginBottom:8}}>The Pulse</div>
+          <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:13,color:"var(--text-dim)",fontStyle:"italic"}}>Start a session to light it up</div>
         </div>}
-        <div style={{height:1,background:"#1E1A16",marginBottom:16}}/>
+        <div style={{height:1,background:"var(--border)",marginBottom:16}}/>
 
-        {/* Next Beat */}
         {sidebarCtx?.nextBeat?<>
           <div style={{marginBottom:16}}>
-            <div style={{fontSize:9,textTransform:"uppercase",letterSpacing:"0.2em",color:"#6A6050",fontWeight:500,marginBottom:8}}>Next Beat</div>
-            <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:14,color:"#D8C8AA",lineHeight:1.6}}>{sidebarCtx.nextBeat}</div>
-            {sidebarCtx.emotionalGoal&&<div style={{fontSize:11,color:"#8A7E6A",marginTop:8,fontStyle:"italic"}}>Emotional goal: {sidebarCtx.emotionalGoal}</div>}
+            <div style={{fontSize:9,textTransform:"uppercase",letterSpacing:"0.2em",color:"var(--text-dim)",fontWeight:500,marginBottom:8}}>Next Beat</div>
+            <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:14,color:"var(--text-primary)",lineHeight:1.6}}>{sidebarCtx.nextBeat}</div>
+            {sidebarCtx.emotionalGoal&&<div style={{fontSize:11,color:"var(--text-muted)",marginTop:8,fontStyle:"italic"}}>Emotional goal: {sidebarCtx.emotionalGoal}</div>}
           </div>
-          <div style={{height:1,background:"#1E1A16",marginBottom:16}}/>
+          <div style={{height:1,background:"var(--border)",marginBottom:16}}/>
         </>:project.stuck&&project.stuck.trim()?<>
           <div style={{marginBottom:16}}>
-            <div style={{fontSize:9,textTransform:"uppercase",letterSpacing:"0.2em",color:"#6A6050",fontWeight:500,marginBottom:8}}>Next Beat</div>
-            <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:14,color:"#D8C8AA",lineHeight:1.6}}>{project.stuck.substring(0,200)}</div>
+            <div style={{fontSize:9,textTransform:"uppercase",letterSpacing:"0.2em",color:"var(--text-dim)",fontWeight:500,marginBottom:8}}>Next Beat</div>
+            <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:14,color:"var(--text-primary)",lineHeight:1.6}}>{project.stuck.substring(0,200)}</div>
           </div>
-          <div style={{height:1,background:"#1E1A16",marginBottom:16}}/>
+          <div style={{height:1,background:"var(--border)",marginBottom:16}}/>
         </>:null}
 
-        {/* Latest Spark */}
         {sparks.length>0&&<>
           <div style={{marginBottom:16,cursor:"pointer"}} onClick={()=>setScreen("sparkmap")}>
-            <div style={{fontSize:9,textTransform:"uppercase",letterSpacing:"0.2em",color:"#A8884A60",fontWeight:500,marginBottom:8}}>Latest Spark</div>
-            <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:13,color:"#8A7E6A",fontStyle:"italic",lineHeight:1.6}}>"{sparks[sparks.length-1]?.text?.substring(0,100)}"</div>
-            <div style={{fontSize:10,color:"#6A6050",marginTop:6,animation:"wp 4s ease-in-out infinite"}}>{sparks.length} spark{sparks.length>1?"s":""}</div>
+            <div style={{fontSize:9,textTransform:"uppercase",letterSpacing:"0.2em",color:"var(--accent-60)",fontWeight:500,marginBottom:8}}>Latest Spark</div>
+            <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:13,color:"var(--text-muted)",fontStyle:"italic",lineHeight:1.6}}>"{sparks[sparks.length-1]?.text?.substring(0,100)}"</div>
+            <div style={{fontSize:10,color:"var(--text-dim)",marginTop:6,animation:"wp 4s ease-in-out infinite"}}>{sparks.length} spark{sparks.length>1?"s":""}</div>
           </div>
-          <div style={{height:1,background:"#1E1A16",marginBottom:16}}/>
+          <div style={{height:1,background:"var(--border)",marginBottom:16}}/>
         </>}
 
-        {/* Stats */}
         <div style={{marginBottom:16}}>
           <div style={{display:"flex",justifyContent:"space-between"}}>
-            <div><div style={{fontSize:20,color:"#D8C8AA",fontWeight:500}}>{getTotalWords().toLocaleString()}</div><div style={{fontSize:10,color:"#6A6050"}}>words</div></div>
-            <div style={{textAlign:"right"}}><div style={{fontSize:20,color:"#D8C8AA",fontWeight:500}}>{scenes.length}</div><div style={{fontSize:10,color:"#6A6050"}}>scenes</div></div>
+            <div><div style={{fontSize:20,color:"var(--text-primary)",fontWeight:500}}>{getTotalWords().toLocaleString()}</div><div style={{fontSize:10,color:"var(--text-dim)"}}>words</div></div>
+            <div style={{textAlign:"right"}}><div style={{fontSize:20,color:"var(--text-primary)",fontWeight:500}}>{scenes.length}</div><div style={{fontSize:10,color:"var(--text-dim)"}}>scenes</div></div>
           </div>
         </div>
-        <div style={{height:1,background:"#1E1A16",marginBottom:16}}/>
+        <div style={{height:1,background:"var(--border)",marginBottom:16}}/>
 
-        {/* Genre */}
-        <div style={{fontSize:11,color:"#6A6050",fontStyle:"italic",lineHeight:1.5,marginBottom:16}}>{project.genre}</div>
+        <div style={{fontSize:11,color:"var(--text-dim)",fontStyle:"italic",lineHeight:1.5,marginBottom:16}}>{project.genre}</div>
 
-        {/* Zeigarnik */}
-        <div style={{marginTop:"auto",paddingTop:16,borderTop:"1px solid #1E1A16"}}>
-          <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:13,color:"#6A6050",fontStyle:"italic",lineHeight:1.6}}>Before you close, leave a sentence half-finished. Your brain will pull you back to it.</div>
-          <div style={{fontSize:9,color:"#6A6050",marginTop:5,opacity:.6}}>The Zeigarnik Effect</div>
+        <div style={{marginTop:"auto",paddingTop:16,borderTop:"1px solid var(--border)"}}>
+          <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:13,color:"var(--text-dim)",fontStyle:"italic",lineHeight:1.6}}>Before you close, leave a sentence half-finished. Your brain will pull you back to it.</div>
+          <div style={{fontSize:9,color:"var(--text-dim)",marginTop:5,opacity:.6}}>The Zeigarnik Effect</div>
         </div>
       </div>}
 
       {/* SUBMENU */}
       {screen==="submenu"&&<div style={{maxWidth:820,margin:"0 auto",padding:"0 20px 20px",animation:"fu .4s ease-out"}}>
-        <div onClick={goHome} style={{fontSize:12,color:"#6A6050",cursor:"pointer",marginBottom:16}}>Back</div>
+        <div onClick={goHome} style={{fontSize:12,color:"var(--text-dim)",cursor:"pointer",marginBottom:16}}>Back</div>
         {subMenu==="workshop"&&<>
-          <div style={{fontSize:8,textTransform:"uppercase",letterSpacing:"0.25em",color:"#A8884A90",fontWeight:500,marginBottom:8}}>Coaching</div>
-          <p style={{fontSize:13,color:"#8A7E6A",marginBottom:20,lineHeight:1.6}}>Bring your work. Finn will find what's strong, name what's off, and help you see what you missed.</p>
+          <div style={{fontSize:8,textTransform:"uppercase",letterSpacing:"0.25em",color:"var(--accent-90)",fontWeight:500,marginBottom:8}}>Coaching</div>
+          <p style={{fontSize:13,color:"var(--text-muted)",marginBottom:20,lineHeight:1.6}}>Bring your work. Finn will find what's strong, name what's off, and help you see what you missed.</p>
           {MODES.filter(m=>m.cat==="craft"||m.cat==="intuition").map(m=>{
             const saved=loadStored("tt-chat-"+m.id);
             const lastMsg=saved&&saved.length>1?saved.filter(x=>x.role==="user").pop()?.content:"";
             return <div key={m.id} className="card" onClick={()=>pick(m)} style={{marginBottom:8,padding:"14px 16px"}}>
               <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
-                <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:14,fontWeight:600,color:"#D8C8AA"}}>{m.label}</div>
-                <div style={{fontSize:10,color:"#6A6050"}}>{m.sub}</div>
+                <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:14,fontWeight:600,color:"var(--text-primary)"}}>{m.label}</div>
+                <div style={{fontSize:10,color:"var(--text-dim)"}}>{m.sub}</div>
               </div>
-              {lastMsg&&<div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:12,color:"#6A6050",marginTop:6,lineHeight:1.5,fontStyle:"italic"}}>Last: "{lastMsg.substring(0,80)}{lastMsg.length>80?"...":""}"</div>}
+              {lastMsg&&<div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:12,color:"var(--text-dim)",marginTop:6,lineHeight:1.5,fontStyle:"italic"}}>Last: "{lastMsg.substring(0,80)}{lastMsg.length>80?"...":""}"</div>}
             </div>;
           })}
         </>}
         {subMenu==="neuro"&&<>
-          <div style={{fontSize:8,textTransform:"uppercase",letterSpacing:"0.25em",color:"#5A7A5C90",fontWeight:500,marginBottom:8}}>Neurodivergent Support</div>
-          <p style={{fontSize:13,color:"#8A7E6A",marginBottom:20,lineHeight:1.6}}>For when your brain is the obstacle, not your story.</p>
+          <div style={{fontSize:8,textTransform:"uppercase",letterSpacing:"0.25em",color:"#5A7A5C",fontWeight:500,marginBottom:8}}>Neurodivergent Support</div>
+          <p style={{fontSize:13,color:"var(--text-muted)",marginBottom:20,lineHeight:1.6}}>For when your brain is the obstacle, not your story.</p>
           {MODES.filter(m=>m.cat==="neuro").map(m=>{
             const saved=loadStored("tt-chat-"+m.id);
             const lastMsg=saved&&saved.length>1?saved.filter(x=>x.role==="user").pop()?.content:"";
             return <div key={m.id} className="card" onClick={()=>pick(m)} style={{marginBottom:8,padding:"14px 16px"}}>
               <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
-                <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:14,fontWeight:600,color:"#D8C8AA"}}>{m.label}</div>
-                <div style={{fontSize:10,color:"#6A6050"}}>{m.sub}</div>
+                <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:14,fontWeight:600,color:"var(--text-primary)"}}>{m.label}</div>
+                <div style={{fontSize:10,color:"var(--text-dim)"}}>{m.sub}</div>
               </div>
-              {lastMsg&&<div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:12,color:"#6A6050",marginTop:6,lineHeight:1.5,fontStyle:"italic"}}>Last: "{lastMsg.substring(0,80)}{lastMsg.length>80?"...":""}"</div>}
+              {lastMsg&&<div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:12,color:"var(--text-dim)",marginTop:6,lineHeight:1.5,fontStyle:"italic"}}>Last: "{lastMsg.substring(0,80)}{lastMsg.length>80?"...":""}"</div>}
             </div>;
           })}
         </>}
@@ -958,87 +1014,87 @@ Respond with ONLY this JSON (no markdown, no backticks):
 
       {/* STORY BIBLE SETUP */}
       {screen==="setup"&&<div style={{maxWidth:820,margin:"0 auto",padding:"0 20px 20px",animation:"fu .5s ease-out"}}>
-        <div onClick={goHome} style={{fontSize:12,color:"#6A6050",cursor:"pointer",marginBottom:16}}>Back</div>
+        <div onClick={goHome} style={{fontSize:12,color:"var(--text-dim)",cursor:"pointer",marginBottom:16}}>Back</div>
         <div style={{fontSize:8,textTransform:"uppercase",letterSpacing:"0.25em",color:"#5A7A8A",fontWeight:500,marginBottom:8}}>Story Bible</div>
-        <p style={{fontSize:13,color:"#8A7E6A",marginBottom:16,lineHeight:1.6}}>Fill in what you can. Skip what you can't. Come back later. None of this has to be perfect.</p>
+        <p style={{fontSize:13,color:"var(--text-muted)",marginBottom:16,lineHeight:1.6}}>Fill in what you can. Skip what you can't. Come back later. None of this has to be perfect.</p>
         <div style={{display:"flex",gap:6,marginBottom:16,flexWrap:"wrap"}}><BibTab id="overview" label="Overview" active={bibTab==="overview"} onClick={setBibTab}/><BibTab id="characters" label="Characters" active={bibTab==="characters"} onClick={setBibTab}/><BibTab id="world" label="World" active={bibTab==="world"} onClick={setBibTab}/><BibTab id="chapters" label="Chapters" active={bibTab==="chapters"} onClick={setBibTab}/><BibTab id="current" label="Current Chapter" active={bibTab==="current"} onClick={setBibTab}/></div>
         {bibTab==="overview"&&<><FormField label="Project title" k="title" ph="My Novel" value={pForm.title} onChange={updateField}/><FormField label="Genre" k="genre" ph="Contemporary fiction, fantasy, memoir..." value={pForm.genre} onChange={updateField}/><FormField label="Synopsis (the whole arc, spoilers welcome)" k="synopsis" ph="The full story..." value={pForm.synopsis} onChange={updateField} multi/><FormField label="Where are you right now?" k="where" ph="Chapter 3, the confrontation scene" value={pForm.where} onChange={updateField}/><FormField label="What are you stuck on?" k="stuck" ph="If you don't know, that counts as an answer." value={pForm.stuck} onChange={updateField}/><FormField label="What excites you most about this project?" k="excites" ph="The slow burn, the world, the voice..." value={pForm.excites} onChange={updateField} multi/></>}
         {bibTab==="characters"&&<><FormField label="Protagonist" k="protagonist" ph="Name, age, core trait, internal conflict, arc..." value={pForm.protagonist} onChange={updateField} multi/><FormField label="Supporting Characters" k="supporting" ph="One per paragraph works best..." value={pForm.supporting} onChange={updateField} multi/><FormField label="Antagonist" k="antagonist" ph="Person, force, or system..." value={pForm.antagonist} onChange={updateField} multi/></>}
         {bibTab==="world"&&<><WorldField label="Core Setting" helper="When and where does this story take place?" example="Northern Michigan, late summer..." k="worldSetting" value={pForm.worldSetting} onChange={updateField}/><WorldField label="World Rules" helper="What can and cannot happen here?" example="Magic exists but only in children..." k="worldRules" value={pForm.worldRules} onChange={updateField}/><WorldField label="Beliefs vs. Reality" helper="What do characters assume that isn't true?" example="The town believes the fires are natural..." k="worldBeliefs" value={pForm.worldBeliefs} onChange={updateField}/><WorldField label="What Makes This World Dangerous" helper="What creates real stakes?" example="If Emma uses too much magic..." k="worldDanger" value={pForm.worldDanger} onChange={updateField}/><WorldField label="Tone" helper="What does this world feel like?" example="Warm but uneasy..." k="worldTone" value={pForm.worldTone} onChange={updateField}/></>}
-        {bibTab==="chapters"&&<><p style={{fontSize:12,color:"#8A7E6A",marginBottom:14,lineHeight:1.5}}>One field per chapter. Keep summaries short.</p>{pForm.chapters.map((ch,idx)=><div key={idx} style={{marginBottom:14}}><div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:5}}><label style={{fontSize:13,color:"#A8884A",fontWeight:600}}>Chapter {ch.num}</label>{pForm.chapters.length>1&&<span onClick={()=>removeChapter(idx)} style={{fontSize:11,color:"#6A6050",cursor:"pointer"}}>Remove</span>}</div><textarea className="fi" rows={2} placeholder={`What happens in chapter ${ch.num}...`} value={ch.summary} onChange={e=>updateChapter(idx,e.target.value)} style={{resize:"vertical",fontSize:13}}/></div>)}<Btn onClick={addChapter} s={{width:"100%",background:"none",borderStyle:"dashed",borderColor:"#2A2420",color:"#8A7E6A",marginBottom:8}}>+ Add Chapter</Btn></>}
-        {bibTab==="current"&&<><p style={{fontSize:12,color:"#8A7E6A",marginBottom:8,lineHeight:1.5}}>Paste the chapter you're currently working on. Finn will reference this text directly.</p><FormField label="Current chapter text" k="currentChapter" ph="Paste your current chapter here..." value={pForm.currentChapter} onChange={updateField} multi/></>}
-        <Btn onClick={handleSetup} s={{width:"100%",background:"#A8884A20",borderColor:"#A8884A40",fontWeight:600,marginTop:8}}>{project?"Update":"Save"} Story Bible</Btn>
+        {bibTab==="chapters"&&<><p style={{fontSize:12,color:"var(--text-muted)",marginBottom:14,lineHeight:1.5}}>One field per chapter. Keep summaries short.</p>{pForm.chapters.map((ch,idx)=><div key={idx} style={{marginBottom:14}}><div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:5}}><label style={{fontSize:13,color:"var(--accent)",fontWeight:600}}>Chapter {ch.num}</label>{pForm.chapters.length>1&&<span onClick={()=>removeChapter(idx)} style={{fontSize:11,color:"var(--text-dim)",cursor:"pointer"}}>Remove</span>}</div><textarea className="fi" rows={2} placeholder={`What happens in chapter ${ch.num}...`} value={ch.summary} onChange={e=>updateChapter(idx,e.target.value)} style={{resize:"vertical",fontSize:13}}/></div>)}<Btn onClick={addChapter} s={{width:"100%",background:"none",borderStyle:"dashed",borderColor:"var(--border-mid)",color:"var(--text-muted)",marginBottom:8}}>+ Add Chapter</Btn></>}
+        {bibTab==="current"&&<><p style={{fontSize:12,color:"var(--text-muted)",marginBottom:8,lineHeight:1.5}}>Paste the chapter you're currently working on. Finn will reference this text directly.</p><FormField label="Current chapter text" k="currentChapter" ph="Paste your current chapter here..." value={pForm.currentChapter} onChange={updateField} multi/></>}
+        <Btn onClick={handleSetup} s={{width:"100%",background:"var(--accent-20)",borderColor:"var(--accent-40)",fontWeight:600,marginTop:8}}>{project?"Update":"Save"} Story Bible</Btn>
       </div>}
 
       {/* STORY BIBLE VIEW */}
       {screen==="project"&&project&&<div style={{maxWidth:820,margin:"0 auto",padding:"0 20px 20px",animation:"fu .5s ease-out"}}>
-        <div onClick={goHome} style={{fontSize:12,color:"#6A6050",cursor:"pointer",marginBottom:16}}>Back</div>
+        <div onClick={goHome} style={{fontSize:12,color:"var(--text-dim)",cursor:"pointer",marginBottom:16}}>Back</div>
         <div style={{fontSize:8,textTransform:"uppercase",letterSpacing:"0.25em",color:"#5A7A8A",fontWeight:500,marginBottom:12}}>Story Bible</div>
         <div style={{display:"flex",gap:10,marginBottom:16}}>
           <Btn onClick={()=>{const pf={...project};if(!Array.isArray(pf.chapters))pf.chapters=pf.chapters?[{num:1,summary:pf.chapters}]:[{num:1,summary:""}];setPForm(pf);setScreen("setup")}} s={{flex:1}}>Edit</Btn>
-          <Btn onClick={()=>pick(MODES.find(m=>m.id==="rekindle"))} s={{flex:1,background:"#A8884A15"}}>Rekindle</Btn>
+          <Btn onClick={()=>pick(MODES.find(m=>m.id==="rekindle"))} s={{flex:1,background:"var(--accent-15)"}}>Rekindle</Btn>
         </div>
-        {sparks.length>0&&<div style={{marginBottom:16}}><div style={{fontSize:8,textTransform:"uppercase",letterSpacing:"0.15em",color:"#A8884A70",fontWeight:500,marginBottom:10}}>Dopamine Map ({sparks.length})</div>{sparks.map((s,i)=><div key={i} style={{background:"#1A1816",border:"1px solid #221E1A",borderRadius:8,padding:"10px 14px",marginBottom:6}}><p style={{fontFamily:"'Cormorant Garamond',serif",fontSize:12,color:"#D8C8AA",lineHeight:1.5}}>"{s.text}"</p><p style={{fontSize:9,color:"#6A6050",marginTop:4}}>{s.date}</p></div>)}</div>}
-        <div style={{background:"#1A1816",border:"1px solid #221E1A",borderRadius:10,padding:20}}>
-          <h3 style={{fontFamily:"'Cormorant Garamond',serif",fontSize:20,color:"#D8C8AA",marginBottom:14}}>{project.title||"Untitled"}</h3>
-          {[["Genre",project.genre],["Synopsis",project.synopsis],["Protagonist",project.protagonist],["Supporting",project.supporting],["Antagonist",project.antagonist],["Setting",project.worldSetting],["Rules",project.worldRules],["Beliefs vs Reality",project.worldBeliefs],["Danger",project.worldDanger],["Tone",project.worldTone],["Position",project.where],["Stuck on",project.stuck],["Excites you",project.excites]].map(([l,v])=>v?<div key={l} style={{marginBottom:10}}><p style={{fontSize:9,textTransform:"uppercase",letterSpacing:"0.12em",color:"#6A6050",fontWeight:500,marginBottom:3}}>{l}</p><p style={{fontFamily:"'Cormorant Garamond',serif",fontSize:13,color:"#D8C8AA",lineHeight:1.6}}>{v}</p></div>:null)}
-          {project.chapters&&Array.isArray(project.chapters)&&project.chapters.some(c=>c.summary)&&<div style={{marginBottom:10}}><p style={{fontSize:9,textTransform:"uppercase",letterSpacing:"0.12em",color:"#6A6050",fontWeight:500,marginBottom:6}}>Chapters</p>{project.chapters.filter(c=>c.summary).map((c,i)=><p key={i} style={{fontFamily:"'Cormorant Garamond',serif",fontSize:13,color:"#D8C8AA",lineHeight:1.6,marginBottom:4}}><span style={{color:"#A8884A",fontWeight:600}}>Ch{c.num}:</span> {c.summary}</p>)}</div>}
+        {sparks.length>0&&<div style={{marginBottom:16}}><div style={{fontSize:8,textTransform:"uppercase",letterSpacing:"0.15em",color:"var(--accent-70)",fontWeight:500,marginBottom:10}}>Dopamine Map ({sparks.length})</div>{sparks.map((s,i)=><div key={i} style={{background:"var(--bg-card)",border:"1px solid var(--border)",borderRadius:8,padding:"10px 14px",marginBottom:6}}><p style={{fontFamily:"'Cormorant Garamond',serif",fontSize:12,color:"var(--text-primary)",lineHeight:1.5}}>"{s.text}"</p><p style={{fontSize:9,color:"var(--text-dim)",marginTop:4}}>{s.date}</p></div>)}</div>}
+        <div style={{background:"var(--bg-card)",border:"1px solid var(--border)",borderRadius:10,padding:20}}>
+          <h3 style={{fontFamily:"'Cormorant Garamond',serif",fontSize:20,color:"var(--text-primary)",marginBottom:14}}>{project.title||"Untitled"}</h3>
+          {[["Genre",project.genre],["Synopsis",project.synopsis],["Protagonist",project.protagonist],["Supporting",project.supporting],["Antagonist",project.antagonist],["Setting",project.worldSetting],["Rules",project.worldRules],["Beliefs vs Reality",project.worldBeliefs],["Danger",project.worldDanger],["Tone",project.worldTone],["Position",project.where],["Stuck on",project.stuck],["Excites you",project.excites]].map(([l,v])=>v?<div key={l} style={{marginBottom:10}}><p style={{fontSize:9,textTransform:"uppercase",letterSpacing:"0.12em",color:"var(--text-dim)",fontWeight:500,marginBottom:3}}>{l}</p><p style={{fontFamily:"'Cormorant Garamond',serif",fontSize:13,color:"var(--text-primary)",lineHeight:1.6}}>{v}</p></div>:null)}
+          {project.chapters&&Array.isArray(project.chapters)&&project.chapters.some(c=>c.summary)&&<div style={{marginBottom:10}}><p style={{fontSize:9,textTransform:"uppercase",letterSpacing:"0.12em",color:"var(--text-dim)",fontWeight:500,marginBottom:6}}>Chapters</p>{project.chapters.filter(c=>c.summary).map((c,i)=><p key={i} style={{fontFamily:"'Cormorant Garamond',serif",fontSize:13,color:"var(--text-primary)",lineHeight:1.6,marginBottom:4}}><span style={{color:"var(--accent)",fontWeight:600}}>Ch{c.num}:</span> {c.summary}</p>)}</div>}
         </div>
       </div>}
 
-      {/* PROOF OF FIRE - DOPAMINE MAP */}
+      {/* DOPAMINE MAP */}
       {screen==="sparkmap"&&<div style={{maxWidth:820,margin:"0 auto",padding:"0 20px 20px",animation:"fu .5s ease-out"}}>
-        <div onClick={goHome} style={{fontSize:12,color:"#6A6050",cursor:"pointer",marginBottom:16}}>Back</div>
+        <div onClick={goHome} style={{fontSize:12,color:"var(--text-dim)",cursor:"pointer",marginBottom:16}}>Back</div>
         <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-end",marginBottom:24}}>
           <div>
-            <div style={{fontSize:9,textTransform:"uppercase",letterSpacing:"0.25em",color:"#A8884A80",fontWeight:500,marginBottom:6}}>Dopamine Map</div>
-            <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:22,color:"#D8C8AA",fontWeight:500}}>Proof of Fire</div>
-            <div style={{fontSize:12,color:"#6A6050",marginTop:4,lineHeight:1.5}}>The moments your brain saw clearly.</div>
+            <div style={{fontSize:9,textTransform:"uppercase",letterSpacing:"0.25em",color:"var(--accent-80)",fontWeight:500,marginBottom:6}}>Dopamine Map</div>
+            <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:22,color:"var(--text-primary)",fontWeight:500}}>Proof of Fire</div>
+            <div style={{fontSize:12,color:"var(--text-dim)",marginTop:4,lineHeight:1.5}}>The moments your brain saw clearly.</div>
           </div>
           <div style={{textAlign:"right"}}>
-            <div style={{fontSize:28,color:"#A8884A",fontWeight:600,animation:"wp 4s ease-in-out infinite"}}>{sparks.length}</div>
-            <div style={{fontSize:10,color:"#6A6050"}}>spark{sparks.length>1?"s":""}</div>
+            <div style={{fontSize:28,color:"var(--accent)",fontWeight:600,animation:"wp 4s ease-in-out infinite"}}>{sparks.length}</div>
+            <div style={{fontSize:10,color:"var(--text-dim)"}}>spark{sparks.length>1?"s":""}</div>
           </div>
         </div>
         <div style={{position:"relative",paddingLeft:28}}>
-          <div style={{position:"absolute",left:8,top:0,bottom:0,width:1,background:"linear-gradient(180deg,#A8884A60,#A8884A20,#A8884A08)"}}/>
+          <div style={{position:"absolute",left:8,top:0,bottom:0,width:1,background:`linear-gradient(180deg,var(--accent-60),var(--accent-20),var(--accent-08))`}}/>
           {[...sparks].reverse().map((s,i)=><div key={i} style={{position:"relative",marginBottom:20,animation:"fu .5s ease-out",animationDelay:`${i*0.08}s`,animationFillMode:"both"}}>
-            <div style={{position:"absolute",left:-24,top:6,width:10,height:10,borderRadius:"50%",background:"#A8884A",boxShadow:`0 0 ${Math.max(12-i*2,2)}px #A8884A${Math.max(60-i*10,10).toString(16)}`,opacity:Math.max(1-i*0.08,0.3)}}/>
-            <div style={{background:"#1A1816",border:"1px solid #221E1A",borderRadius:10,padding:"16px 18px"}}>
+            <div style={{position:"absolute",left:-24,top:6,width:10,height:10,borderRadius:"50%",background:"var(--accent)",opacity:Math.max(1-i*0.08,0.3)}}/>
+            <div style={{background:"var(--bg-card)",border:"1px solid var(--border)",borderRadius:10,padding:"16px 18px"}}>
               <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:8}}>
-                <div style={{fontSize:9,color:"#A8884A80",textTransform:"uppercase",letterSpacing:"0.15em"}}>{s.mode||"Session"}</div>
-                <div style={{fontSize:9,color:"#6A6050"}}>{s.date}</div>
+                <div style={{fontSize:9,color:"var(--accent-80)",textTransform:"uppercase",letterSpacing:"0.15em"}}>{s.mode||"Session"}</div>
+                <div style={{fontSize:9,color:"var(--text-dim)"}}>{s.date}</div>
               </div>
-              <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:15,color:"#D8C8AA",lineHeight:1.7,fontStyle:"italic"}}>"{s.text}"</div>
+              <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:15,color:"var(--text-primary)",lineHeight:1.7,fontStyle:"italic"}}>"{s.text}"</div>
             </div>
           </div>)}
         </div>
         <div style={{textAlign:"center",padding:"20px 0 32px"}}>
-          <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:17,fontWeight:600,color:"#A8884A90",lineHeight:1.6}}>The fire was here.<br/>These sparks prove it.</div>
+          <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:17,fontWeight:600,color:"var(--accent-90)",lineHeight:1.6}}>The fire was here.<br/>These sparks prove it.</div>
         </div>
       </div>}
 
       {/* DAILY SPARK */}
       {screen==="torch"&&<div style={{maxWidth:820,margin:"0 auto",padding:"0 20px 20px",animation:"fu .5s ease-out"}}>
-        <div onClick={goHome} style={{fontSize:12,color:"#6A6050",cursor:"pointer",marginBottom:16}}>Back</div>
-        <div style={{fontSize:8,textTransform:"uppercase",letterSpacing:"0.25em",color:"#A8884A70",fontWeight:500,marginBottom:16}}>Daily Spark</div>
+        <div onClick={goHome} style={{fontSize:12,color:"var(--text-dim)",cursor:"pointer",marginBottom:16}}>Back</div>
+        <div style={{fontSize:8,textTransform:"uppercase",letterSpacing:"0.25em",color:"var(--accent-70)",fontWeight:500,marginBottom:16}}>Daily Spark</div>
         <div style={{marginBottom:24,textAlign:"center"}}>
-          <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:18,fontWeight:500,color:"#A8884A90",lineHeight:1.7}}>"{tk.q}"</div>
-          <div style={{fontSize:10,color:"#6A6050",marginTop:8}}>{tk.a}</div>
+          <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:18,fontWeight:500,color:"var(--accent-90)",lineHeight:1.7}}>"{tk.q}"</div>
+          <div style={{fontSize:10,color:"var(--text-dim)",marginTop:8}}>{tk.a}</div>
         </div>
-        <div style={{background:"#1A1816",border:"1px solid #221E1A",borderRadius:10,padding:"14px 18px",marginBottom:16}}>
-          <div style={{fontSize:8,textTransform:"uppercase",letterSpacing:"0.15em",color:"#A8884A70",fontWeight:500,marginBottom:6}}>Today's Prompt</div>
-          <p style={{fontFamily:"'Cormorant Garamond',serif",fontSize:15,color:"#D8C8AA",lineHeight:1.7,fontStyle:"italic"}}>{tk.p}</p>
+        <div style={{background:"var(--bg-card)",border:"1px solid var(--border)",borderRadius:10,padding:"14px 18px",marginBottom:16}}>
+          <div style={{fontSize:8,textTransform:"uppercase",letterSpacing:"0.15em",color:"var(--accent-70)",fontWeight:500,marginBottom:6}}>Today's Prompt</div>
+          <p style={{fontFamily:"'Cormorant Garamond',serif",fontSize:15,color:"var(--text-primary)",lineHeight:1.7,fontStyle:"italic"}}>{tk.p}</p>
         </div>
-        <div className="cp" onClick={()=>setFlipped(!flipped)} style={{background:flipped?"#1A1816":"linear-gradient(135deg,#201A28,#1A1620)",border:"1px solid "+(flipped?"#221E1A":"#302840"),borderRadius:10,padding:18,textAlign:"center",cursor:"pointer"}}>
+        <div className="cp" onClick={()=>setFlipped(!flipped)} style={{background:flipped?"var(--bg-card)":"linear-gradient(135deg,var(--bg-card-alt),var(--bg-card))",border:"1px solid "+(flipped?"var(--border)":"var(--border-mid)"),borderRadius:10,padding:18,textAlign:"center",cursor:"pointer"}}>
           {!flipped?<div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:16,color:"#9A8AB0",fontWeight:600}}>Pull Today's Card</div>
           :<div style={{textAlign:"left",animation:"fi .6s ease-out"}}>
             <div style={{fontSize:8,textTransform:"uppercase",letterSpacing:"0.15em",color:"#7A6EA0",fontWeight:500,marginBottom:6}}>Today's Card</div>
-            <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:19,color:"#D8C8AA",fontWeight:600,marginBottom:8}}>{tk.cn}</div>
-            <p style={{fontFamily:"'Cormorant Garamond',serif",fontSize:13,color:"#8A7E6A",lineHeight:1.7,marginBottom:12}}>{tk.cl}</p>
-            <div style={{background:"#121010",borderRadius:8,padding:"10px 12px"}}>
-              <div style={{fontSize:8,textTransform:"uppercase",letterSpacing:"0.12em",color:"#A8884A70",fontWeight:500,marginBottom:4}}>Micro-Challenge</div>
-              <p style={{fontFamily:"'Cormorant Garamond',serif",fontSize:13,color:"#D8C8AA",lineHeight:1.6}}>{tk.cx}</p>
+            <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:19,color:"var(--text-primary)",fontWeight:600,marginBottom:8}}>{tk.cn}</div>
+            <p style={{fontFamily:"'Cormorant Garamond',serif",fontSize:13,color:"var(--text-muted)",lineHeight:1.7,marginBottom:12}}>{tk.cl}</p>
+            <div style={{background:"var(--bg-base)",borderRadius:8,padding:"10px 12px"}}>
+              <div style={{fontSize:8,textTransform:"uppercase",letterSpacing:"0.12em",color:"var(--accent-70)",fontWeight:500,marginBottom:4}}>Micro-Challenge</div>
+              <p style={{fontFamily:"'Cormorant Garamond',serif",fontSize:13,color:"var(--text-primary)",lineHeight:1.6}}>{tk.cx}</p>
             </div>
           </div>}
         </div>
@@ -1050,29 +1106,29 @@ Respond with ONLY this JSON (no markdown, no backticks):
         const chapters=[...new Set(scenes.map(s=>s.chapter))].sort((a,b)=>a-b);
         return <div style={{height:"100vh",display:"grid",gridTemplateColumns:finnOpen?`180px 1fr ${finnWidths[finnPanelSize]}px`:"180px 1fr",transition:"grid-template-columns .3s"}}>
           {/* Left: Scene Nav */}
-          <div style={{background:"#141210",borderRight:"1px solid #1E1A16",padding:"16px 12px",display:"flex",flexDirection:"column",overflowY:"auto"}}>
+          <div style={{background:"var(--bg-dark)",borderRight:"1px solid var(--border)",padding:"16px 12px",display:"flex",flexDirection:"column",overflowY:"auto"}}>
             <div style={{marginBottom:16}}>
-              <div onClick={goHome} style={{fontFamily:"'Cormorant Garamond',serif",fontSize:16,fontWeight:600,color:"#A8884A",cursor:"pointer"}}>Forged Pen</div>
-              <div style={{fontSize:8,color:"#6A6050",marginTop:3}}>THE FORGE</div>
+              <div onClick={goHome} style={{fontFamily:"'Cormorant Garamond',serif",fontSize:16,fontWeight:600,color:"var(--accent)",cursor:"pointer"}}>Forged Pen</div>
+              <div style={{fontSize:8,color:"var(--text-dim)",marginTop:3}}>THE FORGE</div>
             </div>
-            <div onClick={()=>{if(scenes.length>0){const savedActive=loadStored("tt-activescene");const found=savedActive&&scenes.find(s=>s.id===savedActive);setActiveScene(found?savedActive:scenes.reduce((a,b)=>b.lastEdited>a.lastEdited?b:a).id)}}} style={{background:"#A8884A",borderRadius:8,padding:"9px 14px",textAlign:"center",cursor:"pointer",marginBottom:14}}>
-              <span style={{fontSize:11,fontWeight:500,color:"#0F0E0C"}}>Continue writing</span>
+            <div onClick={()=>{if(scenes.length>0){const savedActive=loadStored("tt-activescene");const found=savedActive&&scenes.find(s=>s.id===savedActive);setActiveScene(found?savedActive:scenes.reduce((a,b)=>b.lastEdited>a.lastEdited?b:a).id)}}} style={{background:"var(--accent)",borderRadius:8,padding:"9px 14px",textAlign:"center",cursor:"pointer",marginBottom:14}}>
+              <span style={{fontSize:11,fontWeight:500,color:"var(--bg-deepest)"}}>Continue writing</span>
             </div>
-            <div style={{fontSize:9,textTransform:"uppercase",letterSpacing:"0.18em",color:"#6A6050",fontWeight:500,marginBottom:8}}>Chapters</div>
+            <div style={{fontSize:9,textTransform:"uppercase",letterSpacing:"0.18em",color:"var(--text-dim)",fontWeight:500,marginBottom:8}}>Chapters</div>
             <div style={{flex:1,overflowY:"auto"}}>
               {chapters.map(ch=>{
                 const chScenes=scenes.filter(s=>s.chapter===ch).sort((a,b)=>a.scene-b.scene);
                 return <div key={ch} style={{marginBottom:10}}>
-                  <div style={{fontSize:11,color:"#8A7E6A",fontWeight:500,padding:"4px 0",marginBottom:2}}>Chapter {ch}</div>
-                  {chScenes.map(s=><div key={s.id} onClick={()=>{setActiveScene(s.id);saveStored("tt-activescene",s.id)}} style={{padding:"6px 12px 6px 18px",borderRadius:5,cursor:"pointer",fontSize:11,color:s.id===activeScene?"#D8C8AA":"#6A6050",background:s.id===activeScene?"#A8884A0A":"transparent",borderLeft:s.id===activeScene?"2px solid #A8884A60":"2px solid transparent",transition:"all .2s"}}>{s.title||`Scene ${s.scene}`}<span style={{fontSize:9,color:"#6A6050",marginLeft:6}}>{getWordCount(s.text)}</span></div>)}
-                  <div onClick={()=>addScene(ch)} style={{padding:"4px 12px 4px 18px",fontSize:10,color:"#6A6050",cursor:"pointer",fontStyle:"italic"}}>+ scene</div>
+                  <div style={{fontSize:11,color:"var(--text-muted)",fontWeight:500,padding:"4px 0",marginBottom:2}}>Chapter {ch}</div>
+                  {chScenes.map(s=><div key={s.id} onClick={()=>{setActiveScene(s.id);saveStored("tt-activescene",s.id)}} style={{padding:"6px 12px 6px 18px",borderRadius:5,cursor:"pointer",fontSize:11,color:s.id===activeScene?"var(--text-primary)":"var(--text-dim)",background:s.id===activeScene?"var(--accent-0a)":"transparent",borderLeft:s.id===activeScene?"2px solid var(--accent-60)":"2px solid transparent",transition:"all .2s"}}>{s.title||`Scene ${s.scene}`}<span style={{fontSize:9,color:"var(--text-dim)",marginLeft:6}}>{getWordCount(s.text)}</span></div>)}
+                  <div onClick={()=>addScene(ch)} style={{padding:"4px 12px 4px 18px",fontSize:10,color:"var(--text-dim)",cursor:"pointer",fontStyle:"italic"}}>+ scene</div>
                 </div>;
               })}
-              <div onClick={addChapterWithScene} style={{fontSize:10,color:"#6A6050",cursor:"pointer",fontStyle:"italic",padding:"4px 0"}}>+ chapter</div>
+              <div onClick={addChapterWithScene} style={{fontSize:10,color:"var(--text-dim)",cursor:"pointer",fontStyle:"italic",padding:"4px 0"}}>+ chapter</div>
             </div>
-            <div style={{borderTop:"1px solid #1E1A16",paddingTop:10,marginTop:"auto"}}>
-              <div style={{fontSize:9,color:"#6A6050"}}>{getTotalWords()} words total</div>
-              <div style={{fontSize:9,color:"#6A6050",marginTop:3}}>Auto-saving</div>
+            <div style={{borderTop:"1px solid var(--border)",paddingTop:10,marginTop:"auto"}}>
+              <div style={{fontSize:9,color:"var(--text-dim)"}}>{getTotalWords()} words total</div>
+              <div style={{fontSize:9,color:"var(--text-dim)",marginTop:3}}>Auto-saving</div>
               {getTotalWords()>0&&<div onClick={()=>{
                 const chapters=[...new Set(scenes.map(s=>s.chapter))].sort((a,b)=>a-b);
                 let output=project?project.title+"\n\n":"";
@@ -1086,75 +1142,75 @@ Respond with ONLY this JSON (no markdown, no backticks):
                 const a=document.createElement("a");
                 a.href=url;a.download=(project?.title||"manuscript").replace(/[^a-zA-Z0-9]/g,"_")+".txt";
                 document.body.appendChild(a);a.click();document.body.removeChild(a);URL.revokeObjectURL(url);
-              }} style={{fontSize:9,color:"#A8884A80",cursor:"pointer",marginTop:6}}>Export manuscript</div>}
+              }} style={{fontSize:9,color:"var(--accent-80)",cursor:"pointer",marginTop:6}}>Export manuscript</div>}
             </div>
           </div>
 
           {/* Center: Writing Area */}
-          <div style={{background:"#161412",display:"flex",flexDirection:"column",overflow:"hidden"}}>
+          <div style={{background:"var(--bg-write)",display:"flex",flexDirection:"column",overflow:"hidden"}}>
             {currentScene?<>
-              <div style={{padding:"12px 40px 10px",borderBottom:"1px solid #1E1A16",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+              <div style={{padding:"12px 40px 10px",borderBottom:"1px solid var(--border)",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
                 <div>
-                  <span style={{fontSize:11,color:"#8A7E6A"}}>Chapter {currentScene.chapter}, Scene {currentScene.scene}</span>
-                  <span style={{fontSize:10,color:"#6A6050",marginLeft:12}}>{getWordCount(currentScene.text)} words</span>
+                  <span style={{fontSize:11,color:"var(--text-muted)"}}>Chapter {currentScene.chapter}, Scene {currentScene.scene}</span>
+                  <span style={{fontSize:10,color:"var(--text-dim)",marginLeft:12}}>{getWordCount(currentScene.text)} words</span>
                 </div>
                 <div style={{display:"flex",gap:8,alignItems:"center"}}>
-                  <span onClick={()=>{if(currentScene.text){const t=currentScene.text.substring(0,200);const ns=[...sparks,{text:t,date:new Date().toLocaleDateString(),mode:"The Forge"}];setSparks(ns);saveStored("tt-sparks",ns)}}} style={{fontSize:10,color:"#6A6050",background:"#1A1816",border:"1px solid #221E1A",borderRadius:4,padding:"3px 8px",cursor:"pointer"}}>This excites me</span>
-                  <input value={currentScene.title||""} onChange={e=>{const updated=scenes.map(s=>s.id===currentScene.id?{...s,title:e.target.value}:s);setScenes(updated)}} placeholder="Scene title (optional)" style={{background:"none",border:"none",outline:"none",color:"#6A6050",fontSize:10,fontFamily:"'DM Sans',sans-serif",width:140,textAlign:"right"}}/>
+                  <span onClick={()=>{if(currentScene.text){const t=currentScene.text.substring(0,200);const ns=[...sparks,{text:t,date:new Date().toLocaleDateString(),mode:"The Forge"}];setSparks(ns);saveStored("tt-sparks",ns)}}} style={{fontSize:10,color:"var(--text-dim)",background:"var(--bg-card)",border:"1px solid var(--border)",borderRadius:4,padding:"3px 8px",cursor:"pointer"}}>This excites me</span>
+                  <input value={currentScene.title||""} onChange={e=>{const updated=scenes.map(s=>s.id===currentScene.id?{...s,title:e.target.value}:s);setScenes(updated)}} placeholder="Scene title (optional)" style={{background:"none",border:"none",outline:"none",color:"var(--text-dim)",fontSize:10,fontFamily:"'DM Sans',sans-serif",width:140,textAlign:"right"}}/>
                 </div>
               </div>
-              {lastThought&&<div style={{padding:"6px 40px",background:"#1A181640",borderBottom:"1px solid #1E1A1640"}}>
-                <span style={{fontSize:9,color:"#6A6050",letterSpacing:"0.12em",textTransform:"uppercase"}}>LAST THOUGHT </span>
-                <span style={{fontFamily:"'Cormorant Garamond',serif",fontSize:12,color:"#8A7E6A",fontStyle:"italic",marginLeft:6}}>"{(typeof lastThought==="string"?lastThought:"").substring(0,100)}"</span>
+              {lastThought&&<div style={{padding:"6px 40px",background:"var(--bg-card-alt)",borderBottom:"1px solid var(--border)"}}>
+                <span style={{fontSize:9,color:"var(--text-dim)",letterSpacing:"0.12em",textTransform:"uppercase"}}>LAST THOUGHT </span>
+                <span style={{fontFamily:"'Cormorant Garamond',serif",fontSize:12,color:"var(--text-muted)",fontStyle:"italic",marginLeft:6}}>"{(typeof lastThought==="string"?lastThought:"").substring(0,100)}"</span>
               </div>}
-              {currentScene.notes&&<div style={{padding:"10px 40px",background:"#1A181630",borderBottom:"1px solid #1E1A1630"}}>
-                <div style={{fontSize:9,color:"#A8884A70",letterSpacing:"0.12em",textTransform:"uppercase",marginBottom:4}}>CHAPTER REFERENCE</div>
-                <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:13,color:"#8A7E6A",lineHeight:1.6,maxWidth:640}}>{currentScene.notes}</div>
+              {currentScene.notes&&<div style={{padding:"10px 40px",background:"var(--bg-card-alt)",borderBottom:"1px solid var(--border)"}}>
+                <div style={{fontSize:9,color:"var(--accent-70)",letterSpacing:"0.12em",textTransform:"uppercase",marginBottom:4}}>CHAPTER REFERENCE</div>
+                <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:13,color:"var(--text-muted)",lineHeight:1.6,maxWidth:640}}>{currentScene.notes}</div>
               </div>}
               <div style={{flex:1,overflow:"auto",padding:"24px 40px"}}>
-                <textarea ref={writeRef} value={currentScene.text||""} onChange={e=>updateSceneText(currentScene.id,e.target.value)} placeholder="Start writing..." style={{width:"100%",height:"100%",minHeight:400,background:"none",border:"none",outline:"none",resize:"none",fontFamily:"'Cormorant Garamond',serif",fontSize:18,color:"#D8C8AA",lineHeight:2,letterSpacing:"0.01em"}}/>
+                <textarea ref={writeRef} value={currentScene.text||""} onChange={e=>updateSceneText(currentScene.id,e.target.value)} placeholder="Start writing..." style={{width:"100%",height:"100%",minHeight:400,background:"none",border:"none",outline:"none",resize:"none",fontFamily:"'Cormorant Garamond',serif",fontSize:18,color:"var(--text-primary)",lineHeight:2,letterSpacing:"0.01em"}}/>
               </div>
-              <div style={{padding:"10px 40px 14px",borderTop:"1px solid #1E1A16",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
-                <div style={{fontSize:10,color:"#6A6050"}}>Auto-saved</div>
+              <div style={{padding:"10px 40px 14px",borderTop:"1px solid var(--border)",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+                <div style={{fontSize:10,color:"var(--text-dim)"}}>Auto-saved</div>
                 <div style={{display:"flex",gap:10}}>
-                  <span onClick={()=>{setFinnOpen(!finnOpen);if(!finnOpen&&containerMsgs.length===0){setContainerMsgs([{role:"assistant",content:`I'm reading Chapter ${currentScene.chapter}, Scene ${currentScene.scene}. ${getWordCount(currentScene.text)>0?"I can see what you're writing. Ask me anything about this scene, or tell me what you need.":"Empty page. Tell me what this scene needs to accomplish and I'll help you find the first line."}`}])}}} style={{fontSize:12,color:finnOpen?"#A8884A":"#A8884A90",background:"#1E1A16",border:"1px solid #221E1A",borderRadius:8,padding:"7px 16px",cursor:"pointer",fontWeight:500}}>{finnOpen?"Close Finn":"Ask Finn"}</span>
-                  <span onClick={goHome} style={{fontSize:12,color:"#8A7E6A",cursor:"pointer",padding:"7px 12px",background:"#1E1A16",border:"1px solid #221E1A",borderRadius:8}}>Home</span>
+                  <span onClick={()=>{setFinnOpen(!finnOpen);if(!finnOpen&&containerMsgs.length===0){setContainerMsgs([{role:"assistant",content:`I'm reading Chapter ${currentScene.chapter}, Scene ${currentScene.scene}. ${getWordCount(currentScene.text)>0?"I can see what you're writing. Ask me anything about this scene, or tell me what you need.":"Empty page. Tell me what this scene needs to accomplish and I'll help you find the first line."}`}])}}} style={{fontSize:12,color:finnOpen?"var(--accent)":"var(--accent-90)",background:"var(--bg-card-alt)",border:"1px solid var(--border)",borderRadius:8,padding:"7px 16px",cursor:"pointer",fontWeight:500}}>{finnOpen?"Close Finn":"Ask Finn"}</span>
+                  <span onClick={goHome} style={{fontSize:12,color:"var(--text-muted)",cursor:"pointer",padding:"7px 12px",background:"var(--bg-card-alt)",border:"1px solid var(--border)",borderRadius:8}}>Home</span>
                 </div>
               </div>
-            </>:<div style={{flex:1,display:"flex",alignItems:"center",justifyContent:"center"}}><p style={{color:"#6A6050"}}>Select a scene or create one.</p></div>}
+            </>:<div style={{flex:1,display:"flex",alignItems:"center",justifyContent:"center"}}><p style={{color:"var(--text-dim)"}}>Select a scene or create one.</p></div>}
           </div>
 
           {/* Right: Finn Panel */}
-          {finnOpen&&<div style={{background:"#141210",borderLeft:"1px solid #1E1A16",padding:"16px",display:"flex",flexDirection:"column",overflow:"hidden"}}>
+          {finnOpen&&<div style={{background:"var(--bg-dark)",borderLeft:"1px solid var(--border)",padding:"16px",display:"flex",flexDirection:"column",overflow:"hidden"}}>
             <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12}}>
               <div>
-                <div style={{fontSize:9,textTransform:"uppercase",letterSpacing:"0.18em",color:"#A8884A80",fontWeight:500}}>Finn</div>
-                {currentScene&&<div style={{fontSize:10,color:"#6A6050",marginTop:2}}>Ch{currentScene.chapter}, Scene {currentScene.scene}</div>}
+                <div style={{fontSize:9,textTransform:"uppercase",letterSpacing:"0.18em",color:"var(--accent-80)",fontWeight:500}}>Finn</div>
+                {currentScene&&<div style={{fontSize:10,color:"var(--text-dim)",marginTop:2}}>Ch{currentScene.chapter}, Scene {currentScene.scene}</div>}
               </div>
               <div style={{display:"flex",gap:6,alignItems:"center"}}>
-                <div style={{display:"flex",gap:2}}>{["small","medium","large"].map(sz=><span key={sz} onClick={()=>setFinnPanelSize(sz)} style={{width:sz==="small"?10:sz==="medium"?14:18,height:10,borderRadius:2,background:finnPanelSize===sz?"#A8884A":"#2A2420",cursor:"pointer",transition:"background .2s"}}/>)}</div>
-                <span onClick={()=>setFinnOpen(false)} style={{fontSize:10,color:"#6A6050",cursor:"pointer",marginLeft:6}}>Close</span>
+                <div style={{display:"flex",gap:2}}>{["small","medium","large"].map(sz=><span key={sz} onClick={()=>setFinnPanelSize(sz)} style={{width:sz==="small"?10:sz==="medium"?14:18,height:10,borderRadius:2,background:finnPanelSize===sz?"var(--accent)":"var(--border-mid)",cursor:"pointer",transition:"background .2s"}}/>)}</div>
+                <span onClick={()=>setFinnOpen(false)} style={{fontSize:10,color:"var(--text-dim)",cursor:"pointer",marginLeft:6}}>Close</span>
               </div>
             </div>
             <div style={{flex:1,overflowY:"auto",display:"flex",flexDirection:"column",gap:10}}>
-              {containerMsgs.map((m,i)=><div key={i} style={{background:m.role==="assistant"?"#1A1816":"#1E1A16",border:"1px solid "+(m.role==="assistant"?"#221E1A":"#2A2420"),borderRadius:10,padding:"10px 12px",alignSelf:m.role==="user"?"flex-end":"flex-start",maxWidth:"95%"}}>
-                {m.role==="assistant"&&<div style={{fontSize:9,color:"#A8884A80",textTransform:"uppercase",letterSpacing:"0.1em",marginBottom:5}}>Finn</div>}
-                <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:15,color:"#D8C8AA",lineHeight:1.7}}>{m.content.split("\n").map((l,j)=><p key={j} style={{marginBottom:l?8:3}}>{l}</p>)}</div>
-                {m.role==="assistant"&&i>0&&<span onClick={()=>{const ns=[...sparks,{text:m.content.substring(0,200),date:new Date().toLocaleDateString(),mode:"The Forge"}];setSparks(ns);saveStored("tt-sparks",ns)}} style={{fontSize:9,color:"#6A6050",border:"1px solid #221E1A",borderRadius:4,padding:"2px 6px",marginTop:6,display:"inline-block",cursor:"pointer"}}>This excites me</span>}
+              {containerMsgs.map((m,i)=><div key={i} style={{background:m.role==="assistant"?"var(--bg-card)":"var(--bg-card-alt)",border:"1px solid "+(m.role==="assistant"?"var(--border)":"var(--border-mid)"),borderRadius:10,padding:"10px 12px",alignSelf:m.role==="user"?"flex-end":"flex-start",maxWidth:"95%"}}>
+                {m.role==="assistant"&&<div style={{fontSize:9,color:"var(--accent-80)",textTransform:"uppercase",letterSpacing:"0.1em",marginBottom:5}}>Finn</div>}
+                <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:15,color:"var(--text-primary)",lineHeight:1.7}}>{m.content.split("\n").map((l,j)=><p key={j} style={{marginBottom:l?8:3}}>{l}</p>)}</div>
+                {m.role==="assistant"&&i>0&&<span onClick={()=>{const ns=[...sparks,{text:m.content.substring(0,200),date:new Date().toLocaleDateString(),mode:"The Forge"}];setSparks(ns);saveStored("tt-sparks",ns)}} style={{fontSize:9,color:"var(--text-dim)",border:"1px solid var(--border)",borderRadius:4,padding:"2px 6px",marginTop:6,display:"inline-block",cursor:"pointer"}}>This excites me</span>}
               </div>)}
-              {loading&&<div style={{background:"#1A1816",border:"1px solid #221E1A",borderRadius:10,padding:"10px 12px"}}><div style={{fontSize:9,color:"#A8884A80",marginBottom:5}}>Finn</div><span style={{fontSize:13,color:"#6A6050",fontStyle:"italic"}}>Thinking...</span></div>}
+              {loading&&<div style={{background:"var(--bg-card)",border:"1px solid var(--border)",borderRadius:10,padding:"10px 12px"}}><div style={{fontSize:9,color:"var(--accent-80)",marginBottom:5}}>Finn</div><span style={{fontSize:13,color:"var(--text-dim)",fontStyle:"italic"}}>Thinking...</span></div>}
               <div ref={cEndRef}/>
             </div>
-            <div style={{borderTop:"1px solid #1E1A16",paddingTop:10,marginTop:10}}>
-              <div style={{display:"flex",gap:6,alignItems:"flex-end",background:"#1A1816",border:"1px solid #221E1A",borderRadius:10,padding:"8px 10px"}}>
-                <textarea value={containerInput} onChange={e=>{setContainerInput(e.target.value);e.target.style.height="auto";e.target.style.height=Math.min(e.target.scrollHeight,120)+"px"}} onKeyDown={e=>{if(e.key==="Enter"&&!e.shiftKey){e.preventDefault();sendContainer()}}} placeholder="Ask Finn..." rows={2} style={{flex:1,background:"none",border:"none",outline:"none",color:"#D8C8AA",fontFamily:"'Cormorant Garamond',serif",fontSize:14,lineHeight:1.5,resize:"none",maxHeight:120,minHeight:40}}/>
-                <button className="sb" onClick={sendContainer} disabled={!containerInput.trim()||loading} style={{width:28,height:28,borderRadius:6,background:"#A8884A",color:"#0F0E0C",fontSize:14,fontWeight:700,border:"none",cursor:"pointer",flexShrink:0,display:"flex",alignItems:"center",justifyContent:"center",opacity:!containerInput.trim()||loading?.3:1}}>{"\u2191"}</button>
+            <div style={{borderTop:"1px solid var(--border)",paddingTop:10,marginTop:10}}>
+              <div style={{display:"flex",gap:6,alignItems:"flex-end",background:"var(--bg-card)",border:"1px solid var(--border)",borderRadius:10,padding:"8px 10px"}}>
+                <textarea value={containerInput} onChange={e=>{setContainerInput(e.target.value);e.target.style.height="auto";e.target.style.height=Math.min(e.target.scrollHeight,120)+"px"}} onKeyDown={e=>{if(e.key==="Enter"&&!e.shiftKey){e.preventDefault();sendContainer()}}} placeholder="Ask Finn..." rows={2} style={{flex:1,background:"none",border:"none",outline:"none",color:"var(--text-primary)",fontFamily:"'Cormorant Garamond',serif",fontSize:14,lineHeight:1.5,resize:"none",maxHeight:120,minHeight:40}}/>
+                <button className="sb" onClick={sendContainer} disabled={!containerInput.trim()||loading} style={{width:28,height:28,borderRadius:6,background:"var(--accent)",color:"var(--bg-deepest)",fontSize:14,fontWeight:700,border:"none",cursor:"pointer",flexShrink:0,display:"flex",alignItems:"center",justifyContent:"center",opacity:!containerInput.trim()||loading?.3:1}}>{"\u2191"}</button>
               </div>
             </div>
-            {project&&<div style={{marginTop:10,paddingTop:8,borderTop:"1px solid #1E1A16"}}>
-              <div style={{fontSize:8,textTransform:"uppercase",letterSpacing:"0.15em",color:"#6A6050",fontWeight:500,marginBottom:4}}>Story Bible</div>
-              <div style={{fontSize:10,color:"#6A6050",lineHeight:1.5}}>{project.protagonist?.substring(0,80)}</div>
-              {sparks.length>0&&<><div style={{fontSize:8,textTransform:"uppercase",letterSpacing:"0.15em",color:"#A8884A50",fontWeight:500,marginTop:8,marginBottom:4}}>Dopamine Map</div><div style={{fontSize:10,color:"#6A6050"}}>{sparks.length} sparks</div></>}
+            {project&&<div style={{marginTop:10,paddingTop:8,borderTop:"1px solid var(--border)"}}>
+              <div style={{fontSize:8,textTransform:"uppercase",letterSpacing:"0.15em",color:"var(--text-dim)",fontWeight:500,marginBottom:4}}>Story Bible</div>
+              <div style={{fontSize:10,color:"var(--text-dim)",lineHeight:1.5}}>{project.protagonist?.substring(0,80)}</div>
+              {sparks.length>0&&<><div style={{fontSize:8,textTransform:"uppercase",letterSpacing:"0.15em",color:"var(--accent-50)",fontWeight:500,marginTop:8,marginBottom:4}}>Dopamine Map</div><div style={{fontSize:10,color:"var(--text-dim)"}}>{sparks.length} sparks</div></>}
             </div>}
           </div>}
         </div>;
@@ -1162,34 +1218,34 @@ Respond with ONLY this JSON (no markdown, no backticks):
 
       {/* CHAT */}
       {screen==="chat"&&mode&&<div style={{maxWidth:isFocusMode?600:700,margin:"0 auto",display:"flex",flexDirection:"column",height:"calc(100vh - 60px)"}}>
-        {isFocusMode&&<div style={{textAlign:"center",padding:"8px 0",fontSize:10,color:"#5A7A5C80",letterSpacing:"0.1em"}}>FOCUS MODE</div>}
-        {!isFocusMode&&<div style={{padding:"4px 20px 8px",fontSize:11,color:"#A8884A60"}}>{mode.label}</div>}
+        {isFocusMode&&<div style={{textAlign:"center",padding:"8px 0",fontSize:10,color:"#5A7A5C",letterSpacing:"0.1em"}}>FOCUS MODE</div>}
+        {!isFocusMode&&<div style={{padding:"4px 20px 8px",fontSize:11,color:"var(--accent-60)"}}>{mode.label}</div>}
         <div style={{flex:1,overflow:"auto",padding:"8px 20px",display:"flex",flexDirection:"column",gap:14}}>
           {msgs.map((m,i)=><div key={i} className={m.role==="assistant"?"ma":"mu"} style={{display:"flex",width:"100%",justifyContent:m.role==="user"?"flex-end":"flex-start"}}>
-            <div style={{maxWidth:"88%",borderRadius:14,padding:"14px 18px",lineHeight:1.65,...(m.role==="user"?{background:"#1E1A16",border:"1px solid #221E1A",borderTopRightRadius:4}:{background:"#1A1816",border:"1px solid #221E1A",borderTopLeftRadius:4})}}>
-              {m.role==="assistant"&&<div style={{fontSize:10,fontWeight:500,color:CATS[mode.cat]?.c||"#A8884A",textTransform:"uppercase",letterSpacing:"0.1em",marginBottom:8}}>Finn</div>}
-              <div style={{fontFamily:"'Cormorant Garamond',serif",color:"#D8C8AA",fontSize:15,lineHeight:1.7}}>{m.content.split("\n").map((l,j)=><p key={j} style={{marginBottom:l?10:4,minHeight:l?undefined:4}}>{l}</p>)}</div>
-              {m.role==="assistant"&&i>0&&<>{flaggedIdx===i?<span style={{fontSize:11,color:"#A8884A",fontStyle:"italic",marginTop:8,display:"block"}}>{sparkMsgs[Math.floor(Math.random()*sparkMsgs.length)]}</span>:<button onClick={()=>flagSpark(m.content,i)} style={{background:"none",border:"1px solid #221E1A",borderRadius:6,color:"#6A6050",fontSize:10,padding:"4px 10px",marginTop:8,cursor:"pointer",fontFamily:"'DM Sans',sans-serif"}}>This excites me</button>}</>}
+            <div style={{maxWidth:"88%",borderRadius:14,padding:"14px 18px",lineHeight:1.65,...(m.role==="user"?{background:"var(--bg-card-alt)",border:"1px solid var(--border)",borderTopRightRadius:4}:{background:"var(--bg-card)",border:"1px solid var(--border)",borderTopLeftRadius:4})}}>
+              {m.role==="assistant"&&<div style={{fontSize:10,fontWeight:500,color:CATS[mode.cat]?.c||"var(--accent)",textTransform:"uppercase",letterSpacing:"0.1em",marginBottom:8}}>Finn</div>}
+              <div style={{fontFamily:"'Cormorant Garamond',serif",color:"var(--text-primary)",fontSize:15,lineHeight:1.7}}>{m.content.split("\n").map((l,j)=><p key={j} style={{marginBottom:l?10:4,minHeight:l?undefined:4}}>{l}</p>)}</div>
+              {m.role==="assistant"&&i>0&&<>{flaggedIdx===i?<span style={{fontSize:11,color:"var(--accent)",fontStyle:"italic",marginTop:8,display:"block"}}>{sparkMsgs[Math.floor(Math.random()*sparkMsgs.length)]}</span>:<button onClick={()=>flagSpark(m.content,i)} style={{background:"none",border:"1px solid var(--border)",borderRadius:6,color:"var(--text-dim)",fontSize:10,padding:"4px 10px",marginTop:8,cursor:"pointer",fontFamily:"'DM Sans',sans-serif"}}>This excites me</button>}</>}
             </div>
           </div>)}
           {loading&&<div className="ma" style={{display:"flex",width:"100%",alignItems:"flex-start",gap:8}}>
-            <div style={{maxWidth:"88%",borderRadius:14,padding:"14px 18px",background:"#1A1816",border:"1px solid #221E1A",borderTopLeftRadius:4,flex:1}}>
-              <div style={{fontSize:10,fontWeight:500,color:CATS[mode.cat]?.c||"#A8884A",textTransform:"uppercase",letterSpacing:"0.1em",marginBottom:8}}>Finn</div>
+            <div style={{maxWidth:"88%",borderRadius:14,padding:"14px 18px",background:"var(--bg-card)",border:"1px solid var(--border)",borderTopLeftRadius:4,flex:1}}>
+              <div style={{fontSize:10,fontWeight:500,color:CATS[mode.cat]?.c||"var(--accent)",textTransform:"uppercase",letterSpacing:"0.1em",marginBottom:8}}>Finn</div>
               <div style={{display:"flex",alignItems:"center",gap:8}}>
-                <span style={{fontSize:13,color:"#6A6050",fontStyle:"italic"}}>{loadMsg}</span>
-                <span style={{display:"flex",gap:4}}>{[0,.3,.6].map(d=><span key={d} style={{color:"#A8884A",fontSize:8,animation:"pu 1.2s ease-in-out infinite",animationDelay:`${d}s`}}>&#9679;</span>)}</span>
+                <span style={{fontSize:13,color:"var(--text-dim)",fontStyle:"italic"}}>{loadMsg}</span>
+                <span style={{display:"flex",gap:4}}>{[0,.3,.6].map(d=><span key={d} style={{color:"var(--accent)",fontSize:8,animation:"pu 1.2s ease-in-out infinite",animationDelay:`${d}s`}}>&#9679;</span>)}</span>
               </div>
             </div>
-            <button onClick={cancelReq} style={{background:"#1A1816",border:"1px solid #221E1A",borderRadius:6,color:"#6A6050",fontSize:10,padding:"6px 10px",cursor:"pointer",flexShrink:0,fontFamily:"'DM Sans',sans-serif"}}>Stop</button>
+            <button onClick={cancelReq} style={{background:"var(--bg-card)",border:"1px solid var(--border)",borderRadius:6,color:"var(--text-dim)",fontSize:10,padding:"6px 10px",cursor:"pointer",flexShrink:0,fontFamily:"'DM Sans',sans-serif"}}>Stop</button>
           </div>}
           <div ref={endRef}/>
         </div>
-        <div style={{padding:"12px 20px 20px",borderTop:"1px solid #1E1A16",background:"#121010"}}>
-          <div style={{display:"flex",gap:10,alignItems:"flex-end",background:"#1A1816",border:"1px solid #221E1A",borderRadius:14,padding:"10px 14px"}}>
-            <textarea ref={taRef} value={input} onChange={e=>setInput(e.target.value)} onKeyDown={e=>{if(e.key==="Enter"&&!e.shiftKey){e.preventDefault();send()}}} placeholder={mode.ph} style={{flex:1,background:"none",border:"none",outline:"none",color:"#D8C8AA",fontFamily:"'Cormorant Garamond',serif",fontSize:15,lineHeight:1.6,resize:"none",maxHeight:200}} rows={1}/>
-            <button className="sb" onClick={send} disabled={!input.trim()||loading} style={{width:34,height:34,borderRadius:8,border:"none",background:"#A8884A",color:"#0F0E0C",fontSize:16,fontWeight:700,cursor:"pointer",flexShrink:0,display:"flex",alignItems:"center",justifyContent:"center",opacity:!input.trim()||loading?.3:1}}>{"\u2191"}</button>
+        <div style={{padding:"12px 20px 20px",borderTop:"1px solid var(--border)",background:"var(--bg-base)"}}>
+          <div style={{display:"flex",gap:10,alignItems:"flex-end",background:"var(--bg-card)",border:"1px solid var(--border)",borderRadius:14,padding:"10px 14px"}}>
+            <textarea ref={taRef} value={input} onChange={e=>setInput(e.target.value)} onKeyDown={e=>{if(e.key==="Enter"&&!e.shiftKey){e.preventDefault();send()}}} placeholder={mode.ph} style={{flex:1,background:"none",border:"none",outline:"none",color:"var(--text-primary)",fontFamily:"'Cormorant Garamond',serif",fontSize:15,lineHeight:1.6,resize:"none",maxHeight:200}} rows={1}/>
+            <button className="sb" onClick={send} disabled={!input.trim()||loading} style={{width:34,height:34,borderRadius:8,border:"none",background:"var(--accent)",color:"var(--bg-deepest)",fontSize:16,fontWeight:700,cursor:"pointer",flexShrink:0,display:"flex",alignItems:"center",justifyContent:"center",opacity:!input.trim()||loading?.3:1}}>{"\u2191"}</button>
           </div>
-          <div style={{display:"flex",justifyContent:"space-between",marginTop:6}}><p style={{fontSize:9,color:"#3A3430"}}>Shift+Enter for new line</p><p onClick={newChat} style={{fontSize:9,color:"#5A7A8A",cursor:"pointer"}}>New chat</p></div>
+          <div style={{display:"flex",justifyContent:"space-between",marginTop:6}}><p style={{fontSize:9,color:"var(--text-deepfaint)"}}>Shift+Enter for new line</p><p onClick={newChat} style={{fontSize:9,color:"#5A7A8A",cursor:"pointer"}}>New chat</p></div>
         </div>
       </div>}
     </div>
