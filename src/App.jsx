@@ -306,6 +306,7 @@ export default function App() {
   const writeRef = useRef(null);
   const cEndRef = useRef(null);
   const abortRef = useRef(null);
+  const isPopStateRef = useRef(false);
   const tk = TORCHES[ti];
 
   const getTimeAway=()=>{
@@ -400,6 +401,27 @@ export default function App() {
   useEffect(()=>{if(mode&&msgs.length>0)saveStored("tt-chat-"+mode.id,msgs)},[msgs]);
   useEffect(()=>{if(taRef.current){taRef.current.style.height="auto";taRef.current.style.height=Math.min(taRef.current.scrollHeight,200)+"px"}},[input]);
   useEffect(()=>{cEndRef.current?.scrollIntoView({behavior:"smooth"})},[containerMsgs]);
+
+  // History API: push screen to browser history on every navigation
+  useEffect(()=>{
+    if(isPopStateRef.current){isPopStateRef.current=false;return;}
+    window.history.pushState({screen,subMenu},``,window.location.pathname);
+  },[screen]);
+
+  // History API: handle browser back button
+  useEffect(()=>{
+    const onPop=(e)=>{
+      const s=e.state?.screen;
+      if(!s)return;
+      isPopStateRef.current=true;
+      setScreen(s);
+      setSubMenu(e.state?.subMenu||null);
+      if(s!=="chat"){setMode(null);setMsgs([]);setInput("");}
+      if(s==="home"||s==="welcome"){setFinnOpen(false);setContainerMsgs([]);}
+    };
+    window.addEventListener("popstate",onPop);
+    return()=>window.removeEventListener("popstate",onPop);
+  },[]);
 
   // Scene management
   const loadScenes=()=>{const s=loadStored("tt-scenes");return s||[]};
@@ -515,6 +537,44 @@ export default function App() {
       setMsgs([{role:"assistant",content:`I know where you're stuck. ${project.stuck}\n\nLet me ask you something about that. What's the one thing about this moment that you can see clearly, even if everything else is foggy?`}]);
     } else { setMsgs([{role:"assistant",content:INTROS[mode.id]}]); }
   };
+
+  const generateDefaultSidebarCtx=async(proj)=>{
+    if(!proj)return;
+    try{
+      const r=await fetch("/api/chat",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({
+        system:`You are a writing session analyzer. Respond ONLY with a JSON object. No markdown. No backticks. No explanation. Just the JSON.`,
+        messages:[{role:"user",content:`A writer has set up their Story Bible. Generate atmosphere sidebar content from their project details.
+
+PROJECT: "${proj.title}" - ${proj.genre}
+SETTING: ${proj.worldSetting||"not specified"}
+TONE: ${proj.worldTone||"not specified"}
+PROTAGONIST: ${(proj.protagonist||"").substring(0,200)}
+WHERE THEY ARE: ${proj.where||"beginning"}
+STUCK ON: ${proj.stuck||"nothing yet"}
+WHAT EXCITES THEM: ${proj.excites||"not specified"}
+
+Respond with ONLY this JSON (no markdown, no backticks):
+{"toneWord":"ONE atmosphere word that captures this story's feeling","sensoryAnchors":[{"detail":"a sensory detail that fits this world","sense":"smell/sound/touch/sight/taste"},{"detail":"second sensory detail","sense":"sense"},{"detail":"third sensory detail","sense":"sense"}],"hook":"A question that makes the writer want to open their manuscript. Reference a specific character or story element by name.","nextBeat":"What the writer should work on next based on where they are in the story","emotionalGoal":"The emotional effect the next scene should achieve in 5 words or less"}`}]
+      })});
+      const d=await r.json();
+      if(!d.error){
+        const raw=d.content?.filter(b=>b.type==="text").map(b=>b.text).join("")||"";
+        const cleaned=raw.replace(/```json\s*/g,"").replace(/```\s*/g,"").trim();
+        try{
+          const ctx=JSON.parse(cleaned);
+          ctx.mode="Story Bible";ctx.time=Date.now();
+          setSidebarCtx(ctx);saveStored("tt-sidebarctx",ctx);
+        }catch(e){console.log("Default sidebar parse error:",e,"Raw response:",raw);}
+      }else{console.log("Default sidebar API error:",d.error);}
+    }catch(e){console.log("Default sidebar fetch error:",e);}
+  };
+
+  // Populate sidebar from Story Bible when no session context exists yet
+  useEffect(()=>{
+    if(screen==="home"&&project&&!sidebarCtx){
+      generateDefaultSidebarCtx(project);
+    }
+  },[screen,project]);
 
   const generateSidebarContext=async(sessionMsgs,sessionMode,sceneText)=>{
     if(!project||sessionMsgs.length<2)return;
@@ -906,19 +966,19 @@ Respond with ONLY this JSON (no markdown, no backticks):
 
         {sidebarCtx?.toneWord?<>
           <div style={{textAlign:"center",marginBottom:16}}>
-            <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:26,fontWeight:600,color:"var(--accent)",letterSpacing:"0.08em",textTransform:"uppercase"}}>{sidebarCtx.toneWord}</div>
-            <div style={{fontSize:9,color:"var(--text-faint)",textTransform:"uppercase",letterSpacing:"0.2em",marginTop:5}}>Scene Atmosphere</div>
+            <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:22,fontWeight:600,color:"var(--accent)",letterSpacing:"0.1em",textTransform:"uppercase"}}>{sidebarCtx.toneWord}</div>
+            <div style={{fontSize:10,color:"var(--text-faint)",textTransform:"uppercase",letterSpacing:"0.15em",marginTop:5}}>Scene Atmosphere</div>
           </div>
           <div style={{height:1,background:"var(--border)",marginBottom:16}}/>
         </>:null}
 
         {sidebarCtx?.sensoryAnchors?.length>0?<>
           <div style={{marginBottom:16}}>
-            <div style={{fontSize:9,textTransform:"uppercase",letterSpacing:"0.2em",color:"var(--text-dim)",fontWeight:500,marginBottom:10}}>Sensory Anchors</div>
-            <div style={{display:"flex",flexDirection:"column",gap:8}}>
-              {sidebarCtx.sensoryAnchors.map((a,i)=><div key={i} style={{display:"flex",alignItems:"center",gap:8}}>
-                <svg width="16" height="16" viewBox="0 0 16 16"><circle cx="8" cy="8" r="3" fill="none" stroke="var(--accent)" strokeWidth="0.6" opacity="0.4"/></svg>
-                <div><div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:14,color:"var(--text-secondary)"}}>{a.detail}</div><div style={{fontSize:10,color:"var(--text-dim)"}}>{a.sense}</div></div>
+            <div style={{fontSize:11,textTransform:"uppercase",letterSpacing:"0.12em",color:"var(--text-muted)",fontWeight:500,marginBottom:10}}>Sensory Anchors</div>
+            <div style={{display:"flex",flexDirection:"column",gap:10}}>
+              {sidebarCtx.sensoryAnchors.map((a,i)=><div key={i} style={{display:"flex",alignItems:"flex-start",gap:8}}>
+                <svg width="14" height="14" viewBox="0 0 16 16" style={{flexShrink:0,marginTop:2}}><circle cx="8" cy="8" r="3" fill="none" stroke="var(--accent)" strokeWidth="0.6" opacity="0.5"/></svg>
+                <div><div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:13,color:"var(--text-secondary)",lineHeight:1.5}}>{a.detail}</div><div style={{fontSize:10,color:"var(--text-dim)",marginTop:1,textTransform:"uppercase",letterSpacing:"0.08em"}}>{a.sense}</div></div>
               </div>)}
             </div>
           </div>
@@ -926,35 +986,35 @@ Respond with ONLY this JSON (no markdown, no backticks):
         </>:null}
 
         {pulse?<div style={{marginBottom:16,cursor:"pointer"}} onClick={()=>{if(pulse.sceneId){setActiveScene(pulse.sceneId);saveStored("tt-activescene",pulse.sceneId);initScenes()}else if(pulse.modeId){const m=MODES.find(x=>x.id===pulse.modeId);if(m)pick(m)}}}>
-          <div style={{fontSize:9,textTransform:"uppercase",letterSpacing:"0.2em",color:"var(--accent-80)",fontWeight:500,marginBottom:8}}>The Pulse</div>
-          <div style={{fontSize:12,color:"var(--text-muted)",marginBottom:6}}>{pulse.mode}{pulse.scene?` / ${pulse.scene}`:""}</div>
-          <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:14,color:"var(--text-primary)",lineHeight:1.6,marginBottom:8}}>{pulse.description}</div>
-          {sidebarCtx?.hook&&<div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:14,color:"var(--accent)",lineHeight:1.6,fontStyle:"italic",marginBottom:8}}>"{sidebarCtx.hook}"</div>}
+          <div style={{fontSize:11,textTransform:"uppercase",letterSpacing:"0.12em",color:"var(--accent-80)",fontWeight:500,marginBottom:8}}>The Pulse</div>
+          <div style={{fontSize:11,color:"var(--text-muted)",marginBottom:6,letterSpacing:"0.03em"}}>{pulse.mode}{pulse.scene?` / ${pulse.scene}`:""}</div>
+          <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:14,color:"var(--text-primary)",lineHeight:1.65,marginBottom:8}}>{pulse.description}</div>
+          {sidebarCtx?.hook&&<div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:13,color:"var(--accent)",lineHeight:1.65,fontStyle:"italic",marginBottom:8}}>"{sidebarCtx.hook}"</div>}
           <div style={{fontSize:10,color:"var(--accent-60)",marginTop:4}}>Tap to return &#8594;</div>
         </div>:<div style={{marginBottom:16}}>
-          <div style={{fontSize:9,textTransform:"uppercase",letterSpacing:"0.2em",color:"var(--accent-80)",fontWeight:500,marginBottom:8}}>The Pulse</div>
+          <div style={{fontSize:11,textTransform:"uppercase",letterSpacing:"0.12em",color:"var(--accent-80)",fontWeight:500,marginBottom:8}}>The Pulse</div>
           <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:13,color:"var(--text-dim)",fontStyle:"italic"}}>Start a session to light it up</div>
         </div>}
         <div style={{height:1,background:"var(--border)",marginBottom:16}}/>
 
         {sidebarCtx?.nextBeat?<>
           <div style={{marginBottom:16}}>
-            <div style={{fontSize:9,textTransform:"uppercase",letterSpacing:"0.2em",color:"var(--text-dim)",fontWeight:500,marginBottom:8}}>Next Beat</div>
-            <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:14,color:"var(--text-primary)",lineHeight:1.6}}>{sidebarCtx.nextBeat}</div>
+            <div style={{fontSize:11,textTransform:"uppercase",letterSpacing:"0.12em",color:"var(--text-muted)",fontWeight:500,marginBottom:8}}>Next Beat</div>
+            <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:14,color:"var(--text-primary)",lineHeight:1.65}}>{sidebarCtx.nextBeat}</div>
             {sidebarCtx.emotionalGoal&&<div style={{fontSize:11,color:"var(--text-muted)",marginTop:8,fontStyle:"italic"}}>Emotional goal: {sidebarCtx.emotionalGoal}</div>}
           </div>
           <div style={{height:1,background:"var(--border)",marginBottom:16}}/>
         </>:project.stuck&&project.stuck.trim()?<>
           <div style={{marginBottom:16}}>
-            <div style={{fontSize:9,textTransform:"uppercase",letterSpacing:"0.2em",color:"var(--text-dim)",fontWeight:500,marginBottom:8}}>Next Beat</div>
-            <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:14,color:"var(--text-primary)",lineHeight:1.6}}>{project.stuck.substring(0,200)}</div>
+            <div style={{fontSize:11,textTransform:"uppercase",letterSpacing:"0.12em",color:"var(--text-muted)",fontWeight:500,marginBottom:8}}>Next Beat</div>
+            <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:14,color:"var(--text-primary)",lineHeight:1.65}}>{project.stuck.substring(0,200)}</div>
           </div>
           <div style={{height:1,background:"var(--border)",marginBottom:16}}/>
         </>:null}
 
         {sparks.length>0&&<>
           <div style={{marginBottom:16,cursor:"pointer"}} onClick={()=>setScreen("sparkmap")}>
-            <div style={{fontSize:9,textTransform:"uppercase",letterSpacing:"0.2em",color:"var(--accent-60)",fontWeight:500,marginBottom:8}}>Latest Spark</div>
+            <div style={{fontSize:11,textTransform:"uppercase",letterSpacing:"0.12em",color:"var(--accent-60)",fontWeight:500,marginBottom:8}}>Latest Spark</div>
             <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:13,color:"var(--text-muted)",fontStyle:"italic",lineHeight:1.6}}>"{sparks[sparks.length-1]?.text?.substring(0,100)}"</div>
             <div style={{fontSize:10,color:"var(--text-dim)",marginTop:6,animation:"wp 4s ease-in-out infinite"}}>{sparks.length} spark{sparks.length>1?"s":""}</div>
           </div>
@@ -963,17 +1023,17 @@ Respond with ONLY this JSON (no markdown, no backticks):
 
         <div style={{marginBottom:16}}>
           <div style={{display:"flex",justifyContent:"space-between"}}>
-            <div><div style={{fontSize:20,color:"var(--text-primary)",fontWeight:500}}>{getTotalWords().toLocaleString()}</div><div style={{fontSize:10,color:"var(--text-dim)"}}>words</div></div>
-            <div style={{textAlign:"right"}}><div style={{fontSize:20,color:"var(--text-primary)",fontWeight:500}}>{scenes.length}</div><div style={{fontSize:10,color:"var(--text-dim)"}}>scenes</div></div>
+            <div><div style={{fontSize:20,color:"var(--text-primary)",fontWeight:500}}>{getTotalWords().toLocaleString()}</div><div style={{fontSize:10,color:"var(--text-dim)",marginTop:2}}>words</div></div>
+            <div style={{textAlign:"right"}}><div style={{fontSize:20,color:"var(--text-primary)",fontWeight:500}}>{scenes.length}</div><div style={{fontSize:10,color:"var(--text-dim)",marginTop:2}}>scenes</div></div>
           </div>
         </div>
         <div style={{height:1,background:"var(--border)",marginBottom:16}}/>
 
-        <div style={{fontSize:11,color:"var(--text-dim)",fontStyle:"italic",lineHeight:1.5,marginBottom:16}}>{project.genre}</div>
+        <div style={{fontSize:12,color:"var(--text-muted)",fontStyle:"italic",lineHeight:1.5,marginBottom:16,letterSpacing:"0.01em"}}>{project.genre}</div>
 
         <div style={{marginTop:"auto",paddingTop:16,borderTop:"1px solid var(--border)"}}>
-          <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:13,color:"var(--text-dim)",fontStyle:"italic",lineHeight:1.6}}>Before you close, leave a sentence half-finished. Your brain will pull you back to it.</div>
-          <div style={{fontSize:9,color:"var(--text-dim)",marginTop:5,opacity:.6}}>The Zeigarnik Effect</div>
+          <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:13,color:"var(--text-dim)",fontStyle:"italic",lineHeight:1.7}}>Before you close, leave a sentence half-finished. Your brain will pull you back to it.</div>
+          <div style={{fontSize:10,color:"var(--text-dim)",marginTop:5,opacity:.6,letterSpacing:"0.05em"}}>The Zeigarnik Effect</div>
         </div>
       </div>}
 
