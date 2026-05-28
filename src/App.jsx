@@ -304,6 +304,11 @@ export default function App() {
   const [triageInput, setTriageInput] = useState("");
   const [triageLoading, setTriageLoading] = useState(false);
   const [triageResult, setTriageResult] = useState(null);
+  const [endSessionOpen, setEndSessionOpen] = useState(false);
+  const [endSessionLoading, setEndSessionLoading] = useState(false);
+  const [endSessionResult, setEndSessionResult] = useState(null);
+  const [endSessionSceneId, setEndSessionSceneId] = useState(null);
+  const [endSessionCommitting, setEndSessionCommitting] = useState(false);
   const finnWidths = {small:300,medium:360,large:460};
   const endRef = useRef(null);
   const taRef = useRef(null);
@@ -626,6 +631,63 @@ Respond with ONLY this JSON (no markdown, no backticks):
     saveStored("tt-project",updated);
   };
 
+  const handleEndSession=async()=>{
+    if(msgs.length<2||endSessionLoading)return;
+    setEndSessionLoading(true);
+    const sessionMsgs=msgs.slice(-12).map(m=>`${m.role==="user"?"Writer":"Finn"}: ${m.content.substring(0,300)}`).join("\n\n");
+    const pCtx=project?`Project: "${project.title}" (${project.genre}).`:"";
+    try{
+      const r=await fetch("/api/chat",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({
+        system:`You are Finn. A coaching session just ended. Summarize it for the writer. No em dashes. Respond ONLY with JSON. No markdown. No backticks.`,
+        messages:[{role:"user",content:`${pCtx}
+Mode: ${mode?.label||"coaching"}
+
+Session:
+${sessionMsgs}
+
+Respond with ONLY this JSON:
+{"summary":"1-2 sentences on what the writer worked through. Conversational, Finn's voice.","insights":["specific thing decided or discovered","second insight if there is one"],"draftText":"Any new prose drafted in the session, or empty string","suggestedAction":"One sentence on the single most useful next step"}`}]
+      })});
+      const d=await r.json();
+      if(!d.error){
+        const raw=d.content?.filter(b=>b.type==="text").map(b=>b.text).join("")||"";
+        const cleaned=raw.replace(/```json\s*/g,"").replace(/```\s*/g,"").trim();
+        try{
+          const result=JSON.parse(cleaned);
+          setEndSessionResult(result);
+          setEndSessionOpen(true);
+          if(activeScene)setEndSessionSceneId(activeScene);
+          else if(scenes.length>0)setEndSessionSceneId(scenes[scenes.length-1].id);
+        }catch(e){
+          setEndSessionResult({summary:"Session complete. Good work today.",insights:[],draftText:"",suggestedAction:"Keep going."});
+          setEndSessionOpen(true);
+        }
+      }
+    }catch(e){console.log("End session error:",e);}
+    setEndSessionLoading(false);
+  };
+
+  const commitModeData=()=>{
+    if(!endSessionResult||!endSessionSceneId)return;
+    setEndSessionCommitting(true);
+    const newEntry={
+      id:"md_"+Date.now(),
+      modeLabel:mode?.label||"Session",
+      modeId:mode?.id||"session",
+      summary:endSessionResult.summary,
+      insights:endSessionResult.insights||[],
+      draftText:endSessionResult.draftText||"",
+      suggestedAction:endSessionResult.suggestedAction||"",
+      timestamp:Date.now(),
+      resolved:false
+    };
+    const updated=scenes.map(s=>s.id===endSessionSceneId?{...s,modeData:[...(s.modeData||[]),newEntry]}:s);
+    saveScenes(updated);
+    setEndSessionOpen(false);setEndSessionResult(null);setEndSessionCommitting(false);
+    setActiveScene(endSessionSceneId);saveStored("tt-activescene",endSessionSceneId);
+    initScenes();
+  };
+
   const getSmartRoute=()=>{
     if(!project) return {msg:"Set up your Story Bible and let Finn learn your project.",action:null,label:"Set Up Story Bible"};
     const away=getTimeAway();
@@ -697,7 +759,7 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
   };
   const cancelReq=()=>{if(abortRef.current){abortRef.current.abort();abortRef.current=null;setLoading(false)}};
   const sparkMsgs=["Saved. Future you will thank you for this.","Flagged. This is a breadcrumb back to the fire.","Noted. This one has heat.","Saved. When the smoke comes, this is your proof."];
-  const flagSpark=(c,idx,modeName)=>{const ns=[...sparks,{text:c.substring(0,200),date:new Date().toLocaleDateString(),mode:modeName||mode?.label||"Session"}];setSparks(ns);saveStored("tt-sparks",ns);setFlaggedIdx(idx);setTimeout(()=>setFlaggedIdx(null),2500)};
+  const flagSpark=(c,idx,modeName)=>{const ns=[...sparks,{text:c.substring(0,200),date:new Date().toLocaleDateString(),mode:modeName||mode?.label||"Session",modeId:mode?.id||null}];setSparks(ns);saveStored("tt-sparks",ns);setFlaggedIdx(idx);setTimeout(()=>setFlaggedIdx(null),2500)};
 
   const send=async()=>{
     if(!input.trim()||loading)return;
@@ -1236,16 +1298,23 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
         </div>
         <div style={{position:"relative",paddingLeft:28}}>
           <div style={{position:"absolute",left:8,top:0,bottom:0,width:1,background:`linear-gradient(180deg,var(--accent-60),var(--accent-20),var(--accent-08))`}}/>
-          {[...sparks].reverse().map((s,i)=><div key={i} style={{position:"relative",marginBottom:20,animation:"fu .5s ease-out",animationDelay:`${i*0.08}s`,animationFillMode:"both"}}>
-            <div style={{position:"absolute",left:-24,top:6,width:10,height:10,borderRadius:"50%",background:"var(--accent)",opacity:Math.max(1-i*0.08,0.3)}}/>
-            <div style={{background:"var(--bg-card)",border:"1px solid var(--border)",borderRadius:10,padding:"16px 18px"}}>
-              <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:8}}>
-                <div style={{fontSize:9,color:"var(--accent-80)",textTransform:"uppercase",letterSpacing:"0.15em"}}>{s.mode||"Session"}</div>
-                <div style={{fontSize:9,color:"var(--text-dim)"}}>{s.date}</div>
+          {[...sparks].reverse().map((s,i)=>{
+            const cleanText=(s.text||"").replace(/\*\*/g,"").replace(/\*/g,"").replace(/#{1,6}\s/g,"");
+            const canNav=s.modeId&&MODES.find(m=>m.id===s.modeId);
+            return <div key={i} style={{position:"relative",marginBottom:20,animation:"fu .5s ease-out",animationDelay:`${i*0.08}s`,animationFillMode:"both"}}>
+              <div style={{position:"absolute",left:-24,top:6,width:10,height:10,borderRadius:"50%",background:"var(--accent)",opacity:Math.max(1-i*0.08,0.3)}}/>
+              <div onClick={canNav?()=>{const m=MODES.find(x=>x.id===s.modeId);if(m)pick(m);}:undefined} style={{background:"var(--bg-card)",border:"1px solid var(--border)",borderRadius:10,padding:"16px 18px",cursor:canNav?"pointer":"default",transition:"border-color .2s"}} className={canNav?"card":""}>
+                <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:8}}>
+                  <div style={{fontSize:9,color:"var(--accent-80)",textTransform:"uppercase",letterSpacing:"0.15em"}}>{s.mode||"Session"}</div>
+                  <div style={{display:"flex",gap:10,alignItems:"center"}}>
+                    <div style={{fontSize:9,color:"var(--text-dim)"}}>{s.date}</div>
+                    {canNav&&<div style={{fontSize:9,color:"var(--accent-60)"}}>Return &#8594;</div>}
+                  </div>
+                </div>
+                <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:15,color:"var(--text-primary)",lineHeight:1.7,fontStyle:"italic"}}>"{cleanText}"</div>
               </div>
-              <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:15,color:"var(--text-primary)",lineHeight:1.7,fontStyle:"italic"}}>"{s.text}"</div>
-            </div>
-          </div>)}
+            </div>;
+          })}
         </div>
         <div style={{textAlign:"center",padding:"20px 0 32px"}}>
           <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:17,fontWeight:600,color:"var(--accent-90)",lineHeight:1.6}}>The fire was here.<br/>These sparks prove it.</div>
@@ -1298,7 +1367,13 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
                 const chScenes=scenes.filter(s=>s.chapter===ch).sort((a,b)=>a.scene-b.scene);
                 return <div key={ch} style={{marginBottom:10}}>
                   <div style={{fontSize:11,color:"var(--text-muted)",fontWeight:500,padding:"4px 0",marginBottom:2}}>Chapter {ch}</div>
-                  {chScenes.map(s=><div key={s.id} onClick={()=>{setActiveScene(s.id);saveStored("tt-activescene",s.id)}} style={{padding:"6px 12px 6px 18px",borderRadius:5,cursor:"pointer",fontSize:11,color:s.id===activeScene?"var(--text-primary)":"var(--text-dim)",background:s.id===activeScene?"var(--accent-0a)":"transparent",borderLeft:s.id===activeScene?"2px solid var(--accent-60)":"2px solid transparent",transition:"all .2s"}}>{s.title||`Scene ${s.scene}`}<span style={{fontSize:9,color:"var(--text-dim)",marginLeft:6}}>{getWordCount(s.text)}</span></div>)}
+                  {chScenes.map(s=>{
+                    const unresolvedMD=(s.modeData||[]).filter(m=>!m.resolved).length;
+                    return <div key={s.id} onClick={()=>{setActiveScene(s.id);saveStored("tt-activescene",s.id)}} style={{padding:"6px 12px 6px 18px",borderRadius:5,cursor:"pointer",fontSize:11,color:s.id===activeScene?"var(--text-primary)":"var(--text-dim)",background:s.id===activeScene?"var(--accent-0a)":"transparent",borderLeft:s.id===activeScene?"2px solid var(--accent-60)":"2px solid transparent",transition:"all .2s",display:"flex",alignItems:"center",justifyContent:"space-between"}}>
+                      <span>{s.title||`Scene ${s.scene}`}<span style={{fontSize:9,color:"var(--text-dim)",marginLeft:6}}>{getWordCount(s.text)}</span></span>
+                      {unresolvedMD>0&&<span style={{fontSize:9,background:"var(--accent-40)",color:"var(--accent)",borderRadius:10,padding:"1px 5px",flexShrink:0}}>{unresolvedMD}</span>}
+                    </div>;
+                  })}
                   <div onClick={()=>addScene(ch)} style={{padding:"4px 12px 4px 18px",fontSize:10,color:"var(--text-dim)",cursor:"pointer",fontStyle:"italic"}}>+ scene</div>
                 </div>;
               })}
@@ -1307,6 +1382,43 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
             <div style={{borderTop:"1px solid var(--border)",paddingTop:10,marginTop:"auto"}}>
               <div style={{fontSize:9,color:"var(--text-dim)"}}>{getTotalWords()} words total</div>
               <div style={{fontSize:9,color:"var(--text-dim)",marginTop:3}}>Auto-saving</div>
+              <label style={{fontSize:9,color:"var(--accent-80)",cursor:"pointer",marginTop:6,display:"block"}}>
+                Upload .txt
+                <input type="file" accept=".txt" style={{display:"none"}} onChange={e=>{
+                  const file=e.target.files?.[0];
+                  if(!file)return;
+                  const reader=new FileReader();
+                  reader.onload=ev=>{
+                    const text=ev.target.result;
+                    // Split on chapter markers
+                    const chapterPattern=/^(chapter\s+\d+|ch\.?\s*\d+|\d+\.)/im;
+                    const lines=text.split("\n");
+                    const chapterBreaks=[];
+                    let currentLines=[];
+                    let chNum=0;
+                    lines.forEach(line=>{
+                      if(chapterPattern.test(line.trim())&&currentLines.join("").trim().length>50){
+                        chapterBreaks.push({num:++chNum,text:currentLines.join("\n").trim()});
+                        currentLines=[line];
+                      } else { currentLines.push(line); }
+                    });
+                    if(currentLines.join("").trim()){chapterBreaks.push({num:++chNum,text:currentLines.join("\n").trim()});}
+                    const chunks=chapterBreaks.length>1?chapterBreaks:[{num:1,text:text.trim()}];
+                    const newScenes=chunks.map((c,i)=>({
+                      id:"s_upload_"+Date.now()+"_"+i,
+                      chapter:c.num,scene:1,
+                      title:c.text.split("\n")[0].substring(0,50).trim(),
+                      text:c.text,
+                      notes:"",sceneNotes:"",modeData:[],
+                      status:"drafting",lastEdited:Date.now()
+                    }));
+                    saveScenes(newScenes);setScenes(newScenes);
+                    setActiveScene(newScenes[0].id);saveStored("tt-activescene",newScenes[0].id);
+                  };
+                  reader.readAsText(file);
+                  e.target.value="";
+                }}/>
+              </label>
               {getTotalWords()>0&&<div onClick={()=>{
                 const chapters=[...new Set(scenes.map(s=>s.chapter))].sort((a,b)=>a-b);
                 let output=project?project.title+"\n\n":"";
@@ -1344,6 +1456,45 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
               {currentScene.notes&&<div style={{padding:"10px 40px",background:"var(--bg-card-alt)",borderBottom:"1px solid var(--border)"}}>
                 <div style={{fontSize:9,color:"var(--accent-70)",letterSpacing:"0.12em",textTransform:"uppercase",marginBottom:4}}>CHAPTER REFERENCE</div>
                 <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:13,color:"var(--text-muted)",lineHeight:1.6,maxWidth:640}}>{currentScene.notes}</div>
+              </div>}
+              {/* Scene Notes - editable, excluded from export */}
+              {(()=>{
+                const [notesOpen,setNotesOpen]=React.useState(!!(currentScene.sceneNotes));
+                return <div style={{borderBottom:"1px solid var(--border)"}}>
+                  <div onClick={()=>setNotesOpen(o=>!o)} style={{padding:"6px 40px",display:"flex",alignItems:"center",gap:8,cursor:"pointer",background:"var(--bg-card-alt)"}}>
+                    <span style={{fontSize:9,color:"var(--text-dim)",letterSpacing:"0.12em",textTransform:"uppercase"}}>Scene Notes</span>
+                    <span style={{fontSize:9,color:"var(--text-dim)",opacity:.5}}>{notesOpen?"▲":"▼"}</span>
+                    {currentScene.sceneNotes&&<span style={{fontSize:9,color:"var(--accent-70)",marginLeft:"auto"}}>has notes</span>}
+                  </div>
+                  {notesOpen&&<div style={{padding:"8px 40px 10px",background:"var(--bg-card-alt)"}}>
+                    <textarea value={currentScene.sceneNotes||""} onChange={e=>{const updated=scenes.map(s=>s.id===currentScene.id?{...s,sceneNotes:e.target.value}:s);setScenes(updated);}} placeholder="Editing reminders, craft notes, things to fix later. Not exported with manuscript." rows={2} style={{width:"100%",background:"none",border:"none",outline:"none",resize:"vertical",fontFamily:"'Cormorant Garamond',serif",fontSize:13,color:"var(--text-muted)",lineHeight:1.6,fontStyle:"italic"}}/>
+                  </div>}
+                </div>;
+              })()}
+              {/* Mode Data - coaching notes from sessions */}
+              {(currentScene.modeData||[]).filter(m=>!m.resolved).length>0&&<div style={{borderBottom:"1px solid var(--border)"}}>
+                {(currentScene.modeData||[]).filter(m=>!m.resolved).map((md,i)=><div key={md.id} style={{padding:"10px 40px",background:`linear-gradient(135deg,var(--bg-card-alt),var(--bg-card))`,borderBottom:i<(currentScene.modeData||[]).filter(m=>!m.resolved).length-1?"1px solid var(--border)":"none"}}>
+                  <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}>
+                    <div style={{fontSize:9,color:"var(--accent-80)",textTransform:"uppercase",letterSpacing:"0.15em",fontWeight:500}}>{md.modeLabel}</div>
+                    <div style={{display:"flex",gap:10,alignItems:"center"}}>
+                      <span style={{fontSize:9,color:"var(--text-dim)"}}>{new Date(md.timestamp).toLocaleDateString()}</span>
+                      <span onClick={()=>{const updated=scenes.map(s=>s.id===currentScene.id?{...s,modeData:(s.modeData||[]).map(m=>m.id===md.id?{...m,resolved:true}:m)}:s);saveScenes(updated);}} style={{fontSize:9,color:"var(--text-dim)",cursor:"pointer",border:"1px solid var(--border)",borderRadius:4,padding:"2px 6px"}}>Resolve</span>
+                    </div>
+                  </div>
+                  <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:13,color:"var(--text-primary)",lineHeight:1.65,marginBottom:6}}>{md.summary}</div>
+                  {md.insights?.filter(i=>i.trim()).map((ins,j)=><div key={j} style={{display:"flex",gap:6,marginBottom:4,alignItems:"flex-start"}}>
+                    <div style={{width:3,height:3,borderRadius:"50%",background:"var(--accent)",flexShrink:0,marginTop:7}}/>
+                    <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:12,color:"var(--text-muted)",lineHeight:1.6}}>{ins}</div>
+                  </div>)}
+                  {md.draftText?.trim()&&<div style={{marginTop:8}}>
+                    <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:4}}>
+                      <span style={{fontSize:9,color:"var(--accent-70)",textTransform:"uppercase",letterSpacing:"0.1em"}}>Draft</span>
+                      <span onClick={()=>{const updated=scenes.map(s=>s.id===currentScene.id?{...s,text:(s.text||"")+"\n\n"+md.draftText}:s);saveScenes(updated);}} style={{fontSize:9,color:"var(--accent)",cursor:"pointer"}}>Copy into scene</span>
+                    </div>
+                    <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:13,color:"var(--text-muted)",lineHeight:1.7,fontStyle:"italic",background:"var(--bg-base)",borderRadius:6,padding:"8px 10px"}}>{md.draftText}</div>
+                  </div>}
+                  {md.suggestedAction&&<div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:12,color:"var(--accent-80)",fontStyle:"italic",marginTop:8}}>{md.suggestedAction}</div>}
+                </div>)}
               </div>}
               <div style={{flex:1,overflow:"auto",padding:"24px 40px"}}>
                 <textarea ref={writeRef} value={currentScene.text||""} onChange={e=>updateSceneText(currentScene.id,e.target.value)} placeholder="Start writing..." style={{width:"100%",height:"100%",minHeight:400,background:"none",border:"none",outline:"none",resize:"none",fontFamily:"'Cormorant Garamond',serif",fontSize:18,color:"var(--text-primary)",lineHeight:2,letterSpacing:"0.01em"}}/>
@@ -1423,9 +1574,50 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
             <textarea ref={taRef} value={input} onChange={e=>setInput(e.target.value)} onKeyDown={e=>{if(e.key==="Enter"&&!e.shiftKey){e.preventDefault();send()}}} placeholder={mode.ph} style={{flex:1,background:"none",border:"none",outline:"none",color:"var(--text-primary)",fontFamily:"'Cormorant Garamond',serif",fontSize:15,lineHeight:1.6,resize:"none",maxHeight:200}} rows={1}/>
             <button className="sb" onClick={send} disabled={!input.trim()||loading} style={{width:34,height:34,borderRadius:8,border:"none",background:"var(--accent)",color:"var(--bg-deepest)",fontSize:16,fontWeight:700,cursor:"pointer",flexShrink:0,display:"flex",alignItems:"center",justifyContent:"center",opacity:!input.trim()||loading?.3:1}}>{"\u2191"}</button>
           </div>
-          <div style={{display:"flex",justifyContent:"space-between",marginTop:6}}><p style={{fontSize:9,color:"var(--text-deepfaint)"}}>Shift+Enter for new line</p><p onClick={newChat} style={{fontSize:9,color:"#5A7A8A",cursor:"pointer"}}>New chat</p></div>
+          <div style={{display:"flex",justifyContent:"space-between",marginTop:6}}>
+            <p style={{fontSize:9,color:"var(--text-deepfaint)"}}>Shift+Enter for new line</p>
+            <div style={{display:"flex",gap:16}}>
+              <p onClick={()=>{if(msgs.length>=2)handleEndSession()}} style={{fontSize:9,color:msgs.length>=2?"var(--accent-80)":"var(--text-faint)",cursor:msgs.length>=2?"pointer":"default"}}>{endSessionLoading?"Summarizing...":"End Session"}</p>
+              <p onClick={newChat} style={{fontSize:9,color:"#5A7A8A",cursor:"pointer"}}>New chat</p>
+            </div>
+          </div>
         </div>
       </div>}
+      {/* END SESSION OVERLAY */}
+      {endSessionOpen&&endSessionResult&&<div style={{position:"fixed",top:0,left:0,right:0,bottom:0,background:"rgba(0,0,0,0.6)",zIndex:200,display:"flex",alignItems:"flex-end",justifyContent:"center",padding:"0 0 0 0"}} onClick={e=>{if(e.target===e.currentTarget){setEndSessionOpen(false);setEndSessionResult(null)}}}>
+        <div style={{background:"var(--bg-card)",border:"1px solid var(--border)",borderRadius:"16px 16px 0 0",padding:"28px 24px 32px",maxWidth:640,width:"100%",maxHeight:"85vh",overflowY:"auto",animation:"fu .35s ease-out"}}>
+          <div style={{fontSize:9,textTransform:"uppercase",letterSpacing:"0.25em",color:"var(--accent-80)",fontWeight:500,marginBottom:16}}>Session Complete</div>
+          <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:18,color:"var(--text-primary)",lineHeight:1.7,marginBottom:20}}>{endSessionResult.summary}</div>
+          {endSessionResult.insights?.filter(i=>i.trim()).length>0&&<div style={{marginBottom:20}}>
+            <div style={{fontSize:10,color:"var(--text-muted)",textTransform:"uppercase",letterSpacing:"0.12em",marginBottom:10}}>What shifted</div>
+            {endSessionResult.insights.filter(i=>i.trim()).map((ins,i)=><div key={i} style={{display:"flex",gap:8,marginBottom:8,alignItems:"flex-start"}}>
+              <div style={{width:4,height:4,borderRadius:"50%",background:"var(--accent)",flexShrink:0,marginTop:7}}/>
+              <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:14,color:"var(--text-secondary)",lineHeight:1.6}}>{ins}</div>
+            </div>)}
+          </div>}
+          {endSessionResult.draftText?.trim()&&<div style={{background:"var(--bg-write)",border:"1px solid var(--border)",borderRadius:8,padding:"12px 16px",marginBottom:20}}>
+            <div style={{fontSize:10,color:"var(--accent-70)",textTransform:"uppercase",letterSpacing:"0.12em",marginBottom:8}}>Draft from this session</div>
+            <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:14,color:"var(--text-primary)",lineHeight:1.8,whiteSpace:"pre-wrap"}}>{endSessionResult.draftText}</div>
+          </div>}
+          {endSessionResult.suggestedAction?.trim()&&<div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:14,color:"var(--accent)",fontStyle:"italic",marginBottom:24}}>{endSessionResult.suggestedAction}</div>}
+          <div style={{borderTop:"1px solid var(--border)",paddingTop:18}}>
+            <div style={{fontSize:11,color:"var(--text-muted)",marginBottom:12}}>Bring this into The Forge as Mode Data?</div>
+            {scenes.length>0&&<select value={endSessionSceneId||""} onChange={e=>setEndSessionSceneId(e.target.value)} style={{width:"100%",background:"var(--bg-card-alt)",border:"1px solid var(--border)",borderRadius:8,padding:"8px 12px",color:"var(--text-primary)",fontFamily:"'DM Sans',sans-serif",fontSize:13,marginBottom:12,outline:"none"}}>
+              <option value="">Select a scene...</option>
+              {scenes.map(s=><option key={s.id} value={s.id}>Ch{s.chapter}, Scene {s.scene}{s.title?` — ${s.title}`:""}</option>)}
+            </select>}
+            <div style={{display:"flex",gap:10}}>
+              <div onClick={endSessionSceneId&&!endSessionCommitting?commitModeData:undefined} style={{flex:1,background:endSessionSceneId?"var(--accent)":"var(--bg-card-alt)",border:"1px solid "+(endSessionSceneId?"var(--accent)":"var(--border)"),borderRadius:8,padding:"11px",textAlign:"center",cursor:endSessionSceneId?"pointer":"default",opacity:endSessionCommitting?.6:1}}>
+                <span style={{fontSize:12,fontWeight:500,color:endSessionSceneId?"var(--bg-deepest)":"var(--text-dim)"}}>Add to The Forge</span>
+              </div>
+              <div onClick={()=>{setEndSessionOpen(false);setEndSessionResult(null);goHome();}} style={{flex:1,background:"var(--bg-card-alt)",border:"1px solid var(--border)",borderRadius:8,padding:"11px",textAlign:"center",cursor:"pointer"}}>
+                <span style={{fontSize:12,color:"var(--text-muted)"}}>Just go home</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>}
+
     </div>
   );
 }
