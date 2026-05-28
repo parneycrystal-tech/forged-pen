@@ -300,6 +300,10 @@ export default function App() {
   const [sidebarCtx, setSidebarCtx] = useState(null);
   const [theme, setTheme] = useState("dark");
   const [finnPanelSize, setFinnPanelSize] = useState("medium");
+  const [triageActive, setTriageActive] = useState(false);
+  const [triageInput, setTriageInput] = useState("");
+  const [triageLoading, setTriageLoading] = useState(false);
+  const [triageResult, setTriageResult] = useState(null);
   const finnWidths = {small:300,medium:360,large:460};
   const endRef = useRef(null);
   const taRef = useRef(null);
@@ -610,7 +614,7 @@ Respond with ONLY this JSON (no markdown, no backticks):
   const goHome=()=>{
     const prevMode=mode;const prevMsgs=[...msgs];const prevContainerMsgs=[...containerMsgs];
     const activeScn=scenes.find(s=>s.id===activeScene);
-    cancelReq();setMode(null);setScreen("home");setSubMenu(null);setMsgs([]);setInput("");setFinnOpen(false);setContainerMsgs([]);setContainerInput("");
+    cancelReq();setMode(null);setScreen("home");setSubMenu(null);setMsgs([]);setInput("");setFinnOpen(false);setContainerMsgs([]);setContainerInput("");setTriageActive(false);setTriageInput("");setTriageResult(null);
     if(scenes.length>0)saveStored("tt-scenes",scenes);
     if(prevMsgs.length>=2&&prevMode){generateSidebarContext(prevMsgs,prevMode.label,activeScn?.text||"")}
     else if(prevContainerMsgs.length>=2){generateSidebarContext(prevContainerMsgs,"The Forge",activeScn?.text||"")}
@@ -620,9 +624,63 @@ Respond with ONLY this JSON (no markdown, no backticks):
     const away=getTimeAway();
     const isLong=away&&(away.includes("day")||(away.includes("hour")&&parseInt(away)>=12));
     if(isLong) return {msg:`It's been ${away}. "${project.title}" is still here. So is everything you built. Want me to remind you what's strong about this story?`,action:"rekindle",label:"Let's go"};
+    // Use Finn-generated context from a real session if recent (within 8 hours)
+    if(sidebarCtx?.nextBeat&&sidebarCtx?.mode!=="Story Bible"&&sidebarCtx?.time){
+      const hoursSince=(Date.now()-sidebarCtx.time)/(1000*60*60);
+      if(hoursSince<8){
+        const lastModeId=sidebarCtx.modeId||"forge";
+        const validMode=MODES.find(m=>m.id===lastModeId);
+        return {msg:sidebarCtx.nextBeat,action:validMode?lastModeId:"forge",label:"Let's go"};
+      }
+    }
     if(project.stuck&&project.stuck.trim()) return {msg:`You were working on: ${project.stuck}. Want to pick that up?`,action:"diagnose",label:"Let's go"};
     if(project.where&&project.where.trim()) return {msg:`You're at ${project.where}. Ready to keep building?`,action:"forge",label:"Let's go"};
     return {msg:"What do you want to work on today?",action:"forge",label:"Let's go"};
+  };
+
+  const handleTriage=async()=>{
+    if(!triageInput.trim()||triageLoading)return;
+    setTriageLoading(true);
+    const chapStr=project?.chapters?(Array.isArray(project.chapters)?project.chapters.filter(c=>c.summary).map(c=>`Ch${c.num}: ${c.summary}`).join(". "):project.chapters):"";
+    const recentCtx=sidebarCtx?.nextBeat?`Recent session note: ${sidebarCtx.nextBeat}.`:"";
+    try{
+      const r=await fetch("/api/chat",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({
+        system:`You are Finn, a writing coach routing a writer to the right kind of help. Read what they said and choose the best mode. Respond ONLY with JSON. No markdown. No backticks.
+
+Available modes:
+- diagnose: stuck, blocked, can't figure out the problem
+- craft: wants a targeted exercise or challenge
+- scene: has a scene to show or get feedback on
+- character: character feels flat or confusing
+- plot: plot hole, tangled storyline, pacing
+- voice: wants to work on their writing voice or style
+- micro: frozen, can't start, executive dysfunction
+- perfectionism: paralyzed by perfectionism, can't finish
+- smoke: work suddenly feels worthless, dopamine crash
+- instinct: gut feeling about the story, something feels wrong
+- simmer: brain is fried, needs to step away
+- forge: ready to write, just needs to get to the page
+- inferno: on fire, ideas pouring out, hyperfocus state
+- rekindle: returning after time away, needs to reconnect
+- contain: wants to pull everything together and organize
+
+Respond with ONLY this JSON:
+{"modeId":"one mode id from the list above","message":"Finn's response in 1-2 sentences. Conversational. No em dashes. Warm but direct. Use the writer's own words back to them."}`,
+        messages:[{role:"user",content:`The writer said: "${triageInput.trim()}"
+
+Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} Last position: ${project?.where||"unknown"}. ${project?.stuck?`Was stuck on: ${project.stuck}.`:""}`}]
+      })});
+      const d=await r.json();
+      if(!d.error){
+        const raw=d.content?.filter(b=>b.type==="text").map(b=>b.text).join("")||"";
+        const cleaned=raw.replace(/```json\s*/g,"").replace(/```\s*/g,"").trim();
+        try{
+          const result=JSON.parse(cleaned);
+          setTriageResult(result);
+        }catch(e){setTriageResult({modeId:"forge",message:"Let me think about that. Let's start in The Forge and go from there."});}
+      }
+    }catch(e){setTriageResult({modeId:"forge",message:"Something got tangled on my end. Let's start in The Forge."});}
+    setTriageLoading(false);
   };
   const cancelReq=()=>{if(abortRef.current){abortRef.current.abort();abortRef.current=null;setLoading(false)}};
   const sparkMsgs=["Saved. Future you will thank you for this.","Flagged. This is a breadcrumb back to the fire.","Noted. This one has heat.","Saved. When the smoke comes, this is your proof."];
@@ -864,19 +922,55 @@ Respond with ONLY this JSON (no markdown, no backticks):
         </div>
 
         {/* Finn's Read */}
-        {(()=>{const route=getSmartRoute();return <div style={{background:"var(--bg-card)",border:"1px solid var(--border)",borderRadius:10,padding:"18px 20px",marginBottom:12,position:"relative"}}>
-          <div style={{position:"absolute",top:0,left:20,right:20,height:1,background:`linear-gradient(90deg,transparent,var(--accent-20),transparent)`}}/>
-          {project&&<div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12}}>
-            <div style={{fontSize:12,color:"var(--text-muted)",letterSpacing:"0.08em",fontWeight:500}}>{project.title?.toUpperCase()}</div>
-            {project.where&&<div style={{fontSize:11,color:"var(--text-dim)"}}>{project.where}</div>}
-          </div>}
-          <div style={{fontSize:8,textTransform:"uppercase",letterSpacing:"0.25em",color:"var(--accent-80)",fontWeight:500,marginBottom:10}}>Finn's read</div>
-          <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:17,color:"var(--text-primary)",lineHeight:1.7,marginBottom:18}}>{route.msg}</div>
-          {route.action?<>
-            <div className="sb" onClick={()=>pick(MODES.find(m=>m.id===route.action))} style={{background:"var(--accent)",border:"none",borderRadius:8,padding:"11px 24px",textAlign:"center",cursor:"pointer"}}><span style={{fontSize:12,fontWeight:500,color:"var(--bg-deepest)",letterSpacing:"0.03em"}}>{route.label}</span></div>
-            <div style={{textAlign:"center",marginTop:10}}><span onClick={()=>{const el=document.getElementById("fp-grid");if(el)el.scrollIntoView({behavior:"smooth"})}} style={{fontSize:11,color:"var(--text-dim)",cursor:"pointer"}}>I need something different today</span></div>
-          </>:<div className="sb" onClick={()=>setScreen("setup")} style={{background:"var(--accent)",border:"none",borderRadius:8,padding:"11px 24px",textAlign:"center",cursor:"pointer"}}><span style={{fontSize:12,fontWeight:500,color:"var(--bg-deepest)",letterSpacing:"0.03em"}}>{route.label}</span></div>}
-        </div>})()}
+        {(()=>{
+          const route=getSmartRoute();
+          return <div style={{background:"var(--bg-card)",border:"1px solid var(--border)",borderRadius:10,padding:"18px 20px",marginBottom:12,position:"relative"}}>
+            <div style={{position:"absolute",top:0,left:20,right:20,height:1,background:`linear-gradient(90deg,transparent,var(--accent-20),transparent)`}}/>
+            {project&&<div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12}}>
+              <div style={{fontSize:12,color:"var(--text-muted)",letterSpacing:"0.08em",fontWeight:500}}>{project.title?.toUpperCase()}</div>
+              {project.where&&!triageActive&&<div style={{fontSize:11,color:"var(--text-dim)"}}>{project.where}</div>}
+            </div>}
+            <div style={{fontSize:8,textTransform:"uppercase",letterSpacing:"0.25em",color:"var(--accent-80)",fontWeight:500,marginBottom:10}}>Finn's read</div>
+
+            {/* Triage result replaces normal message */}
+            {triageResult?<>
+              <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:17,color:"var(--text-primary)",lineHeight:1.7,marginBottom:18}}>{triageResult.message}</div>
+              <div className="sb" onClick={()=>{const m=MODES.find(x=>x.id===triageResult.modeId);if(m)pick(m);setTriageResult(null);setTriageActive(false);setTriageInput("");}} style={{background:"var(--accent)",border:"none",borderRadius:8,padding:"11px 24px",textAlign:"center",cursor:"pointer",marginBottom:10}}>
+                <span style={{fontSize:12,fontWeight:500,color:"var(--bg-deepest)",letterSpacing:"0.03em"}}>Let's go</span>
+              </div>
+              <div style={{textAlign:"center"}}><span onClick={()=>{setTriageResult(null);setTriageActive(false);setTriageInput("");}} style={{fontSize:11,color:"var(--text-dim)",cursor:"pointer"}}>That's not quite right</span></div>
+            </>:triageActive?<>
+              {/* Triage input */}
+              <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:15,color:"var(--text-muted)",lineHeight:1.7,marginBottom:14}}>What's going on right now?</div>
+              <div style={{display:"flex",gap:8,alignItems:"flex-end",background:"var(--bg-write)",border:"1px solid var(--border)",borderRadius:10,padding:"10px 12px",marginBottom:10}}>
+                <textarea
+                  autoFocus
+                  value={triageInput}
+                  onChange={e=>setTriageInput(e.target.value)}
+                  onKeyDown={e=>{if(e.key==="Enter"&&!e.shiftKey){e.preventDefault();handleTriage()}}}
+                  placeholder="One sentence is enough."
+                  rows={2}
+                  style={{flex:1,background:"none",border:"none",outline:"none",color:"var(--text-primary)",fontFamily:"'Cormorant Garamond',serif",fontSize:15,lineHeight:1.6,resize:"none"}}
+                />
+                <button onClick={handleTriage} disabled={!triageInput.trim()||triageLoading} style={{width:30,height:30,borderRadius:6,background:"var(--accent)",border:"none",color:"var(--bg-deepest)",fontSize:14,fontWeight:700,cursor:"pointer",flexShrink:0,opacity:!triageInput.trim()||triageLoading?.3:1}}>
+                  {triageLoading?"...":"\u2191"}
+                </button>
+              </div>
+              <div style={{textAlign:"center"}}><span onClick={()=>{setTriageActive(false);setTriageInput("");}} style={{fontSize:11,color:"var(--text-dim)",cursor:"pointer"}}>Never mind</span></div>
+            </>:<>
+              {/* Normal Finn's Read */}
+              <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:17,color:"var(--text-primary)",lineHeight:1.7,marginBottom:18}}>{route.msg}</div>
+              {route.action?<>
+                <div className="sb" onClick={()=>pick(MODES.find(m=>m.id===route.action))} style={{background:"var(--accent)",border:"none",borderRadius:8,padding:"11px 24px",textAlign:"center",cursor:"pointer",marginBottom:10}}>
+                  <span style={{fontSize:12,fontWeight:500,color:"var(--bg-deepest)",letterSpacing:"0.03em"}}>{route.label}</span>
+                </div>
+                <div style={{textAlign:"center"}}><span onClick={()=>setTriageActive(true)} style={{fontSize:11,color:"var(--text-dim)",cursor:"pointer"}}>I need something different today</span></div>
+              </>:<div className="sb" onClick={()=>setScreen("setup")} style={{background:"var(--accent)",border:"none",borderRadius:8,padding:"11px 24px",textAlign:"center",cursor:"pointer"}}>
+                <span style={{fontSize:12,fontWeight:500,color:"var(--bg-deepest)",letterSpacing:"0.03em"}}>{route.label}</span>
+              </div>}
+            </>}
+          </div>;
+        })()}
 
         {/* The Pulse */}
         {pulse&&<div onClick={()=>{if(pulse.sceneId){setActiveScene(pulse.sceneId);saveStored("tt-activescene",pulse.sceneId);initScenes()}else if(pulse.modeId){const m=MODES.find(x=>x.id===pulse.modeId);if(m)pick(m)}}} style={{background:"var(--bg-card)",border:"1px solid var(--border)",borderRadius:8,padding:"12px 16px",marginBottom:12,cursor:"pointer"}}>
