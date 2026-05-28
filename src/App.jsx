@@ -1002,7 +1002,7 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
         {sparks.length>0&&<div onClick={()=>setScreen("sparkmap")} className="card" style={{padding:"12px 16px",marginBottom:16,display:"flex",justifyContent:"space-between",alignItems:"center"}}>
           <div style={{flex:1}}>
             <div style={{fontSize:9,textTransform:"uppercase",letterSpacing:"0.18em",color:"var(--accent-70)",fontWeight:500,marginBottom:5}}>Dopamine map</div>
-            <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:14,color:"var(--text-muted)",fontStyle:"italic"}}>"{sparks[sparks.length-1]?.text}"</div>
+            <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:14,color:"var(--text-muted)",fontStyle:"italic"}}>"{(sparks[sparks.length-1]?.text||"").replace(/\*\*/g,"").replace(/\*/g,"").replace(/#{1,6}\s/g,"").substring(0,120)}"</div>
           </div>
           <div style={{fontSize:11,color:"var(--accent)",marginLeft:12,animation:"wp 4s ease-in-out infinite"}}>{sparks.length} spark{sparks.length>1?"s":""}</div>
         </div>}
@@ -1099,7 +1099,10 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
           <div style={{fontSize:11,textTransform:"uppercase",letterSpacing:"0.12em",color:"var(--accent-80)",fontWeight:500,marginBottom:8}}>The Pulse</div>
           <div style={{fontSize:11,color:"var(--text-muted)",marginBottom:6,letterSpacing:"0.03em"}}>{pulse.mode}{pulse.scene?` / ${pulse.scene}`:""}</div>
           <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:14,color:"var(--text-primary)",lineHeight:1.65,marginBottom:8}}>{pulse.description}</div>
-          {sidebarCtx?.hook&&<div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:13,color:"var(--accent)",lineHeight:1.65,fontStyle:"italic",marginBottom:8}}>"{sidebarCtx.hook}"</div>}
+          {(()=>{
+            const ctxFresh=sidebarCtx?.mode==="Story Bible"||(sidebarCtx?.time&&lastSession?.time&&sidebarCtx.time>new Date(lastSession.time).getTime()&&(Date.now()-sidebarCtx.time)/(1000*60*60)<4);
+            return ctxFresh&&sidebarCtx?.hook?<div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:13,color:"var(--accent)",lineHeight:1.65,fontStyle:"italic",marginBottom:8}}>"{sidebarCtx.hook}"</div>:null;
+          })()}
           <div style={{fontSize:10,color:"var(--accent-60)",marginTop:4}}>Tap to return &#8594;</div>
         </div>:<div style={{marginBottom:16}}>
           <div style={{fontSize:11,textTransform:"uppercase",letterSpacing:"0.12em",color:"var(--accent-80)",fontWeight:500,marginBottom:8}}>The Pulse</div>
@@ -1107,25 +1110,30 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
         </div>}
         <div style={{height:1,background:"var(--border)",marginBottom:16}}/>
 
-        {sidebarCtx?.nextBeat?<>
-          <div style={{marginBottom:16}}>
-            <div style={{fontSize:11,textTransform:"uppercase",letterSpacing:"0.12em",color:"var(--text-muted)",fontWeight:500,marginBottom:8}}>Next Beat</div>
-            <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:14,color:"var(--text-primary)",lineHeight:1.65}}>{sidebarCtx.nextBeat}</div>
-            {sidebarCtx.emotionalGoal&&<div style={{fontSize:11,color:"var(--text-muted)",marginTop:8,fontStyle:"italic"}}>Emotional goal: {sidebarCtx.emotionalGoal}</div>}
-          </div>
-          <div style={{height:1,background:"var(--border)",marginBottom:16}}/>
-        </>:project.stuck&&project.stuck.trim()?<>
-          <div style={{marginBottom:16}}>
-            <div style={{fontSize:11,textTransform:"uppercase",letterSpacing:"0.12em",color:"var(--text-muted)",fontWeight:500,marginBottom:8}}>Next Beat</div>
-            <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:14,color:"var(--text-primary)",lineHeight:1.65}}>{project.stuck.substring(0,200)}</div>
-          </div>
-          <div style={{height:1,background:"var(--border)",marginBottom:16}}/>
-        </>:null}
+        {(()=>{
+          const ctxFresh=sidebarCtx?.mode==="Story Bible"||(sidebarCtx?.time&&lastSession?.time&&sidebarCtx.time>new Date(lastSession.time).getTime()&&(Date.now()-sidebarCtx.time)/(1000*60*60)<4);
+          if(ctxFresh&&sidebarCtx?.nextBeat) return <>
+            <div style={{marginBottom:16}}>
+              <div style={{fontSize:11,textTransform:"uppercase",letterSpacing:"0.12em",color:"var(--text-muted)",fontWeight:500,marginBottom:8}}>Next Beat</div>
+              <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:14,color:"var(--text-primary)",lineHeight:1.65}}>{sidebarCtx.nextBeat}</div>
+              {sidebarCtx.emotionalGoal&&<div style={{fontSize:11,color:"var(--text-muted)",marginTop:8,fontStyle:"italic"}}>Emotional goal: {sidebarCtx.emotionalGoal}</div>}
+            </div>
+            <div style={{height:1,background:"var(--border)",marginBottom:16}}/>
+          </>;
+          if(project.where&&project.where.trim()) return <>
+            <div style={{marginBottom:16}}>
+              <div style={{fontSize:11,textTransform:"uppercase",letterSpacing:"0.12em",color:"var(--text-muted)",fontWeight:500,marginBottom:8}}>Next Beat</div>
+              <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:14,color:"var(--text-primary)",lineHeight:1.65}}>{project.where.substring(0,200)}</div>
+            </div>
+            <div style={{height:1,background:"var(--border)",marginBottom:16}}/>
+          </>;
+          return null;
+        })()}
 
         {sparks.length>0&&<>
           <div style={{marginBottom:16,cursor:"pointer"}} onClick={()=>setScreen("sparkmap")}>
             <div style={{fontSize:11,textTransform:"uppercase",letterSpacing:"0.12em",color:"var(--accent-60)",fontWeight:500,marginBottom:8}}>Latest Spark</div>
-            <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:13,color:"var(--text-muted)",fontStyle:"italic",lineHeight:1.6}}>"{sparks[sparks.length-1]?.text?.substring(0,100)}"</div>
+            <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:13,color:"var(--text-muted)",fontStyle:"italic",lineHeight:1.6}}>"{(sparks[sparks.length-1]?.text||"").replace(/\*\*/g,"").replace(/\*/g,"").replace(/#{1,6}\s/g,"").substring(0,100)}"</div>
             <div style={{fontSize:10,color:"var(--text-dim)",marginTop:6,animation:"wp 4s ease-in-out infinite"}}>{sparks.length} spark{sparks.length>1?"s":""}</div>
           </div>
           <div style={{height:1,background:"var(--border)",marginBottom:16}}/>
