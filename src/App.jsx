@@ -580,7 +580,7 @@ Respond with ONLY this JSON (no markdown, no backticks):
     }
   },[screen,project]);
 
-  const generateSidebarContext=async(sessionMsgs,sessionMode,sceneText)=>{
+  const generateSidebarContext=async(sessionMsgs,sessionMode,sceneText,sessionModeId)=>{
     if(!project||sessionMsgs.length<2)return;
     const recentMsgs=sessionMsgs.slice(-6).map(m=>`${m.role}: ${m.content.substring(0,200)}`).join("\n");
     const sceneSnippet=sceneText?sceneText.substring(0,500):"";
@@ -604,6 +604,7 @@ Respond with ONLY this JSON (no markdown, no backticks):
         try{
           const ctx=JSON.parse(cleaned);
           ctx.mode=sessionMode||"The Forge";
+          ctx.modeId=sessionModeId||"forge";
           ctx.time=Date.now();
           setSidebarCtx(ctx);saveStored("tt-sidebarctx",ctx);
         }catch(e){console.log("Sidebar parse error",e)}
@@ -616,18 +617,21 @@ Respond with ONLY this JSON (no markdown, no backticks):
     const activeScn=scenes.find(s=>s.id===activeScene);
     cancelReq();setMode(null);setScreen("home");setSubMenu(null);setMsgs([]);setInput("");setFinnOpen(false);setContainerMsgs([]);setContainerInput("");setTriageActive(false);setTriageInput("");setTriageResult(null);
     if(scenes.length>0)saveStored("tt-scenes",scenes);
-    if(prevMsgs.length>=2&&prevMode){generateSidebarContext(prevMsgs,prevMode.label,activeScn?.text||"")}
-    else if(prevContainerMsgs.length>=2){generateSidebarContext(prevContainerMsgs,"The Forge",activeScn?.text||"")}
+    if(prevMsgs.length>=2&&prevMode){generateSidebarContext(prevMsgs,prevMode.label,activeScn?.text||"",prevMode.id)}
+    else if(prevContainerMsgs.length>=2){generateSidebarContext(prevContainerMsgs,"The Forge",activeScn?.text||"","forge")}
   };
   const getSmartRoute=()=>{
     if(!project) return {msg:"Set up your Story Bible and let Finn learn your project.",action:null,label:"Set Up Story Bible"};
     const away=getTimeAway();
     const isLong=away&&(away.includes("day")||(away.includes("hour")&&parseInt(away)>=12));
     if(isLong) return {msg:`It's been ${away}. "${project.title}" is still here. So is everything you built. Want me to remind you what's strong about this story?`,action:"rekindle",label:"Let's go"};
-    // Use Finn-generated context from a real session if recent (within 8 hours)
-    if(sidebarCtx?.nextBeat&&sidebarCtx?.mode!=="Story Bible"&&sidebarCtx?.time){
+    // Only use session-generated sidebarCtx if it was produced AFTER the last session started
+    // This prevents stale content from a previous storyline/character from bleeding in
+    if(sidebarCtx?.nextBeat&&sidebarCtx?.mode!=="Story Bible"&&sidebarCtx?.time&&lastSession?.time){
+      const lastSessionTime=new Date(lastSession.time).getTime();
+      const sidebarIsFromThisSession=sidebarCtx.time>lastSessionTime;
       const hoursSince=(Date.now()-sidebarCtx.time)/(1000*60*60);
-      if(hoursSince<8){
+      if(sidebarIsFromThisSession&&hoursSince<4){
         const lastModeId=sidebarCtx.modeId||"forge";
         const validMode=MODES.find(m=>m.id===lastModeId);
         return {msg:sidebarCtx.nextBeat,action:validMode?lastModeId:"forge",label:"Let's go"};
