@@ -620,13 +620,18 @@ Respond with ONLY this JSON (no markdown, no backticks):
     if(prevMsgs.length>=2&&prevMode){generateSidebarContext(prevMsgs,prevMode.label,activeScn?.text||"",prevMode.id)}
     else if(prevContainerMsgs.length>=2){generateSidebarContext(prevContainerMsgs,"The Forge",activeScn?.text||"","forge")}
   };
+  const clearStuck=()=>{
+    const updated={...project,stuck:""};
+    setProject(updated);
+    saveStored("tt-project",updated);
+  };
+
   const getSmartRoute=()=>{
     if(!project) return {msg:"Set up your Story Bible and let Finn learn your project.",action:null,label:"Set Up Story Bible"};
     const away=getTimeAway();
     const isLong=away&&(away.includes("day")||(away.includes("hour")&&parseInt(away)>=12));
     if(isLong) return {msg:`It's been ${away}. "${project.title}" is still here. So is everything you built. Want me to remind you what's strong about this story?`,action:"rekindle",label:"Let's go"};
     // Only use session-generated sidebarCtx if it was produced AFTER the last session started
-    // This prevents stale content from a previous storyline/character from bleeding in
     if(sidebarCtx?.nextBeat&&sidebarCtx?.mode!=="Story Bible"&&sidebarCtx?.time&&lastSession?.time){
       const lastSessionTime=new Date(lastSession.time).getTime();
       const sidebarIsFromThisSession=sidebarCtx.time>lastSessionTime;
@@ -637,7 +642,11 @@ Respond with ONLY this JSON (no markdown, no backticks):
         return {msg:sidebarCtx.nextBeat,action:validMode?lastModeId:"forge",label:"Let's go"};
       }
     }
-    if(project.stuck&&project.stuck.trim()) return {msg:`You were working on: ${project.stuck}. Want to pick that up?`,action:"diagnose",label:"Let's go"};
+    if(project.stuck&&project.stuck.trim()){
+      const preview=project.stuck.trim();
+      const truncated=preview.length>90?preview.substring(0,90).trimEnd()+"...":preview;
+      return {msg:`You were working on: ${truncated} Want to pick that up?`,action:"diagnose",label:"Let's go",clearable:true};
+    }
     if(project.where&&project.where.trim()) return {msg:`You're at ${project.where}. Ready to keep building?`,action:"forge",label:"Let's go"};
     return {msg:"What do you want to work on today?",action:"forge",label:"Let's go"};
   };
@@ -968,7 +977,10 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
                 <div className="sb" onClick={()=>pick(MODES.find(m=>m.id===route.action))} style={{background:"var(--accent)",border:"none",borderRadius:8,padding:"11px 24px",textAlign:"center",cursor:"pointer",marginBottom:10}}>
                   <span style={{fontSize:12,fontWeight:500,color:"var(--bg-deepest)",letterSpacing:"0.03em"}}>{route.label}</span>
                 </div>
-                <div style={{textAlign:"center"}}><span onClick={()=>setTriageActive(true)} style={{fontSize:11,color:"var(--text-dim)",cursor:"pointer"}}>I need something different today</span></div>
+                <div style={{textAlign:"center",display:"flex",justifyContent:"center",gap:20}}>
+                  <span onClick={()=>setTriageActive(true)} style={{fontSize:11,color:"var(--text-dim)",cursor:"pointer"}}>I need something different today</span>
+                  {route.clearable&&<span onClick={clearStuck} style={{fontSize:11,color:"var(--text-dim)",cursor:"pointer",borderLeft:"1px solid var(--border)",paddingLeft:20}}>Resolved</span>}
+                </div>
               </>:<div className="sb" onClick={()=>setScreen("setup")} style={{background:"var(--accent)",border:"none",borderRadius:8,padding:"11px 24px",textAlign:"center",cursor:"pointer"}}>
                 <span style={{fontSize:12,fontWeight:500,color:"var(--bg-deepest)",letterSpacing:"0.03em"}}>{route.label}</span>
               </div>}
