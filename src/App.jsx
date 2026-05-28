@@ -1123,7 +1123,7 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
           if(project.where&&project.where.trim()) return <>
             <div style={{marginBottom:16}}>
               <div style={{fontSize:11,textTransform:"uppercase",letterSpacing:"0.12em",color:"var(--text-muted)",fontWeight:500,marginBottom:8}}>Next Beat</div>
-              <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:14,color:"var(--text-primary)",lineHeight:1.65}}>{project.where.substring(0,200)}</div>
+              <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:14,color:"var(--text-primary)",lineHeight:1.65}}>{(()=>{const t=project.where.trim();return t.length>140?t.substring(0,140).replace(/\s\S*$/,"")+"...":t;})()}</div>
             </div>
             <div style={{height:1,background:"var(--border)",marginBottom:16}}/>
           </>;
