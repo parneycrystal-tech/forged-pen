@@ -309,6 +309,7 @@ export default function App() {
   const [endSessionResult, setEndSessionResult] = useState(null);
   const [endSessionSceneId, setEndSessionSceneId] = useState(null);
   const [endSessionCommitting, setEndSessionCommitting] = useState(false);
+  const [sceneNotesOpen, setSceneNotesOpen] = useState(false);
   const finnWidths = {small:300,medium:360,large:460};
   const endRef = useRef(null);
   const taRef = useRef(null);
@@ -409,7 +410,7 @@ export default function App() {
   useEffect(()=>{endRef.current?.scrollIntoView({behavior:"smooth"})},[msgs]);
   useEffect(()=>{if(mode&&msgs.length>0)saveStored("tt-chat-"+mode.id,msgs)},[msgs]);
   useEffect(()=>{if(taRef.current){taRef.current.style.height="auto";taRef.current.style.height=Math.min(taRef.current.scrollHeight,200)+"px"}},[input]);
-  useEffect(()=>{cEndRef.current?.scrollIntoView({behavior:"smooth"})},[containerMsgs]);
+  useEffect(()=>{setSceneNotesOpen(false)},[activeScene]);
 
   // History API: push screen to browser history on every navigation
   useEffect(()=>{
@@ -1458,19 +1459,16 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
                 <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:13,color:"var(--text-muted)",lineHeight:1.6,maxWidth:640}}>{currentScene.notes}</div>
               </div>}
               {/* Scene Notes - editable, excluded from export */}
-              {(()=>{
-                const [notesOpen,setNotesOpen]=React.useState(!!(currentScene.sceneNotes));
-                return <div style={{borderBottom:"1px solid var(--border)"}}>
-                  <div onClick={()=>setNotesOpen(o=>!o)} style={{padding:"6px 40px",display:"flex",alignItems:"center",gap:8,cursor:"pointer",background:"var(--bg-card-alt)"}}>
-                    <span style={{fontSize:9,color:"var(--text-dim)",letterSpacing:"0.12em",textTransform:"uppercase"}}>Scene Notes</span>
-                    <span style={{fontSize:9,color:"var(--text-dim)",opacity:.5}}>{notesOpen?"▲":"▼"}</span>
-                    {currentScene.sceneNotes&&<span style={{fontSize:9,color:"var(--accent-70)",marginLeft:"auto"}}>has notes</span>}
-                  </div>
-                  {notesOpen&&<div style={{padding:"8px 40px 10px",background:"var(--bg-card-alt)"}}>
-                    <textarea value={currentScene.sceneNotes||""} onChange={e=>{const updated=scenes.map(s=>s.id===currentScene.id?{...s,sceneNotes:e.target.value}:s);setScenes(updated);}} placeholder="Editing reminders, craft notes, things to fix later. Not exported with manuscript." rows={2} style={{width:"100%",background:"none",border:"none",outline:"none",resize:"vertical",fontFamily:"'Cormorant Garamond',serif",fontSize:13,color:"var(--text-muted)",lineHeight:1.6,fontStyle:"italic"}}/>
-                  </div>}
-                </div>;
-              })()}
+              <div style={{borderBottom:"1px solid var(--border)"}}>
+                <div onClick={()=>setSceneNotesOpen(o=>!o)} style={{padding:"6px 40px",display:"flex",alignItems:"center",gap:8,cursor:"pointer",background:"var(--bg-card-alt)"}}>
+                  <span style={{fontSize:9,color:"var(--text-dim)",letterSpacing:"0.12em",textTransform:"uppercase"}}>Scene Notes</span>
+                  <span style={{fontSize:9,color:"var(--text-dim)",opacity:.5}}>{sceneNotesOpen?"▲":"▼"}</span>
+                  {currentScene.sceneNotes&&<span style={{fontSize:9,color:"var(--accent-70)",marginLeft:"auto"}}>has notes</span>}
+                </div>
+                {sceneNotesOpen&&<div style={{padding:"8px 40px 10px",background:"var(--bg-card-alt)"}}>
+                  <textarea value={currentScene.sceneNotes||""} onChange={e=>{const updated=scenes.map(s=>s.id===currentScene.id?{...s,sceneNotes:e.target.value}:s);setScenes(updated);}} placeholder="Editing reminders, craft notes, things to fix later. Not exported with manuscript." rows={2} style={{width:"100%",background:"none",border:"none",outline:"none",resize:"vertical",fontFamily:"'Cormorant Garamond',serif",fontSize:13,color:"var(--text-muted)",lineHeight:1.6,fontStyle:"italic"}}/>
+                </div>}
+              </div>
               {/* Mode Data - coaching notes from sessions */}
               {(currentScene.modeData||[]).filter(m=>!m.resolved).length>0&&<div style={{borderBottom:"1px solid var(--border)"}}>
                 {(currentScene.modeData||[]).filter(m=>!m.resolved).map((md,i)=><div key={md.id} style={{padding:"10px 40px",background:`linear-gradient(135deg,var(--bg-card-alt),var(--bg-card))`,borderBottom:i<(currentScene.modeData||[]).filter(m=>!m.resolved).length-1?"1px solid var(--border)":"none"}}>
