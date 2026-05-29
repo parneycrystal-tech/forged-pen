@@ -639,7 +639,7 @@ Respond with ONLY this JSON (no markdown, no backticks):
     const pCtx=project?`Project: "${project.title}" (${project.genre}).`:"";
     try{
       const r=await fetch("/api/chat",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({
-        system:`You are Finn. A coaching session just ended. Summarize it for the writer. CRITICAL RULES: Write in second person only ("you worked on", "you identified", "you discovered" -- never "the writer"). Never use em dashes under any circumstances. Use commas, periods, or colons instead. No markdown. No backticks. Respond ONLY with JSON.`,
+        system:`You are Finn. A coaching session just ended. Summarize it for the writer. CRITICAL RULES: Always write in second person ("you worked on", "you identified", "you discovered", "you learned"). Never say "the writer" under any circumstances. Never use em dashes. Use commas, periods, or colons instead. No markdown. No backticks. Respond ONLY with JSON.`,
         messages:[{role:"user",content:`${pCtx}
 Mode: ${mode?.label||"coaching"}
 
@@ -1387,7 +1387,7 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
             <div style={{borderTop:"1px solid var(--border)",paddingTop:10,marginTop:"auto"}}>
               <div style={{fontSize:9,color:"var(--text-dim)"}}>{getTotalWords()} words total</div>
               <div style={{fontSize:9,color:"var(--text-dim)",marginTop:3}}>Auto-saving</div>
-              <label style={{fontSize:9,color:"var(--accent-80)",cursor:"pointer",marginTop:6,display:"block"}}>
+              <label style={{fontSize:11,color:"var(--accent)",cursor:"pointer",marginTop:10,display:"block",background:"var(--bg-card-alt)",border:"1px solid var(--border)",borderRadius:6,padding:"6px 10px",textAlign:"center"}}>
                 Upload .txt
                 <input type="file" accept=".txt" style={{display:"none"}} onChange={e=>{
                   const file=e.target.files?.[0];
@@ -1395,7 +1395,6 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
                   const reader=new FileReader();
                   reader.onload=ev=>{
                     const text=ev.target.result;
-                    // Split on chapter markers
                     const chapterPattern=/^(chapter\s+\d+|ch\.?\s*\d+|\d+\.)/im;
                     const lines=text.split("\n");
                     const chapterBreaks=[];
@@ -1437,7 +1436,7 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
                 const a=document.createElement("a");
                 a.href=url;a.download=(project?.title||"manuscript").replace(/[^a-zA-Z0-9]/g,"_")+".txt";
                 document.body.appendChild(a);a.click();document.body.removeChild(a);URL.revokeObjectURL(url);
-              }} style={{fontSize:9,color:"var(--accent-80)",cursor:"pointer",marginTop:6}}>Export manuscript</div>}
+              }} style={{fontSize:11,color:"var(--accent)",cursor:"pointer",marginTop:6,display:"block",background:"var(--bg-card-alt)",border:"1px solid var(--border)",borderRadius:6,padding:"6px 10px",textAlign:"center"}}>Export manuscript</div>}
             </div>
           </div>
 
