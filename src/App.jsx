@@ -15,7 +15,7 @@ PROSE RULE: You are a coach, not a ghostwriter. This is a hierarchy:
 - WHEN THE WRITER IS SEVERELY STUCK AND HAS EXISTING TEXT: You may rework a few lines of THEIR words to demonstrate a technique. Always mark it clearly. Always follow with "does this direction feel right?" or "now write your version." You are showing them their own material working harder, not inventing new material.
 - NEVER: Write a full passage, paragraph, or scene from scratch. Never generate new prose the writer did not start. If you catch yourself writing more than two sentences of example prose, stop. Describe the technique instead.
 
-EM DASH RULE: Never use em dashes. Never use hyphens with spaces as a substitute (word - word). Use commas, periods, colons, semicolons, or restructure the sentence instead. This applies to every response without exception.
+EM DASH RULE: Never use em dashes (—) under any circumstances. Never use hyphens with spaces as a substitute (word - word). Use commas, periods, colons, semicolons, or restructure the sentence instead. This applies to EVERY response, EVERY example, EVERY prose suggestion without exception. If you catch yourself about to write an em dash, stop and restructure.
 
 TYPO AWARENESS: When you quote a specific line from the writer's work and evaluate it, check that quoted line for typos, missing words, or grammatical errors. If you find one, mention it gently alongside your feedback. Do not let a typo sit inside a line you are calling strong. You are not a proofreader scanning the whole manuscript, but you must not praise a broken sentence without noting the break.
 
@@ -639,7 +639,7 @@ Respond with ONLY this JSON (no markdown, no backticks):
     const pCtx=project?`Project: "${project.title}" (${project.genre}).`:"";
     try{
       const r=await fetch("/api/chat",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({
-        system:`You are Finn. A coaching session just ended. Summarize it for the writer. No em dashes. Respond ONLY with JSON. No markdown. No backticks.`,
+        system:`You are Finn. A coaching session just ended. Summarize it for the writer. CRITICAL RULES: Write in second person only ("you worked on", "you identified", "you discovered" -- never "the writer"). Never use em dashes under any circumstances. Use commas, periods, or colons instead. No markdown. No backticks. Respond ONLY with JSON.`,
         messages:[{role:"user",content:`${pCtx}
 Mode: ${mode?.label||"coaching"}
 
@@ -1299,23 +1299,27 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
         </div>
         <div style={{position:"relative",paddingLeft:28}}>
           <div style={{position:"absolute",left:8,top:0,bottom:0,width:1,background:`linear-gradient(180deg,var(--accent-60),var(--accent-20),var(--accent-08))`}}/>
-          {[...sparks].reverse().map((s,i)=>{
-            const cleanText=(s.text||"").replace(/\*\*/g,"").replace(/\*/g,"").replace(/#{1,6}\s/g,"");
-            const canNav=s.modeId&&MODES.find(m=>m.id===s.modeId);
-            return <div key={i} style={{position:"relative",marginBottom:20,animation:"fu .5s ease-out",animationDelay:`${i*0.08}s`,animationFillMode:"both"}}>
-              <div style={{position:"absolute",left:-24,top:6,width:10,height:10,borderRadius:"50%",background:"var(--accent)",opacity:Math.max(1-i*0.08,0.3)}}/>
-              <div onClick={canNav?()=>{const m=MODES.find(x=>x.id===s.modeId);if(m)pick(m);}:undefined} style={{background:"var(--bg-card)",border:"1px solid var(--border)",borderRadius:10,padding:"16px 18px",cursor:canNav?"pointer":"default",transition:"border-color .2s"}} className={canNav?"card":""}>
-                <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:8}}>
-                  <div style={{fontSize:9,color:"var(--accent-80)",textTransform:"uppercase",letterSpacing:"0.15em"}}>{s.mode||"Session"}</div>
-                  <div style={{display:"flex",gap:10,alignItems:"center"}}>
-                    <div style={{fontSize:9,color:"var(--text-dim)"}}>{s.date}</div>
-                    {canNav&&<div style={{fontSize:9,color:"var(--accent-60)"}}>Return &#8594;</div>}
+          {(()=>{
+            const labelToId={"Rekindle":"rekindle","Contain the Flames":"contain","Character Deep Dive":"character","Scene Surgery":"scene","Diagnose My Block":"diagnose","Craft Challenge":"craft","Plot Compass":"plot","Voice & Style":"voice","Micro-Mode":"micro","Perfectionism Bypass":"perfectionism","Through the Smoke":"smoke","Instinct Check":"instinct","Simmer Mode":"simmer","The Forge":"forge","The Inferno":"inferno","Session":null};
+            return [...sparks].reverse().map((s,i)=>{
+              const cleanText=(s.text||"").replace(/\*\*/g,"").replace(/\*/g,"").replace(/#{1,6}\s/g,"");
+              const resolvedModeId=s.modeId||(s.mode&&labelToId[s.mode]!==undefined?labelToId[s.mode]:null);
+              const canNav=resolvedModeId&&MODES.find(m=>m.id===resolvedModeId);
+              return <div key={i} style={{position:"relative",marginBottom:20,animation:"fu .5s ease-out",animationDelay:`${i*0.08}s`,animationFillMode:"both"}}>
+                <div style={{position:"absolute",left:-24,top:6,width:10,height:10,borderRadius:"50%",background:"var(--accent)",opacity:Math.max(1-i*0.08,0.3)}}/>
+                <div onClick={canNav?()=>{const m=MODES.find(x=>x.id===resolvedModeId);if(m)pick(m);}:undefined} style={{background:"var(--bg-card)",border:"1px solid var(--border)",borderRadius:10,padding:"16px 18px",cursor:canNav?"pointer":"default",transition:"border-color .2s"}} className={canNav?"card":""}>
+                  <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:8}}>
+                    <div style={{fontSize:9,color:"var(--accent-80)",textTransform:"uppercase",letterSpacing:"0.15em"}}>{s.mode||"Session"}</div>
+                    <div style={{display:"flex",gap:10,alignItems:"center"}}>
+                      <div style={{fontSize:9,color:"var(--text-dim)"}}>{s.date}</div>
+                      {canNav&&<div style={{fontSize:9,color:"var(--accent-60)"}}>Return &#8594;</div>}
+                    </div>
                   </div>
+                  <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:15,color:"var(--text-primary)",lineHeight:1.7,fontStyle:"italic"}}>"{cleanText}"</div>
                 </div>
-                <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:15,color:"var(--text-primary)",lineHeight:1.7,fontStyle:"italic"}}>"{cleanText}"</div>
-              </div>
-            </div>;
-          })}
+              </div>;
+            });
+          })()}
         </div>
         <div style={{textAlign:"center",padding:"20px 0 32px"}}>
           <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:17,fontWeight:600,color:"var(--accent-90)",lineHeight:1.6}}>The fire was here.<br/>These sparks prove it.</div>
@@ -1450,10 +1454,6 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
                   <input value={currentScene.title||""} onChange={e=>{const updated=scenes.map(s=>s.id===currentScene.id?{...s,title:e.target.value}:s);setScenes(updated)}} placeholder="Scene title (optional)" style={{background:"none",border:"none",outline:"none",color:"var(--text-dim)",fontSize:10,fontFamily:"'DM Sans',sans-serif",width:140,textAlign:"right"}}/>
                 </div>
               </div>
-              {lastThought&&<div style={{padding:"6px 40px",background:"var(--bg-card-alt)",borderBottom:"1px solid var(--border)"}}>
-                <span style={{fontSize:9,color:"var(--text-dim)",letterSpacing:"0.12em",textTransform:"uppercase"}}>LAST THOUGHT </span>
-                <span style={{fontFamily:"'Cormorant Garamond',serif",fontSize:12,color:"var(--text-muted)",fontStyle:"italic",marginLeft:6}}>"{(typeof lastThought==="string"?lastThought:"").substring(0,100)}"</span>
-              </div>}
               {currentScene.notes&&<div style={{padding:"10px 40px",background:"var(--bg-card-alt)",borderBottom:"1px solid var(--border)"}}>
                 <div style={{fontSize:9,color:"var(--accent-70)",letterSpacing:"0.12em",textTransform:"uppercase",marginBottom:4}}>CHAPTER REFERENCE</div>
                 <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:13,color:"var(--text-muted)",lineHeight:1.6,maxWidth:640}}>{currentScene.notes}</div>
@@ -1466,7 +1466,7 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
                   {currentScene.sceneNotes&&<span style={{fontSize:9,color:"var(--accent-70)",marginLeft:"auto"}}>has notes</span>}
                 </div>
                 {sceneNotesOpen&&<div style={{padding:"8px 40px 10px",background:"var(--bg-card-alt)"}}>
-                  <textarea value={currentScene.sceneNotes||""} onChange={e=>{const updated=scenes.map(s=>s.id===currentScene.id?{...s,sceneNotes:e.target.value}:s);setScenes(updated);}} placeholder="Editing reminders, craft notes, things to fix later. Not exported with manuscript." rows={2} style={{width:"100%",background:"none",border:"none",outline:"none",resize:"vertical",fontFamily:"'Cormorant Garamond',serif",fontSize:13,color:"var(--text-muted)",lineHeight:1.6,fontStyle:"italic"}}/>
+                  <textarea value={currentScene.sceneNotes||""} onChange={e=>{const updated=scenes.map(s=>s.id===currentScene.id?{...s,sceneNotes:e.target.value}:s);setScenes(updated);}} placeholder="Click here to add editing reminders, craft notes, things to fix later. Not exported with manuscript." rows={2} style={{width:"100%",background:"var(--bg-base)",border:"1px solid var(--border)",borderRadius:6,padding:"6px 10px",outline:"none",resize:"vertical",fontFamily:"'Cormorant Garamond',serif",fontSize:13,color:"var(--text-primary)",lineHeight:1.6}}/>
                 </div>}
               </div>
               {/* Mode Data - coaching notes from sessions */}
@@ -1491,7 +1491,7 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
                     </div>
                     <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:13,color:"var(--text-muted)",lineHeight:1.7,fontStyle:"italic",background:"var(--bg-base)",borderRadius:6,padding:"8px 10px"}}>{md.draftText}</div>
                   </div>}
-                  {md.suggestedAction&&<div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:12,color:"var(--accent-80)",fontStyle:"italic",marginTop:8}}>{md.suggestedAction}</div>}
+                  {md.suggestedAction&&<div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:13,color:"var(--text-secondary)",fontStyle:"italic",marginTop:8,paddingTop:8,borderTop:"1px solid var(--border)"}}>{md.suggestedAction}</div>}
                 </div>)}
               </div>}
               <div style={{flex:1,overflow:"auto",padding:"24px 40px"}}>
@@ -1572,10 +1572,10 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
             <textarea ref={taRef} value={input} onChange={e=>setInput(e.target.value)} onKeyDown={e=>{if(e.key==="Enter"&&!e.shiftKey){e.preventDefault();send()}}} placeholder={mode.ph} style={{flex:1,background:"none",border:"none",outline:"none",color:"var(--text-primary)",fontFamily:"'Cormorant Garamond',serif",fontSize:15,lineHeight:1.6,resize:"none",maxHeight:200}} rows={1}/>
             <button className="sb" onClick={send} disabled={!input.trim()||loading} style={{width:34,height:34,borderRadius:8,border:"none",background:"var(--accent)",color:"var(--bg-deepest)",fontSize:16,fontWeight:700,cursor:"pointer",flexShrink:0,display:"flex",alignItems:"center",justifyContent:"center",opacity:!input.trim()||loading?.3:1}}>{"\u2191"}</button>
           </div>
-          <div style={{display:"flex",justifyContent:"space-between",marginTop:6}}>
+          <div style={{display:"flex",justifyContent:"space-between",marginTop:8,alignItems:"center"}}>
             <p style={{fontSize:9,color:"var(--text-deepfaint)"}}>Shift+Enter for new line</p>
-            <div style={{display:"flex",gap:16}}>
-              <p onClick={()=>{if(msgs.length>=2)handleEndSession()}} style={{fontSize:9,color:msgs.length>=2?"var(--accent-80)":"var(--text-faint)",cursor:msgs.length>=2?"pointer":"default"}}>{endSessionLoading?"Summarizing...":"End Session"}</p>
+            <div style={{display:"flex",gap:10,alignItems:"center"}}>
+              <span onClick={()=>{if(msgs.length>=2)handleEndSession()}} style={{fontSize:11,color:msgs.length>=2?"var(--text-primary)":"var(--text-faint)",cursor:msgs.length>=2?"pointer":"default",background:msgs.length>=2?"var(--bg-card-alt)":"transparent",border:"1px solid "+(msgs.length>=2?"var(--border)":"transparent"),borderRadius:6,padding:"4px 10px"}}>{endSessionLoading?"Summarizing...":"End Session"}</span>
               <p onClick={newChat} style={{fontSize:9,color:"#5A7A8A",cursor:"pointer"}}>New chat</p>
             </div>
           </div>
