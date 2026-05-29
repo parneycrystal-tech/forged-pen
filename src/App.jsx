@@ -799,7 +799,7 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
         setMsgs(p=>[...p,{role:"assistant",content:`Connection issue: ${d.error}. Try again in a moment.`}]);
       } else {
         setMsgs(p=>[...p,{role:"assistant",content:d.content?.filter(b=>b.type==="text").map(b=>b.text).join("\n")||"Connection hiccup."}]);
-        const newPulse={mode:mode.label,modeId:mode.id,scene:project?.where||null,description:userText.substring(0,120),vividLine:null,time:Date.now()};
+        const newPulse={mode:mode.label,modeId:mode.id,scene:null,description:userText.substring(0,120),vividLine:null,time:Date.now()};
         setPulse(newPulse);saveStored("tt-pulse",newPulse);
       }
     }catch(e){if(e.name!=="AbortError")setMsgs(p=>[...p,{role:"assistant",content:"Connection hiccup. Try again."}])}
@@ -1055,7 +1055,7 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
         {pulse&&<div onClick={()=>{if(pulse.sceneId){setActiveScene(pulse.sceneId);saveStored("tt-activescene",pulse.sceneId);initScenes()}else if(pulse.modeId){const m=MODES.find(x=>x.id===pulse.modeId);if(m)pick(m)}}} style={{background:"var(--bg-card)",border:"1px solid var(--border)",borderRadius:8,padding:"12px 16px",marginBottom:12,cursor:"pointer"}}>
           <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:6}}>
             <div style={{fontSize:9,textTransform:"uppercase",letterSpacing:"0.18em",color:"var(--accent-80)",fontWeight:500}}>The Pulse</div>
-            <div style={{fontSize:9,color:"var(--text-dim)"}}>{pulse.mode}{pulse.scene?` / ${pulse.scene}`:""}</div>
+            <div style={{fontSize:9,color:"var(--text-dim)"}}>{pulse.mode}{pulse.scene?` / ${pulse.scene.substring(0,40)}`:""}</div>
           </div>
           <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:14,color:"var(--text-secondary)",lineHeight:1.6}}>{pulse.description}</div>
           {pulse.title&&<div style={{fontSize:10,color:"var(--text-dim)",marginTop:4}}>{pulse.title}</div>}
@@ -1160,7 +1160,7 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
 
         {pulse?<div style={{marginBottom:16,cursor:"pointer"}} onClick={()=>{if(pulse.sceneId){setActiveScene(pulse.sceneId);saveStored("tt-activescene",pulse.sceneId);initScenes()}else if(pulse.modeId){const m=MODES.find(x=>x.id===pulse.modeId);if(m)pick(m)}}}>
           <div style={{fontSize:11,textTransform:"uppercase",letterSpacing:"0.12em",color:"var(--accent-80)",fontWeight:500,marginBottom:8}}>The Pulse</div>
-          <div style={{fontSize:11,color:"var(--text-muted)",marginBottom:6,letterSpacing:"0.03em"}}>{pulse.mode}{pulse.scene?` / ${pulse.scene}`:""}</div>
+          <div style={{fontSize:11,color:"var(--text-muted)",marginBottom:6,letterSpacing:"0.03em"}}>{pulse.mode}{pulse.scene?` / ${pulse.scene.substring(0,40)}`:""}</div>
           <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:14,color:"var(--text-primary)",lineHeight:1.65,marginBottom:8}}>{pulse.description}</div>
           {(()=>{
             const ctxFresh=sidebarCtx?.mode==="Story Bible"||(sidebarCtx?.time&&lastSession?.time&&sidebarCtx.time>new Date(lastSession.time).getTime()&&(Date.now()-sidebarCtx.time)/(1000*60*60)<4);
@@ -1183,10 +1183,10 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
             </div>
             <div style={{height:1,background:"var(--border)",marginBottom:16}}/>
           </>;
-          if(project.where&&project.where.trim()) return <>
+          if(project.where&&project.where.trim()&&project.where.trim().length<80) return <>
             <div style={{marginBottom:16}}>
               <div style={{fontSize:11,textTransform:"uppercase",letterSpacing:"0.12em",color:"var(--text-muted)",fontWeight:500,marginBottom:8}}>Next Beat</div>
-              <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:14,color:"var(--text-primary)",lineHeight:1.65}}>{(()=>{const t=project.where.trim();return t.length>140?t.substring(0,140).replace(/\s\S*$/,"")+"...":t;})()}</div>
+              <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:14,color:"var(--text-primary)",lineHeight:1.65}}>{project.where.trim()}</div>
             </div>
             <div style={{height:1,background:"var(--border)",marginBottom:16}}/>
           </>;
