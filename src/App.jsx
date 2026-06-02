@@ -262,6 +262,7 @@ async function cloudLoadAll() {
 }
 
 function FormField({label,k,ph,multi,value,onChange}){return <div style={{marginBottom:14}}><label style={{fontSize:12,color:"var(--text-muted)",display:"block",marginBottom:5,fontFamily:"'DM Sans',sans-serif"}}>{label}</label>{multi?<textarea className="fi" rows={4} placeholder={ph} value={value} onChange={e=>onChange(k,e.target.value)} style={{resize:"vertical"}}/>:<input className="fi" placeholder={ph} value={value} onChange={e=>onChange(k,e.target.value)}/>}</div>}
+function ReadField({label,value,multi}){if(!value)return null;return <div style={{marginBottom:14}}><label style={{fontSize:12,color:"var(--text-muted)",display:"block",marginBottom:5,fontFamily:"'DM Sans',sans-serif"}}>{label}</label><div style={{background:"var(--bg-card)",border:"1px solid var(--border)",borderRadius:8,padding:"10px 14px",fontFamily:"'Cormorant Garamond',serif",fontSize:15,color:"var(--text-primary)",lineHeight:1.7,minHeight:multi?60:40,whiteSpace:"pre-wrap"}}>{value}</div></div>}
 function WorldField({label,helper,example,k,value,onChange}){return <div style={{marginBottom:18}}><label style={{fontSize:13,color:"var(--accent)",display:"block",marginBottom:3,fontWeight:600,fontFamily:"'DM Sans',sans-serif"}}>{label}</label><p style={{fontSize:11,color:"var(--text-muted)",marginBottom:4,lineHeight:1.4,fontFamily:"'DM Sans',sans-serif"}}>{helper}</p><textarea className="fi" rows={2} placeholder={example} value={value} onChange={e=>onChange(k,e.target.value)} style={{resize:"vertical",fontSize:13}}/></div>}
 function Btn({children,onClick,s}){return <button onClick={onClick} style={{background:"var(--bg-card-alt)",border:"1px solid var(--border-mid)",borderRadius:8,color:"var(--text-secondary)",fontSize:13,padding:"10px 16px",fontFamily:"'DM Sans',sans-serif",cursor:"pointer",...s}}>{children}</button>}
 function BibTab({id,label,active,onClick}){return <button onClick={()=>onClick(id)} style={{background:active?"var(--bg-card-alt)":"none",border:active?"1px solid var(--border-mid)":"1px solid transparent",borderRadius:8,color:active?"var(--accent)":"var(--text-dim)",fontSize:12,padding:"6px 14px",cursor:"pointer",fontFamily:"'DM Sans',sans-serif"}}>{label}</button>}
@@ -289,6 +290,7 @@ export default function App() {
   const [flaggedIdx, setFlaggedIdx] = useState(null);
   const [lastSession, setLastSession] = useState(null);
   const [bibTab, setBibTab] = useState("overview");
+  const [bibViewTab, setBibViewTab] = useState("overview");
   const [bibExpanded, setBibExpanded] = useState(false);
   const [bibleSearch, setBibleSearch] = useState("");
   const [subMenu, setSubMenu] = useState(null);
@@ -820,7 +822,7 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
       const newScenes=pForm.chapters.filter(c=>c.summary).map((c,i)=>({id:"s_ch"+c.num,chapter:c.num,scene:1,title:c.summary.substring(0,50),notes:c.summary,text:"",status:"drafting",lastEdited:Date.now()}));
       if(newScenes.length>0){saveScenes(newScenes);setScenes(newScenes)}
     }
-    setScreen("home");
+    setScreen("project");
   };
   const updateField=(k,v)=>setPForm(prev=>({...prev,[k]:v}));
   const addChapter=()=>setPForm(prev=>({...prev,chapters:[...prev.chapters,{num:prev.chapters.length+1,summary:""}]}));
@@ -1307,30 +1309,66 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
       {/* STORY BIBLE VIEW */}
       {screen==="project"&&project&&<div style={{maxWidth:820,margin:"0 auto",padding:"0 20px 20px",animation:"fu .5s ease-out"}}>
         <div onClick={goHome} style={{fontSize:12,color:"var(--text-dim)",cursor:"pointer",marginBottom:16}}>Back</div>
-        <div style={{fontSize:8,textTransform:"uppercase",letterSpacing:"0.25em",color:"#5A7A8A",fontWeight:500,marginBottom:12}}>Story Bible</div>
-        <div style={{display:"flex",gap:10,marginBottom:16}}>
-          <Btn onClick={()=>{const pf={...project};if(!Array.isArray(pf.chapters))pf.chapters=pf.chapters?[{num:1,summary:pf.chapters}]:[{num:1,summary:""}];setPForm(pf);setScreen("setup")}} s={{flex:1}}>Edit</Btn>
-          <Btn onClick={()=>pick(MODES.find(m=>m.id==="rekindle"))} s={{flex:1,background:"var(--accent-15)"}}>Rekindle</Btn>
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12}}>
+          <div style={{fontSize:8,textTransform:"uppercase",letterSpacing:"0.25em",color:"#5A7A8A",fontWeight:500}}>Story Bible</div>
+          <div style={{display:"flex",gap:10}}>
+            <Btn onClick={()=>pick(MODES.find(m=>m.id==="rekindle"))} s={{background:"var(--accent-15)",fontSize:11,padding:"6px 14px"}}>Rekindle</Btn>
+            <Btn onClick={()=>{const pf={...project};if(!Array.isArray(pf.chapters))pf.chapters=pf.chapters?[{num:1,summary:pf.chapters}]:[{num:1,summary:""}];setPForm(pf);setScreen("setup")}} s={{fontSize:11,padding:"6px 14px"}}>Edit</Btn>
+          </div>
         </div>
         <div style={{marginBottom:16,position:"relative"}}>
           <input className="fi" placeholder="Search your Story Bible..." value={bibleSearch} onChange={e=>setBibleSearch(e.target.value)} style={{width:"100%",paddingLeft:32}}/>
           <span style={{position:"absolute",left:12,top:"50%",transform:"translateY(-50%)",fontSize:12,color:"var(--text-dim)"}}>&#128269;</span>
           {bibleSearch&&<span onClick={()=>setBibleSearch("")} style={{position:"absolute",right:12,top:"50%",transform:"translateY(-50%)",fontSize:11,color:"var(--text-dim)",cursor:"pointer"}}>&#10005;</span>}
         </div>
-        {sparks.length>0&&!bibleSearch&&<div style={{marginBottom:16}}><div style={{fontSize:8,textTransform:"uppercase",letterSpacing:"0.15em",color:"var(--accent-70)",fontWeight:500,marginBottom:10}}>Dopamine Map ({sparks.length})</div>{sparks.map((s,i)=><div key={i} style={{background:"var(--bg-card)",border:"1px solid var(--border)",borderRadius:8,padding:"10px 14px",marginBottom:6}}><p style={{fontFamily:"'Cormorant Garamond',serif",fontSize:12,color:"var(--text-primary)",lineHeight:1.5}}>"{s.text}"</p><p style={{fontSize:9,color:"var(--text-dim)",marginTop:4}}>{s.date}</p></div>)}</div>}
-        <div style={{background:"var(--bg-card)",border:"1px solid var(--border)",borderRadius:10,padding:20}}>
-          <h3 style={{fontFamily:"'Cormorant Garamond',serif",fontSize:20,color:"var(--text-primary)",marginBottom:14}}>{project.title||"Untitled"}</h3>
+        {!bibleSearch&&<div style={{display:"flex",gap:6,marginBottom:16,flexWrap:"wrap"}}>
+          <BibTab id="overview" label="Overview" active={bibViewTab==="overview"} onClick={setBibViewTab}/>
+          <BibTab id="characters" label="Characters" active={bibViewTab==="characters"} onClick={setBibViewTab}/>
+          <BibTab id="world" label="World" active={bibViewTab==="world"} onClick={setBibViewTab}/>
+          <BibTab id="chapters" label="Chapters" active={bibViewTab==="chapters"} onClick={setBibViewTab}/>
+        </div>}
+        {bibleSearch&&<div>
           {(()=>{
-            const fields=[["Genre",project.genre],["Synopsis",project.synopsis],["Protagonist",project.protagonist],["Supporting",project.supporting],["Antagonist",project.antagonist],["Setting",project.worldSetting],["Rules",project.worldRules],["Beliefs vs Reality",project.worldBeliefs],["Danger",project.worldDanger],["Tone",project.worldTone],["Position",project.where],["Focused on",project.stuck],["Excites you",project.excites]];
-            const filtered=bibleSearch?fields.filter(([l,v])=>v&&(l.toLowerCase().includes(bibleSearch.toLowerCase())||v.toLowerCase().includes(bibleSearch.toLowerCase()))):fields;
-            return filtered.map(([l,v])=>v?<div key={l} style={{marginBottom:10}}>
-              <p style={{fontSize:9,textTransform:"uppercase",letterSpacing:"0.12em",color:"var(--text-dim)",fontWeight:500,marginBottom:3}}>{l}</p>
-              <p style={{fontFamily:"'Cormorant Garamond',serif",fontSize:13,color:"var(--text-primary)",lineHeight:1.6}}>{bibleSearch?v.replace(new RegExp(`(${bibleSearch})`,"gi"),"$1"):v}</p>
-            </div>:null);
+            const allFields=[["Genre",project.genre,false],["Synopsis",project.synopsis,true],["Protagonist",project.protagonist,true],["Supporting Characters",project.supporting,true],["Antagonist",project.antagonist,true],["Core Setting",project.worldSetting,true],["World Rules",project.worldRules,true],["Beliefs vs Reality",project.worldBeliefs,true],["What Makes It Dangerous",project.worldDanger,true],["Tone",project.worldTone,false],["Where you are",project.where,false],["Focused on",project.stuck,false],["What excites you",project.excites,true]];
+            const matches=allFields.filter(([l,v])=>v&&(l.toLowerCase().includes(bibleSearch.toLowerCase())||v.toLowerCase().includes(bibleSearch.toLowerCase())));
+            if(matches.length===0)return <p style={{fontFamily:"'Cormorant Garamond',serif",fontSize:14,color:"var(--text-dim)",fontStyle:"italic"}}>Nothing found for "{bibleSearch}"</p>;
+            return matches.map(([l,v,multi])=><ReadField key={l} label={l} value={v} multi={multi}/>);
           })()}
-          {!bibleSearch&&project.chapters&&Array.isArray(project.chapters)&&project.chapters.some(c=>c.summary)&&<div style={{marginBottom:10}}><p style={{fontSize:9,textTransform:"uppercase",letterSpacing:"0.12em",color:"var(--text-dim)",fontWeight:500,marginBottom:6}}>Chapters</p>{project.chapters.filter(c=>c.summary).map((c,i)=><p key={i} style={{fontFamily:"'Cormorant Garamond',serif",fontSize:13,color:"var(--text-primary)",lineHeight:1.6,marginBottom:4}}><span style={{color:"var(--accent)",fontWeight:600}}>Ch{c.num}:</span> {c.summary}</p>)}</div>}
-          {bibleSearch&&!["Genre","Synopsis","Protagonist","Supporting","Antagonist","Setting","Rules","Beliefs vs Reality","Danger","Tone","Position","Focused on","Excites you"].some(l=>project[{Genre:"genre",Synopsis:"synopsis",Protagonist:"protagonist",Supporting:"supporting",Antagonist:"antagonist",Setting:"worldSetting",Rules:"worldRules","Beliefs vs Reality":"worldBeliefs",Danger:"worldDanger",Tone:"worldTone",Position:"where","Focused on":"stuck","Excites you":"excites"}[l]]?.toLowerCase().includes(bibleSearch.toLowerCase()))&&<p style={{fontFamily:"'Cormorant Garamond',serif",fontSize:13,color:"var(--text-dim)",fontStyle:"italic"}}>Nothing found for "{bibleSearch}"</p>}
-        </div>
+        </div>}
+        {!bibleSearch&&bibViewTab==="overview"&&<div>
+          <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:22,fontWeight:500,color:"var(--text-primary)",marginBottom:16}}>{project.title||"Untitled"}</div>
+          <ReadField label="Genre" value={project.genre}/>
+          <ReadField label="What this story is about" value={project.synopsis} multi/>
+          <ReadField label="Where you are right now" value={project.where}/>
+          {project.stuck&&<div style={{marginBottom:14}}>
+            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:5}}>
+              <label style={{fontSize:12,color:"var(--text-muted)",fontFamily:"'DM Sans',sans-serif"}}>Focused on right now</label>
+              {project.focusedTimestamp&&<span style={{fontSize:9,color:"var(--text-dim)",fontFamily:"'DM Sans',sans-serif"}}>Updated {project.focusedTimestamp}</span>}
+            </div>
+            <div style={{background:"var(--bg-card)",border:"1px solid var(--border)",borderRadius:8,padding:"10px 14px",fontFamily:"'Cormorant Garamond',serif",fontSize:15,color:"var(--text-primary)",lineHeight:1.7}}>{project.stuck}</div>
+          </div>}
+          <ReadField label="What excites you most" value={project.excites} multi/>
+        </div>}
+        {!bibleSearch&&bibViewTab==="characters"&&<div>
+          <ReadField label="Protagonist" value={project.protagonist} multi/>
+          <ReadField label="Supporting Characters" value={project.supporting} multi/>
+          <ReadField label="Antagonist" value={project.antagonist} multi/>
+          {!project.protagonist&&!project.supporting&&!project.antagonist&&<p style={{fontFamily:"'Cormorant Garamond',serif",fontSize:14,color:"var(--text-dim)",fontStyle:"italic"}}>No characters added yet. Tap Edit to add them.</p>}
+        </div>}
+        {!bibleSearch&&bibViewTab==="world"&&<div>
+          <ReadField label="Core Setting" value={project.worldSetting} multi/>
+          <ReadField label="World Rules" value={project.worldRules} multi/>
+          <ReadField label="Beliefs vs Reality" value={project.worldBeliefs} multi/>
+          <ReadField label="What Makes This World Dangerous" value={project.worldDanger} multi/>
+          <ReadField label="Tone" value={project.worldTone}/>
+          {!project.worldSetting&&!project.worldRules&&!project.worldTone&&<p style={{fontFamily:"'Cormorant Garamond',serif",fontSize:14,color:"var(--text-dim)",fontStyle:"italic"}}>No world details added yet. Tap Edit to add them.</p>}
+        </div>}
+        {!bibleSearch&&bibViewTab==="chapters"&&<div>
+          {project.chapters&&Array.isArray(project.chapters)&&project.chapters.some(c=>c.summary)?project.chapters.filter(c=>c.summary).map((c,i)=><div key={i} style={{marginBottom:12}}>
+            <div style={{fontSize:12,color:"var(--accent)",fontWeight:600,fontFamily:"'DM Sans',sans-serif",marginBottom:4}}>Chapter {c.num}</div>
+            <div style={{background:"var(--bg-card)",border:"1px solid var(--border)",borderRadius:8,padding:"10px 14px",fontFamily:"'Cormorant Garamond',serif",fontSize:14,color:"var(--text-primary)",lineHeight:1.7}}>{c.summary}</div>
+          </div>):<p style={{fontFamily:"'Cormorant Garamond',serif",fontSize:14,color:"var(--text-dim)",fontStyle:"italic"}}>No chapters added yet. Tap Edit to add them.</p>}
+        </div>}
       </div>}
 
       {/* DOPAMINE MAP */}
