@@ -289,6 +289,8 @@ export default function App() {
   const [flaggedIdx, setFlaggedIdx] = useState(null);
   const [lastSession, setLastSession] = useState(null);
   const [bibTab, setBibTab] = useState("overview");
+  const [bibExpanded, setBibExpanded] = useState(false);
+  const [bibleSearch, setBibleSearch] = useState("");
   const [subMenu, setSubMenu] = useState(null);
   const [lastThought, setLastThought] = useState(null);
   const [scenes, setScenes] = useState([]);
@@ -411,6 +413,7 @@ export default function App() {
   useEffect(()=>{if(mode&&msgs.length>0)saveStored("tt-chat-"+mode.id,msgs)},[msgs]);
   useEffect(()=>{if(taRef.current){taRef.current.style.height="auto";taRef.current.style.height=Math.min(taRef.current.scrollHeight,200)+"px"}},[input]);
   useEffect(()=>{setSceneNotesOpen(false)},[activeScene]);
+  useEffect(()=>{if(screen==="setup"){setBibExpanded(!!project);setBibTab("overview");}if(screen!=="project")setBibleSearch("");},[screen]);
 
   // History API: push screen to browser history on every navigation
   useEffect(()=>{
@@ -807,7 +810,11 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
   };
 
   const handleSetup=async()=>{
-    const p={...pForm,updated:new Date().toLocaleDateString()};setProject(p);saveStored("tt-project",p);
+    const prevStuck=project?.stuck||"";
+    const newStuck=pForm.stuck||"";
+    const focusedTimestamp=newStuck!==prevStuck&&newStuck.trim()?new Date().toLocaleDateString():project?.focusedTimestamp||"";
+    const p={...pForm,stuck:newStuck.substring(0,100),focusedTimestamp,updated:new Date().toLocaleDateString()};
+    setProject(p);saveStored("tt-project",p);
     const existingScenes=loadStored("tt-scenes");
     if((!existingScenes||existingScenes.length===0)&&pForm.chapters&&pForm.chapters.some(c=>c.summary)){
       const newScenes=pForm.chapters.filter(c=>c.summary).map((c,i)=>({id:"s_ch"+c.num,chapter:c.num,scene:1,title:c.summary.substring(0,50),notes:c.summary,text:"",status:"drafting",lastEdited:Date.now()}));
@@ -1259,7 +1266,37 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
         <div style={{fontSize:8,textTransform:"uppercase",letterSpacing:"0.25em",color:"#5A7A8A",fontWeight:500,marginBottom:8}}>Story Bible</div>
         <p style={{fontSize:13,color:"var(--text-muted)",marginBottom:16,lineHeight:1.6}}>Fill in what you can. Skip what you can't. Come back later. None of this has to be perfect.</p>
         <div style={{display:"flex",gap:6,marginBottom:16,flexWrap:"wrap"}}><BibTab id="overview" label="Overview" active={bibTab==="overview"} onClick={setBibTab}/><BibTab id="characters" label="Characters" active={bibTab==="characters"} onClick={setBibTab}/><BibTab id="world" label="World" active={bibTab==="world"} onClick={setBibTab}/><BibTab id="chapters" label="Chapters" active={bibTab==="chapters"} onClick={setBibTab}/><BibTab id="current" label="Current Chapter" active={bibTab==="current"} onClick={setBibTab}/></div>
-        {bibTab==="overview"&&<><FormField label="Project title" k="title" ph="My Novel" value={pForm.title} onChange={updateField}/><FormField label="Genre" k="genre" ph="Contemporary fiction, fantasy, memoir..." value={pForm.genre} onChange={updateField}/><FormField label="Synopsis (the whole arc, spoilers welcome)" k="synopsis" ph="The full story..." value={pForm.synopsis} onChange={updateField} multi/><FormField label="Where are you right now?" k="where" ph="Chapter 3, the confrontation scene" value={pForm.where} onChange={updateField}/><FormField label="What are you stuck on?" k="stuck" ph="If you don't know, that counts as an answer." value={pForm.stuck} onChange={updateField}/><FormField label="What excites you most about this project?" k="excites" ph="The slow burn, the world, the voice..." value={pForm.excites} onChange={updateField} multi/></>}
+
+        {bibTab==="overview"&&<>
+          <FormField label="Project title" k="title" ph="My Novel" value={pForm.title} onChange={updateField}/>
+          <FormField label="Genre" k="genre" ph="Contemporary fiction, fantasy, memoir..." value={pForm.genre} onChange={updateField}/>
+          <FormField label="What is your story about?" k="synopsis" ph="One sentence is enough to start..." value={pForm.synopsis} onChange={updateField} multi/>
+
+          {!bibExpanded&&<div onClick={()=>setBibExpanded(true)} style={{background:"none",border:"1px dashed var(--border-mid)",borderRadius:8,padding:"10px 16px",color:"var(--text-dim)",fontSize:12,cursor:"pointer",textAlign:"left",marginBottom:14,fontFamily:"'DM Sans',sans-serif"}}>
+            <span style={{color:"var(--accent)",marginRight:8}}>+</span>Add more detail — characters, world, where you are, what you're focused on
+          </div>}
+
+          {bibExpanded&&<>
+            <FormField label="Where are you right now?" k="where" ph="Chapter 3, the confrontation scene" value={pForm.where} onChange={updateField}/>
+
+            <div style={{marginBottom:14}}>
+              <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:5}}>
+                <label style={{fontSize:12,color:"var(--text-muted)",fontFamily:"'DM Sans',sans-serif"}}>What are you focused on right now?</label>
+                <div style={{display:"flex",alignItems:"center",gap:8}}>
+                  {project?.focusedTimestamp&&<span style={{fontSize:9,color:"var(--text-dim)",fontFamily:"'DM Sans',sans-serif"}}>Updated {project.focusedTimestamp}</span>}
+                  {pForm.stuck&&<span onClick={()=>updateField("stuck","")} style={{fontSize:9,color:"var(--text-dim)",cursor:"pointer",border:"1px solid var(--border)",borderRadius:4,padding:"1px 7px",fontFamily:"'DM Sans',sans-serif"}}>Clear</span>}
+                  <span style={{fontSize:9,color:(pForm.stuck||"").length>90?"#B06848":"var(--text-dim)",fontFamily:"'DM Sans',sans-serif"}}>{(pForm.stuck||"").length} / 100</span>
+                </div>
+              </div>
+              <input className="fi" maxLength={100} placeholder="One sentence. What thread is live right now?" value={pForm.stuck||""} onChange={e=>updateField("stuck",e.target.value)} style={{width:"100%"}}/>
+            </div>
+
+            <FormField label="What excites you most about this project?" k="excites" ph="The slow burn, the world, the voice..." value={pForm.excites} onChange={updateField} multi/>
+
+            <div onClick={()=>setBibExpanded(false)} style={{fontSize:11,color:"var(--text-dim)",cursor:"pointer",textAlign:"center",marginBottom:8,fontFamily:"'DM Sans',sans-serif"}}>Show less</div>
+          </>}
+        </>}
+
         {bibTab==="characters"&&<><FormField label="Protagonist" k="protagonist" ph="Name, age, core trait, internal conflict, arc..." value={pForm.protagonist} onChange={updateField} multi/><FormField label="Supporting Characters" k="supporting" ph="One per paragraph works best..." value={pForm.supporting} onChange={updateField} multi/><FormField label="Antagonist" k="antagonist" ph="Person, force, or system..." value={pForm.antagonist} onChange={updateField} multi/></>}
         {bibTab==="world"&&<><WorldField label="Core Setting" helper="When and where does this story take place?" example="Northern Michigan, late summer..." k="worldSetting" value={pForm.worldSetting} onChange={updateField}/><WorldField label="World Rules" helper="What can and cannot happen here?" example="Magic exists but only in children..." k="worldRules" value={pForm.worldRules} onChange={updateField}/><WorldField label="Beliefs vs. Reality" helper="What do characters assume that isn't true?" example="The town believes the fires are natural..." k="worldBeliefs" value={pForm.worldBeliefs} onChange={updateField}/><WorldField label="What Makes This World Dangerous" helper="What creates real stakes?" example="If Emma uses too much magic..." k="worldDanger" value={pForm.worldDanger} onChange={updateField}/><WorldField label="Tone" helper="What does this world feel like?" example="Warm but uneasy..." k="worldTone" value={pForm.worldTone} onChange={updateField}/></>}
         {bibTab==="chapters"&&<><p style={{fontSize:12,color:"var(--text-muted)",marginBottom:14,lineHeight:1.5}}>One field per chapter. Keep summaries short.</p>{pForm.chapters.map((ch,idx)=><div key={idx} style={{marginBottom:14}}><div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:5}}><label style={{fontSize:13,color:"var(--accent)",fontWeight:600}}>Chapter {ch.num}</label>{pForm.chapters.length>1&&<span onClick={()=>removeChapter(idx)} style={{fontSize:11,color:"var(--text-dim)",cursor:"pointer"}}>Remove</span>}</div><textarea className="fi" rows={2} placeholder={`What happens in chapter ${ch.num}...`} value={ch.summary} onChange={e=>updateChapter(idx,e.target.value)} style={{resize:"vertical",fontSize:13}}/></div>)}<Btn onClick={addChapter} s={{width:"100%",background:"none",borderStyle:"dashed",borderColor:"var(--border-mid)",color:"var(--text-muted)",marginBottom:8}}>+ Add Chapter</Btn></>}
@@ -1275,11 +1312,24 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
           <Btn onClick={()=>{const pf={...project};if(!Array.isArray(pf.chapters))pf.chapters=pf.chapters?[{num:1,summary:pf.chapters}]:[{num:1,summary:""}];setPForm(pf);setScreen("setup")}} s={{flex:1}}>Edit</Btn>
           <Btn onClick={()=>pick(MODES.find(m=>m.id==="rekindle"))} s={{flex:1,background:"var(--accent-15)"}}>Rekindle</Btn>
         </div>
-        {sparks.length>0&&<div style={{marginBottom:16}}><div style={{fontSize:8,textTransform:"uppercase",letterSpacing:"0.15em",color:"var(--accent-70)",fontWeight:500,marginBottom:10}}>Dopamine Map ({sparks.length})</div>{sparks.map((s,i)=><div key={i} style={{background:"var(--bg-card)",border:"1px solid var(--border)",borderRadius:8,padding:"10px 14px",marginBottom:6}}><p style={{fontFamily:"'Cormorant Garamond',serif",fontSize:12,color:"var(--text-primary)",lineHeight:1.5}}>"{s.text}"</p><p style={{fontSize:9,color:"var(--text-dim)",marginTop:4}}>{s.date}</p></div>)}</div>}
+        <div style={{marginBottom:16,position:"relative"}}>
+          <input className="fi" placeholder="Search your Story Bible..." value={bibleSearch} onChange={e=>setBibleSearch(e.target.value)} style={{width:"100%",paddingLeft:32}}/>
+          <span style={{position:"absolute",left:12,top:"50%",transform:"translateY(-50%)",fontSize:12,color:"var(--text-dim)"}}>&#128269;</span>
+          {bibleSearch&&<span onClick={()=>setBibleSearch("")} style={{position:"absolute",right:12,top:"50%",transform:"translateY(-50%)",fontSize:11,color:"var(--text-dim)",cursor:"pointer"}}>&#10005;</span>}
+        </div>
+        {sparks.length>0&&!bibleSearch&&<div style={{marginBottom:16}}><div style={{fontSize:8,textTransform:"uppercase",letterSpacing:"0.15em",color:"var(--accent-70)",fontWeight:500,marginBottom:10}}>Dopamine Map ({sparks.length})</div>{sparks.map((s,i)=><div key={i} style={{background:"var(--bg-card)",border:"1px solid var(--border)",borderRadius:8,padding:"10px 14px",marginBottom:6}}><p style={{fontFamily:"'Cormorant Garamond',serif",fontSize:12,color:"var(--text-primary)",lineHeight:1.5}}>"{s.text}"</p><p style={{fontSize:9,color:"var(--text-dim)",marginTop:4}}>{s.date}</p></div>)}</div>}
         <div style={{background:"var(--bg-card)",border:"1px solid var(--border)",borderRadius:10,padding:20}}>
           <h3 style={{fontFamily:"'Cormorant Garamond',serif",fontSize:20,color:"var(--text-primary)",marginBottom:14}}>{project.title||"Untitled"}</h3>
-          {[["Genre",project.genre],["Synopsis",project.synopsis],["Protagonist",project.protagonist],["Supporting",project.supporting],["Antagonist",project.antagonist],["Setting",project.worldSetting],["Rules",project.worldRules],["Beliefs vs Reality",project.worldBeliefs],["Danger",project.worldDanger],["Tone",project.worldTone],["Position",project.where],["Stuck on",project.stuck],["Excites you",project.excites]].map(([l,v])=>v?<div key={l} style={{marginBottom:10}}><p style={{fontSize:9,textTransform:"uppercase",letterSpacing:"0.12em",color:"var(--text-dim)",fontWeight:500,marginBottom:3}}>{l}</p><p style={{fontFamily:"'Cormorant Garamond',serif",fontSize:13,color:"var(--text-primary)",lineHeight:1.6}}>{v}</p></div>:null)}
-          {project.chapters&&Array.isArray(project.chapters)&&project.chapters.some(c=>c.summary)&&<div style={{marginBottom:10}}><p style={{fontSize:9,textTransform:"uppercase",letterSpacing:"0.12em",color:"var(--text-dim)",fontWeight:500,marginBottom:6}}>Chapters</p>{project.chapters.filter(c=>c.summary).map((c,i)=><p key={i} style={{fontFamily:"'Cormorant Garamond',serif",fontSize:13,color:"var(--text-primary)",lineHeight:1.6,marginBottom:4}}><span style={{color:"var(--accent)",fontWeight:600}}>Ch{c.num}:</span> {c.summary}</p>)}</div>}
+          {(()=>{
+            const fields=[["Genre",project.genre],["Synopsis",project.synopsis],["Protagonist",project.protagonist],["Supporting",project.supporting],["Antagonist",project.antagonist],["Setting",project.worldSetting],["Rules",project.worldRules],["Beliefs vs Reality",project.worldBeliefs],["Danger",project.worldDanger],["Tone",project.worldTone],["Position",project.where],["Focused on",project.stuck],["Excites you",project.excites]];
+            const filtered=bibleSearch?fields.filter(([l,v])=>v&&(l.toLowerCase().includes(bibleSearch.toLowerCase())||v.toLowerCase().includes(bibleSearch.toLowerCase()))):fields;
+            return filtered.map(([l,v])=>v?<div key={l} style={{marginBottom:10}}>
+              <p style={{fontSize:9,textTransform:"uppercase",letterSpacing:"0.12em",color:"var(--text-dim)",fontWeight:500,marginBottom:3}}>{l}</p>
+              <p style={{fontFamily:"'Cormorant Garamond',serif",fontSize:13,color:"var(--text-primary)",lineHeight:1.6}}>{bibleSearch?v.replace(new RegExp(`(${bibleSearch})`,"gi"),"$1"):v}</p>
+            </div>:null);
+          })()}
+          {!bibleSearch&&project.chapters&&Array.isArray(project.chapters)&&project.chapters.some(c=>c.summary)&&<div style={{marginBottom:10}}><p style={{fontSize:9,textTransform:"uppercase",letterSpacing:"0.12em",color:"var(--text-dim)",fontWeight:500,marginBottom:6}}>Chapters</p>{project.chapters.filter(c=>c.summary).map((c,i)=><p key={i} style={{fontFamily:"'Cormorant Garamond',serif",fontSize:13,color:"var(--text-primary)",lineHeight:1.6,marginBottom:4}}><span style={{color:"var(--accent)",fontWeight:600}}>Ch{c.num}:</span> {c.summary}</p>)}</div>}
+          {bibleSearch&&!["Genre","Synopsis","Protagonist","Supporting","Antagonist","Setting","Rules","Beliefs vs Reality","Danger","Tone","Position","Focused on","Excites you"].some(l=>project[{Genre:"genre",Synopsis:"synopsis",Protagonist:"protagonist",Supporting:"supporting",Antagonist:"antagonist",Setting:"worldSetting",Rules:"worldRules","Beliefs vs Reality":"worldBeliefs",Danger:"worldDanger",Tone:"worldTone",Position:"where","Focused on":"stuck","Excites you":"excites"}[l]]?.toLowerCase().includes(bibleSearch.toLowerCase()))&&<p style={{fontFamily:"'Cormorant Garamond',serif",fontSize:13,color:"var(--text-dim)",fontStyle:"italic"}}>Nothing found for "{bibleSearch}"</p>}
         </div>
       </div>}
 
