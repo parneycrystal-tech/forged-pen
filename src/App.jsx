@@ -314,6 +314,14 @@ export default function App() {
   const [endSessionSceneId, setEndSessionSceneId] = useState(null);
   const [endSessionCommitting, setEndSessionCommitting] = useState(false);
   const [sceneNotesOpen, setSceneNotesOpen] = useState(false);
+  const [forgeMode, setForgeMode] = useState("manuscript");
+  const [ideaLabText, setIdeaLabText] = useState("");
+  const [ideaLabBuckets, setIdeaLabBuckets] = useState({characters:[],plot:[],world:[],questions:[],fragments:[]});
+  const [highlightPopup, setHighlightPopup] = useState({visible:false,x:0,y:0,text:""});
+  const [organizeOpen, setOrganizeOpen] = useState(false);
+  const [organizeLoading, setOrganizeLoading] = useState(false);
+  const [organizeResult, setOrganizeResult] = useState(null);
+  const [infernoText, setInfernoText] = useState("");
   const finnWidths = {small:300,medium:360,large:460};
   const endRef = useRef(null);
   const taRef = useRef(null);
@@ -371,6 +379,9 @@ export default function App() {
     const pl = loadStored("tt-pulse");
     const sb = loadStored("tt-sidebarctx");
     const th = loadStored("tt-theme");
+    const ilt = loadStored("tt-idealab-text");
+    const ilb = loadStored("tt-idealab-buckets");
+    const inft = loadStored("tt-inferno-text");
     if (p) setProject(p);
     if (s) setSparks(s);
     if (sess) setLastSession(sess);
@@ -379,6 +390,9 @@ export default function App() {
     if (pl) setPulse(pl);
     if (sb) setSidebarCtx(sb);
     if (th) setTheme(th);
+    if (ilt) setIdeaLabText(ilt);
+    if (ilb) setIdeaLabBuckets(ilb);
+    if (inft) setInfernoText(inft);
   };
 
   const migrateLocalToCloud=async()=>{
@@ -551,6 +565,83 @@ export default function App() {
     } else if(mode.id==="diagnose"&&project&&project.stuck&&project.stuck.trim()){
       setMsgs([{role:"assistant",content:`I know where you're stuck. ${project.stuck}\n\nLet me ask you something about that. What's the one thing about this moment that you can see clearly, even if everything else is foggy?`}]);
     } else { setMsgs([{role:"assistant",content:INTROS[mode.id]}]); }
+  };
+
+  const handleOrganize=async()=>{
+    if(!ideaLabText.trim()&&!Object.values(ideaLabBuckets).some(b=>b.length>0))return;
+    setOrganizeLoading(true);
+    const bucketSummary=Object.entries(ideaLabBuckets).filter(([k,v])=>v.length>0).map(([k,v])=>`${k.toUpperCase()}: ${v.map(i=>i.text).join(" | ")}`).join("\n");
+    try{
+      const r=await fetch("/api/chat",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({
+        system:`You are Finn analyzing a writer's Idea Lab content. Extract and organize what you find. Respond ONLY with JSON. No markdown. No backticks.`,
+        messages:[{role:"user",content:`Analyze this Idea Lab content and extract story elements.
+
+FREEFORM CONTENT:
+${ideaLabText.substring(0,3000)}
+
+${bucketSummary?`WRITER'S BUCKET SORTING:\n${bucketSummary}`:""}
+
+Respond with ONLY this JSON:
+{"characters":[{"text":"character description","status":"pending"}],"world":[{"text":"world or setting detail","status":"pending"}],"plot":[{"text":"plot moment or story beat","status":"pending"}],"questions":[{"text":"unanswered question to carry forward","status":"pending"}]}`}]
+      })});
+      const d=await r.json();
+      if(!d.error){
+        const raw=d.content?.filter(b=>b.type==="text").map(b=>b.text).join("")||"";
+        const cleaned=raw.replace(/```json\s*/g,"").replace(/```\s*/g,"").trim();
+        try{
+          const result=JSON.parse(cleaned);
+          setOrganizeResult(result);
+          setOrganizeOpen(true);
+        }catch(e){console.log("Organize parse error:",e);}
+      }
+    }catch(e){console.log("Organize error:",e);}
+    setOrganizeLoading(false);
+  };
+
+  const commitOrganized=(destination)=>{
+    if(!organizeResult)return;
+    const approved=(section)=>(organizeResult[section]||[]).filter(i=>i.status==="approved").map(i=>i.text);
+    // Add approved characters, world to Story Bible
+    const chars=approved("characters").join("\n\n");
+    const world=approved("world").join("\n\n");
+    const plot=approved("plot");
+    if((chars||world)&&project){
+      const updated={...project,
+        protagonist:chars?((project.protagonist||"")+"\n\n"+chars).trim():project.protagonist,
+        worldSetting:world?((project.worldSetting||"")+"\n\n"+world).trim():project.worldSetting,
+        updated:new Date().toLocaleDateString()
+      };
+      setProject(updated);saveStored("tt-project",updated);
+    }
+    // Add approved plot moments as new scenes in Manuscript
+    if(plot.length>0){
+      const newScenes=plot.map((p,i)=>({
+        id:"s_il_"+Date.now()+"_"+i,
+        chapter:Math.max(...(scenes.map(s=>s.chapter)||[0]),0)+1,
+        scene:i+1,
+        title:p.substring(0,50),
+        text:"",
+        notes:p,
+        sceneNotes:"From Idea Lab — needs development",
+        modeData:[],status:"drafting",lastEdited:Date.now()
+      }));
+      const updated=[...scenes,...newScenes];
+      saveScenes(updated);
+    }
+    setOrganizeOpen(false);
+    setOrganizeResult(null);
+    if(destination==="bible")setScreen("project");
+    else if(destination==="manuscript"){setForgeMode("manuscript");setOrganizeOpen(false);}
+    // "stay" just closes the overlay
+  };
+
+  const updateOrganizeItem=(section,idx,status)=>{
+    setOrganizeResult(prev=>{
+      const updated={...prev};
+      updated[section]=[...prev[section]];
+      updated[section][idx]={...updated[section][idx],status};
+      return updated;
+    });
   };
 
   const generateDefaultSidebarCtx=async(proj)=>{
@@ -1060,6 +1151,17 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
           </div>;
         })()}
 
+        {/* The Forge — moved above Pulse */}
+        <div className="card" onClick={initScenes} style={{marginBottom:4,display:"flex",alignItems:"center",gap:14,padding:"14px 18px",border:"1px solid var(--accent-20)"}}>
+          <svg width="18" height="18" viewBox="0 0 18 18" style={{flexShrink:0}}><path d="M9 1l1.5 4.5L9 16 7.5 5.5z" fill="none" stroke="var(--accent)" strokeWidth="0.9"/><rect x="7" y="15" width="4" height="1.5" rx="0.5" fill="var(--accent)" opacity="0.3"/></svg>
+          <div style={{flex:1}}>
+            <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:14,fontWeight:600,color:"var(--accent)"}}>The Forge</div>
+            <div style={{fontSize:10,color:"var(--text-dim)",marginTop:2}}>{scenes.length>0?`${getTotalWords()} words across ${scenes.length} scene${scenes.length>1?"s":""}. Continue writing.`:"Open your writing space."}</div>
+          </div>
+          <span style={{color:"var(--text-dim)",fontSize:14}}>&#8594;</span>
+        </div>
+        {project&&project.chapters&&Array.isArray(project.chapters)&&project.chapters.some(c=>c.summary)&&getTotalWords()<100&&<div onClick={(e)=>{e.stopPropagation();importChaptersToForge()}} style={{textAlign:"center",padding:"6px 0 12px"}}><span style={{fontSize:11,color:"var(--accent-80)",cursor:"pointer"}}>Import {project.chapters.filter(c=>c.summary).length} chapters from Story Bible into The Forge</span></div>}
+
         {/* The Pulse */}
         {pulse&&<div onClick={()=>{if(pulse.sceneId){setActiveScene(pulse.sceneId);saveStored("tt-activescene",pulse.sceneId);initScenes()}else if(pulse.modeId){const m=MODES.find(x=>x.id===pulse.modeId);if(m)pick(m)}}} style={{background:"var(--bg-card)",border:"1px solid var(--border)",borderRadius:8,padding:"12px 16px",marginBottom:12,cursor:"pointer"}}>
           <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:6}}>
@@ -1078,17 +1180,6 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
           </div>
           <div style={{fontSize:11,color:"var(--accent)",marginLeft:12,animation:"wp 4s ease-in-out infinite"}}>{sparks.length} spark{sparks.length>1?"s":""}</div>
         </div>}
-
-        {/* The Forge */}
-        <div className="card" onClick={initScenes} style={{marginBottom:4,display:"flex",alignItems:"center",gap:14,padding:"14px 18px",border:"1px solid var(--accent-20)"}}>
-          <svg width="18" height="18" viewBox="0 0 18 18" style={{flexShrink:0}}><path d="M9 1l1.5 4.5L9 16 7.5 5.5z" fill="none" stroke="var(--accent)" strokeWidth="0.9"/><rect x="7" y="15" width="4" height="1.5" rx="0.5" fill="var(--accent)" opacity="0.3"/></svg>
-          <div style={{flex:1}}>
-            <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:14,fontWeight:600,color:"var(--accent)"}}>The Forge</div>
-            <div style={{fontSize:10,color:"var(--text-dim)",marginTop:2}}>{scenes.length>0?`${getTotalWords()} words across ${scenes.length} scene${scenes.length>1?"s":""}. Continue writing.`:"Open your writing space."}</div>
-          </div>
-          <span style={{color:"var(--text-dim)",fontSize:14}}>&#8594;</span>
-        </div>
-        {project&&project.chapters&&Array.isArray(project.chapters)&&project.chapters.some(c=>c.summary)&&getTotalWords()<100&&<div onClick={(e)=>{e.stopPropagation();importChaptersToForge()}} style={{textAlign:"center",padding:"6px 0 12px"}}><span style={{fontSize:11,color:"var(--accent-80)",cursor:"pointer"}}>Import {project.chapters.filter(c=>c.summary).length} chapters from Story Bible into The Forge</span></div>}
 
         {/* Card Grid Row 1 */}
         <div id="fp-grid" style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:8,marginBottom:8}}>
@@ -1121,12 +1212,8 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
           </div>
         </div>
 
-        {/* Card Grid Row 3 */}
-        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:8,marginBottom:20}}>
-          <div className="card" onClick={()=>pick(MODES.find(m=>m.id==="inferno"))} style={{textAlign:"center",padding:"12px 8px",background:"linear-gradient(135deg,var(--bg-card-alt),var(--bg-card))",borderColor:"var(--border-mid)"}}>
-            <svg width="14" height="14" viewBox="0 0 14 14" style={{margin:"0 auto 6px",display:"block"}}><path d="M7 1.5c1.8 1.8 3.5 3.5 2.3 6.5c-.8 2-1.8 1.5-2.3 1.5s-1.5.5-2.3-1.5c-1.2-3 .5-4.7 2.3-6.5z" fill="#B06848" opacity="0.12" stroke="#B06848" strokeWidth="0.8"/></svg>
-            <div style={{fontSize:10,fontWeight:500,color:"#B06848"}}>Inferno</div>
-          </div>
+        {/* Card Grid Row 3 — Inferno removed, now lives in The Forge */}
+        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:20}}>
           <div className="card" onClick={()=>pick(MODES.find(m=>m.id==="simmer"))} style={{textAlign:"center",padding:"12px 8px"}}>
             <svg width="14" height="14" viewBox="0 0 14 14" style={{margin:"0 auto 6px",display:"block"}}><ellipse cx="7" cy="9.5" rx="4" ry="2.2" fill="none" stroke="#907860" strokeWidth="0.8"/><path d="M4 9.5c0-3 1.2-4.5 3-4.5s3 1.5 3 4.5" fill="none" stroke="#907860" strokeWidth="0.8"/></svg>
             <div style={{fontSize:10,fontWeight:500,color:"#907860"}}>Simmer</div>
@@ -1447,90 +1534,230 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
         return <div style={{height:"100vh",display:"grid",gridTemplateColumns:finnOpen?`180px 1fr ${finnWidths[finnPanelSize]}px`:"180px 1fr",transition:"grid-template-columns .3s"}}>
           {/* Left: Scene Nav */}
           <div style={{background:"var(--bg-dark)",borderRight:"1px solid var(--border)",padding:"16px 12px",display:"flex",flexDirection:"column",overflowY:"auto"}}>
-            <div style={{marginBottom:16}}>
+            <div style={{marginBottom:14}}>
               <div onClick={goHome} style={{fontFamily:"'Cormorant Garamond',serif",fontSize:16,fontWeight:600,color:"var(--accent)",cursor:"pointer"}}>Forged Pen</div>
               <div style={{fontSize:8,color:"var(--text-dim)",marginTop:3}}>THE FORGE</div>
             </div>
-            <div onClick={()=>{if(scenes.length>0){const savedActive=loadStored("tt-activescene");const found=savedActive&&scenes.find(s=>s.id===savedActive);setActiveScene(found?savedActive:scenes.reduce((a,b)=>b.lastEdited>a.lastEdited?b:a).id)}}} style={{background:"var(--accent)",borderRadius:8,padding:"9px 14px",textAlign:"center",cursor:"pointer",marginBottom:14}}>
-              <span style={{fontSize:11,fontWeight:500,color:"var(--bg-deepest)"}}>Continue writing</span>
+
+            {/* Three-mode toggle */}
+            <div style={{display:"flex",gap:2,background:"var(--bg-deepest)",borderRadius:8,padding:3,marginBottom:14}}>
+              {[["manuscript","Manuscript","var(--accent)"],["idealab","Idea Lab","#9A8AB0"],["inferno","Inferno","#C07848"]].map(([m,label,color])=>(
+                <div key={m} onClick={()=>setForgeMode(m)} style={{flex:1,padding:"5px 2px",borderRadius:5,background:forgeMode===m?"var(--bg-card-alt)":"transparent",color:forgeMode===m?color:"var(--text-faint)",fontSize:9,textAlign:"center",cursor:"pointer",transition:"all .2s",fontFamily:"'DM Sans',sans-serif"}}>
+                  {label}
+                </div>
+              ))}
             </div>
-            <div style={{fontSize:9,textTransform:"uppercase",letterSpacing:"0.18em",color:"var(--text-dim)",fontWeight:500,marginBottom:8}}>Chapters</div>
-            <div style={{flex:1,overflowY:"auto"}}>
-              {chapters.map(ch=>{
-                const chScenes=scenes.filter(s=>s.chapter===ch).sort((a,b)=>a.scene-b.scene);
-                return <div key={ch} style={{marginBottom:10}}>
-                  <div style={{fontSize:11,color:"var(--text-muted)",fontWeight:500,padding:"4px 0",marginBottom:2}}>Chapter {ch}</div>
-                  {chScenes.map(s=>{
-                    const unresolvedMD=(s.modeData||[]).filter(m=>!m.resolved).length;
-                    return <div key={s.id} onClick={()=>{setActiveScene(s.id);saveStored("tt-activescene",s.id)}} style={{padding:"6px 12px 6px 18px",borderRadius:5,cursor:"pointer",fontSize:11,color:s.id===activeScene?"var(--text-primary)":"var(--text-dim)",background:s.id===activeScene?"var(--accent-0a)":"transparent",borderLeft:s.id===activeScene?"2px solid var(--accent-60)":"2px solid transparent",transition:"all .2s",display:"flex",alignItems:"center",justifyContent:"space-between"}}>
-                      <span>{s.title||`Scene ${s.scene}`}<span style={{fontSize:9,color:"var(--text-dim)",marginLeft:6}}>{getWordCount(s.text)}</span></span>
-                      {unresolvedMD>0&&<span style={{fontSize:9,background:"var(--accent-40)",color:"var(--accent)",borderRadius:10,padding:"1px 5px",flexShrink:0}}>{unresolvedMD}</span>}
-                    </div>;
-                  })}
-                  <div onClick={()=>addScene(ch)} style={{padding:"4px 12px 4px 18px",fontSize:10,color:"var(--text-dim)",cursor:"pointer",fontStyle:"italic"}}>+ scene</div>
-                </div>;
-              })}
-              <div onClick={addChapterWithScene} style={{fontSize:10,color:"var(--text-dim)",cursor:"pointer",fontStyle:"italic",padding:"4px 0"}}>+ chapter</div>
-            </div>
-            <div style={{borderTop:"1px solid var(--border)",paddingTop:10,marginTop:"auto"}}>
-              <div style={{fontSize:9,color:"var(--text-dim)"}}>{getTotalWords()} words total</div>
-              <div style={{fontSize:9,color:"var(--text-dim)",marginTop:3}}>Auto-saving</div>
-              <label style={{fontSize:11,color:"var(--accent)",cursor:"pointer",marginTop:10,display:"block",background:"var(--bg-card-alt)",border:"1px solid var(--border)",borderRadius:6,padding:"6px 10px",textAlign:"center"}}>
-                Upload .txt
-                <input type="file" accept=".txt" style={{display:"none"}} onChange={e=>{
-                  const file=e.target.files?.[0];
-                  if(!file)return;
-                  const reader=new FileReader();
-                  reader.onload=ev=>{
-                    const text=ev.target.result;
-                    const chapterPattern=/^(chapter\s+\d+|ch\.?\s*\d+|\d+\.)/im;
-                    const lines=text.split("\n");
-                    const chapterBreaks=[];
-                    let currentLines=[];
-                    let chNum=0;
-                    lines.forEach(line=>{
-                      if(chapterPattern.test(line.trim())&&currentLines.join("").trim().length>50){
-                        chapterBreaks.push({num:++chNum,text:currentLines.join("\n").trim()});
-                        currentLines=[line];
-                      } else { currentLines.push(line); }
-                    });
-                    if(currentLines.join("").trim()){chapterBreaks.push({num:++chNum,text:currentLines.join("\n").trim()});}
-                    const chunks=chapterBreaks.length>1?chapterBreaks:[{num:1,text:text.trim()}];
-                    const newScenes=chunks.map((c,i)=>({
-                      id:"s_upload_"+Date.now()+"_"+i,
-                      chapter:c.num,scene:1,
-                      title:c.text.split("\n")[0].substring(0,50).trim(),
-                      text:c.text,
-                      notes:"",sceneNotes:"",modeData:[],
-                      status:"drafting",lastEdited:Date.now()
-                    }));
-                    saveScenes(newScenes);setScenes(newScenes);
-                    setActiveScene(newScenes[0].id);saveStored("tt-activescene",newScenes[0].id);
-                  };
-                  reader.readAsText(file);
-                  e.target.value="";
-                }}/>
-              </label>
-              {getTotalWords()>0&&<div onClick={()=>{
-                const chapters=[...new Set(scenes.map(s=>s.chapter))].sort((a,b)=>a-b);
-                let output=project?project.title+"\n\n":"";
-                chapters.forEach(ch=>{
+
+            {/* Manuscript nav */}
+            {forgeMode==="manuscript"&&<>
+              <div onClick={()=>{if(scenes.length>0){const savedActive=loadStored("tt-activescene");const found=savedActive&&scenes.find(s=>s.id===savedActive);setActiveScene(found?savedActive:scenes.reduce((a,b)=>b.lastEdited>a.lastEdited?b:a).id)}}} style={{background:"var(--accent)",borderRadius:8,padding:"9px 14px",textAlign:"center",cursor:"pointer",marginBottom:14}}>
+                <span style={{fontSize:11,fontWeight:500,color:"var(--bg-deepest)"}}>Continue writing</span>
+              </div>
+              <div style={{fontSize:9,textTransform:"uppercase",letterSpacing:"0.18em",color:"var(--text-dim)",fontWeight:500,marginBottom:8}}>Chapters</div>
+              <div style={{flex:1,overflowY:"auto"}}>
+                {chapters.map(ch=>{
                   const chScenes=scenes.filter(s=>s.chapter===ch).sort((a,b)=>a.scene-b.scene);
-                  output+="Chapter "+ch+"\n\n";
-                  chScenes.forEach(s=>{if(s.text&&s.text.trim()){output+=s.text.trim()+"\n\n"}});
-                });
-                const blob=new Blob([output],{type:"text/plain"});
-                const url=URL.createObjectURL(blob);
-                const a=document.createElement("a");
-                a.href=url;a.download=(project?.title||"manuscript").replace(/[^a-zA-Z0-9]/g,"_")+".txt";
-                document.body.appendChild(a);a.click();document.body.removeChild(a);URL.revokeObjectURL(url);
-              }} style={{fontSize:11,color:"var(--accent)",cursor:"pointer",marginTop:6,display:"block",background:"var(--bg-card-alt)",border:"1px solid var(--border)",borderRadius:6,padding:"6px 10px",textAlign:"center"}}>Export manuscript</div>}
-            </div>
+                  return <div key={ch} style={{marginBottom:10}}>
+                    <div style={{fontSize:11,color:"var(--text-muted)",fontWeight:500,padding:"4px 0",marginBottom:2}}>Chapter {ch}</div>
+                    {chScenes.map(s=>{
+                      const unresolvedMD=(s.modeData||[]).filter(m=>!m.resolved).length;
+                      return <div key={s.id} onClick={()=>{setActiveScene(s.id);saveStored("tt-activescene",s.id)}} style={{padding:"6px 12px 6px 18px",borderRadius:5,cursor:"pointer",fontSize:11,color:s.id===activeScene?"var(--text-primary)":"var(--text-dim)",background:s.id===activeScene?"var(--accent-0a)":"transparent",borderLeft:s.id===activeScene?"2px solid var(--accent-60)":"2px solid transparent",transition:"all .2s",display:"flex",alignItems:"center",justifyContent:"space-between"}}>
+                        <span>{s.title||`Scene ${s.scene}`}<span style={{fontSize:9,color:"var(--text-dim)",marginLeft:6}}>{getWordCount(s.text)}</span></span>
+                        {unresolvedMD>0&&<span style={{fontSize:9,background:"var(--accent-40)",color:"var(--accent)",borderRadius:10,padding:"1px 5px",flexShrink:0}}>{unresolvedMD}</span>}
+                      </div>;
+                    })}
+                    <div onClick={()=>addScene(ch)} style={{padding:"4px 12px 4px 18px",fontSize:10,color:"var(--text-dim)",cursor:"pointer",fontStyle:"italic"}}>+ scene</div>
+                  </div>;
+                })}
+                <div onClick={addChapterWithScene} style={{fontSize:10,color:"var(--text-dim)",cursor:"pointer",fontStyle:"italic",padding:"4px 0"}}>+ chapter</div>
+              </div>
+              <div style={{borderTop:"1px solid var(--border)",paddingTop:10,marginTop:"auto"}}>
+                <div style={{fontSize:9,color:"var(--text-dim)"}}>{getTotalWords()} words total</div>
+                <div style={{fontSize:9,color:"var(--text-dim)",marginTop:3}}>Auto-saving</div>
+                <label style={{fontSize:11,color:"var(--accent)",cursor:"pointer",marginTop:10,display:"block",background:"var(--bg-card-alt)",border:"1px solid var(--border)",borderRadius:6,padding:"6px 10px",textAlign:"center"}}>
+                  Upload .txt
+                  <input type="file" accept=".txt" style={{display:"none"}} onChange={e=>{
+                    const file=e.target.files?.[0];
+                    if(!file)return;
+                    const reader=new FileReader();
+                    reader.onload=ev=>{
+                      const text=ev.target.result;
+                      const chapterPattern=/^(chapter\s+\d+|ch\.?\s*\d+|\d+\.)/im;
+                      const lines=text.split("\n");
+                      const chapterBreaks=[];
+                      let currentLines=[];
+                      let chNum=0;
+                      lines.forEach(line=>{
+                        if(chapterPattern.test(line.trim())&&currentLines.join("").trim().length>50){
+                          chapterBreaks.push({num:++chNum,text:currentLines.join("\n").trim()});
+                          currentLines=[line];
+                        } else { currentLines.push(line); }
+                      });
+                      if(currentLines.join("").trim()){chapterBreaks.push({num:++chNum,text:currentLines.join("\n").trim()});}
+                      const chunks=chapterBreaks.length>1?chapterBreaks:[{num:1,text:text.trim()}];
+                      const newScenes=chunks.map((c,i)=>({
+                        id:"s_upload_"+Date.now()+"_"+i,
+                        chapter:c.num,scene:1,
+                        title:c.text.split("\n")[0].substring(0,50).trim(),
+                        text:c.text,
+                        notes:"",sceneNotes:"",modeData:[],
+                        status:"drafting",lastEdited:Date.now()
+                      }));
+                      saveScenes(newScenes);setScenes(newScenes);
+                      setActiveScene(newScenes[0].id);saveStored("tt-activescene",newScenes[0].id);
+                    };
+                    reader.readAsText(file);
+                    e.target.value="";
+                  }}/>
+                </label>
+                {getTotalWords()>0&&<div onClick={()=>{
+                  const chapters=[...new Set(scenes.map(s=>s.chapter))].sort((a,b)=>a-b);
+                  let output=project?project.title+"\n\n":"";
+                  chapters.forEach(ch=>{
+                    const chScenes=scenes.filter(s=>s.chapter===ch).sort((a,b)=>a.scene-b.scene);
+                    output+="Chapter "+ch+"\n\n";
+                    chScenes.forEach(s=>{if(s.text&&s.text.trim()){output+=s.text.trim()+"\n\n"}});
+                  });
+                  const blob=new Blob([output],{type:"text/plain"});
+                  const url=URL.createObjectURL(blob);
+                  const a=document.createElement("a");
+                  a.href=url;a.download=(project?.title||"manuscript").replace(/[^a-zA-Z0-9]/g,"_")+".txt";
+                  document.body.appendChild(a);a.click();document.body.removeChild(a);URL.revokeObjectURL(url);
+                }} style={{fontSize:11,color:"var(--accent)",cursor:"pointer",marginTop:6,display:"block",background:"var(--bg-card-alt)",border:"1px solid var(--border)",borderRadius:6,padding:"6px 10px",textAlign:"center"}}>Export manuscript</div>}
+              </div>
+            </>}
+
+            {/* Idea Lab nav */}
+            {forgeMode==="idealab"&&<>
+              <div style={{flex:1}}>
+                <div style={{fontSize:9,textTransform:"uppercase",letterSpacing:"0.18em",color:"#9A8AB0",fontWeight:500,marginBottom:8}}>Your idea</div>
+                <div style={{background:"var(--bg-card)",border:"1px solid var(--border)",borderRadius:8,padding:10,marginBottom:10}}>
+                  <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:12,color:"var(--text-dim)",fontStyle:"italic",lineHeight:1.6}}>Pour everything out. No structure needed.</div>
+                </div>
+                <div style={{fontSize:9,color:"var(--text-dim)",marginBottom:10}}>{ideaLabText.split(/\s+/).filter(w=>w).length} words</div>
+                <div style={{fontSize:9,color:"var(--text-faint)",fontStyle:"italic",marginBottom:10,fontFamily:"'Cormorant Garamond',serif",lineHeight:1.5}}>Your Idea Lab stays exactly as it is. Finn copies, never moves.</div>
+                <div onClick={ideaLabText.trim()?handleOrganize:undefined} style={{background:"none",border:"1px solid #9A8AB040",borderRadius:6,padding:"8px 10px",color:ideaLabText.trim()?"#9A8AB0":"var(--text-faint)",fontFamily:"'DM Sans',sans-serif",fontSize:11,cursor:ideaLabText.trim()?"pointer":"default",textAlign:"center"}}>
+                  {organizeLoading?"Reading your idea...":"Organize with Finn"}
+                </div>
+              </div>
+              <div style={{borderTop:"1px solid var(--border)",paddingTop:10,marginTop:"auto"}}>
+                <div style={{fontSize:9,color:"var(--text-dim)"}}>Auto-saving</div>
+              </div>
+            </>}
+
+            {/* Inferno nav */}
+            {forgeMode==="inferno"&&<>
+              <div style={{flex:1}}>
+                <div style={{fontSize:9,textTransform:"uppercase",letterSpacing:"0.18em",color:"#C07848",fontWeight:500,marginBottom:8}}>You're on fire</div>
+                <div style={{background:"var(--bg-card)",border:"1px solid #C0784820",borderRadius:8,padding:10,marginBottom:12}}>
+                  <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:12,color:"#C07848",fontStyle:"italic",lineHeight:1.6}}>Don't stop. Don't edit. Just burn.</div>
+                </div>
+                <div style={{display:"flex",flexDirection:"column",gap:4}}>
+                  {["Capture the flood","Channel the heat","Ride the wave — 25 min","Flag everything","Body check","Wind down"].map(tool=>(
+                    <div key={tool} onClick={()=>{
+                      setFinnOpen(true);
+                      const msg=`INFERNO TOOL: ${tool}`;
+                      setContainerMsgs(prev=>[...prev,{role:"user",content:msg}]);
+                    }} style={{background:"var(--bg-card)",border:"1px solid #C0784815",borderRadius:5,padding:"7px 10px",fontSize:10,color:"#C07848",cursor:"pointer",fontFamily:"'DM Sans',sans-serif"}}>
+                      {tool}
+                    </div>
+                  ))}
+                </div>
+              </div>
+              <div style={{borderTop:"1px solid var(--border)",paddingTop:10,marginTop:"auto"}}>
+                <div style={{fontSize:9,color:"#C07848"}}>Session active</div>
+                <div style={{fontSize:9,color:"var(--text-dim)",marginTop:3}}>Auto-saving</div>
+              </div>
+            </>}
           </div>
 
           {/* Center: Writing Area */}
-          <div style={{background:"var(--bg-write)",display:"flex",flexDirection:"column",overflow:"hidden"}}>
-            {currentScene?<>
+          <div style={{background:"var(--bg-write)",display:"flex",flexDirection:"column",overflow:"hidden",position:"relative"}}>
+
+            {/* IDEA LAB surface */}
+            {forgeMode==="idealab"&&<>
+              <div style={{padding:"12px 40px 10px",borderBottom:"1px solid var(--border)",display:"flex",justifyContent:"space-between",alignItems:"center",background:"var(--bg-write)"}}>
+                <div style={{fontSize:12,color:"#9A8AB0",fontWeight:500,fontFamily:"'DM Sans',sans-serif"}}>Idea Lab</div>
+                <div style={{display:"flex",gap:8,alignItems:"center"}}>
+                  <span style={{fontSize:10,color:"var(--text-dim)"}}>{ideaLabText.split(/\s+/).filter(w=>w).length} words</span>
+                  <span onClick={()=>{if(ideaLabText){const t=ideaLabText.substring(0,200);const ns=[...sparks,{text:t,date:new Date().toLocaleDateString(),mode:"Idea Lab",modeId:"idealab"}];setSparks(ns);saveStored("tt-sparks",ns)}}} style={{fontSize:10,color:"var(--text-dim)",background:"var(--bg-card)",border:"1px solid var(--border)",borderRadius:4,padding:"3px 8px",cursor:"pointer"}}>This excites me</span>
+                </div>
+              </div>
+              <div style={{flex:1,overflow:"auto",padding:"24px 40px 0"}} onMouseUp={()=>{
+                const sel=window.getSelection();
+                const text=sel?sel.toString().trim():"";
+                if(text.length>3){
+                  const range=sel.getRangeAt(0);
+                  const rect=range.getBoundingClientRect();
+                  setHighlightPopup({visible:true,x:rect.left,y:rect.bottom+8,text});
+                } else {
+                  setHighlightPopup({visible:false,x:0,y:0,text:""});
+                }
+              }}>
+                <textarea value={ideaLabText} onChange={e=>{setIdeaLabText(e.target.value);saveStored("tt-idealab-text",e.target.value);}} placeholder="Pour everything out. Characters, questions, fragments, feelings. No structure needed. Finn will help you make sense of it." style={{width:"100%",minHeight:300,background:"none",border:"none",outline:"none",resize:"none",fontFamily:"'Cormorant Garamond',serif",fontSize:18,color:"var(--text-primary)",lineHeight:2}}/>
+              </div>
+
+              {/* Buckets */}
+              <div style={{padding:"12px 40px 16px",borderTop:"1px solid var(--border)"}}>
+                <div style={{fontSize:9,color:"var(--text-dim)",textTransform:"uppercase",letterSpacing:"0.15em",marginBottom:10}}>Buckets — select text above to sort</div>
+                <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
+                  {[["characters","Characters","#5A7A8A"],["plot","Plot Moments","#5A6B3A"],["world","World / Setting","#907860"],["questions","Questions","#7A6EA0"],["fragments","Fragments","#8A7E6A"]].map(([key,label,color])=>(
+                    <div key={key} style={{background:"var(--bg-card)",border:"1px solid var(--border)",borderRadius:8,padding:"10px 12px",minHeight:60}}>
+                      <div style={{display:"flex",alignItems:"center",gap:6,marginBottom:6}}>
+                        <div style={{width:6,height:6,borderRadius:"50%",background:color,flexShrink:0}}/>
+                        <span style={{fontSize:10,fontWeight:500,color:"var(--text-muted)",fontFamily:"'DM Sans',sans-serif"}}>{label}</span>
+                        <span style={{fontSize:9,color:"var(--text-dim)",marginLeft:"auto"}}>{(ideaLabBuckets[key]||[]).length}</span>
+                      </div>
+                      {(ideaLabBuckets[key]||[]).map((item,i)=>(
+                        <div key={i} style={{fontFamily:"'Cormorant Garamond',serif",fontSize:12,color:"var(--text-secondary)",lineHeight:1.5,marginBottom:4,borderLeft:`2px solid ${color}`,paddingLeft:6}}>{item.text.substring(0,80)}{item.text.length>80?"...":""}</div>
+                      ))}
+                      {(ideaLabBuckets[key]||[]).length===0&&<div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:11,color:"var(--text-faint)",fontStyle:"italic"}}>Nothing sorted yet</div>}
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Highlight popup */}
+              {highlightPopup.visible&&<div style={{position:"fixed",left:highlightPopup.x,top:highlightPopup.y,background:"var(--bg-deepest)",border:"1px solid var(--border)",borderRadius:10,padding:6,zIndex:500,display:"flex",flexDirection:"column",gap:2,minWidth:160,boxShadow:"0 4px 20px rgba(0,0,0,0.3)"}}>
+                <div style={{fontSize:9,color:"var(--text-dim)",letterSpacing:"0.15em",textTransform:"uppercase",padding:"3px 8px 5px",borderBottom:"1px solid var(--border)",marginBottom:2,fontFamily:"'DM Sans',sans-serif"}}>Sort into</div>
+                {[["characters","Characters","#5A7A8A"],["plot","Plot Moments","#5A6B3A"],["world","World / Setting","#907860"],["questions","Questions","#7A6EA0"],["fragments","Fragments","#8A7E6A"]].map(([key,label,color])=>(
+                  <div key={key} onClick={()=>{
+                    const newItem={text:highlightPopup.text,id:"il_"+Date.now()};
+                    const updated={...ideaLabBuckets,[key]:[...(ideaLabBuckets[key]||[]),newItem]};
+                    setIdeaLabBuckets(updated);saveStored("tt-idealab-buckets",updated);
+                    setHighlightPopup({visible:false,x:0,y:0,text:""});
+                    window.getSelection()?.removeAllRanges();
+                  }} style={{display:"flex",alignItems:"center",gap:8,padding:"6px 10px",borderRadius:5,cursor:"pointer",fontFamily:"'DM Sans',sans-serif"}}>
+                    <div style={{width:6,height:6,borderRadius:"50%",background:color,flexShrink:0}}/>
+                    <span style={{fontSize:12,color:"var(--text-primary)"}}>{label}</span>
+                  </div>
+                ))}
+              </div>}
+            </>}
+
+            {/* INFERNO surface */}
+            {forgeMode==="inferno"&&<>
+              <div style={{padding:"12px 40px 10px",borderBottom:"1px solid #C0784830",display:"flex",justifyContent:"space-between",alignItems:"center",background:"var(--bg-write)"}}>
+                <div style={{fontSize:12,color:"#C07848",fontWeight:500,fontFamily:"'DM Sans',sans-serif"}}>Inferno</div>
+                <div style={{display:"flex",gap:8,alignItems:"center"}}>
+                  <span style={{fontSize:10,color:"var(--text-dim)"}}>{infernoText.split(/\s+/).filter(w=>w).length} words</span>
+                  <span onClick={()=>{if(infernoText){const t=infernoText.substring(0,200);const ns=[...sparks,{text:t,date:new Date().toLocaleDateString(),mode:"The Inferno",modeId:"inferno"}];setSparks(ns);saveStored("tt-sparks",ns)}}} style={{fontSize:10,color:"var(--text-dim)",background:"var(--bg-card)",border:"1px solid #C0784820",borderRadius:4,padding:"3px 8px",cursor:"pointer"}}>Flag this</span>
+                </div>
+              </div>
+              <div style={{flex:1,overflow:"auto",padding:"24px 40px"}}>
+                <textarea value={infernoText} onChange={e=>{setInfernoText(e.target.value);saveStored("tt-inferno-text",e.target.value);}} placeholder="Don't stop. Don't edit. Don't look back. Just burn." style={{width:"100%",height:"100%",minHeight:400,background:"none",border:"none",outline:"none",resize:"none",fontFamily:"'Cormorant Garamond',serif",fontSize:18,color:"var(--text-primary)",lineHeight:2}}/>
+              </div>
+              <div style={{padding:"10px 40px 14px",borderTop:"1px solid #C0784830",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+                <div style={{fontSize:10,color:"var(--text-dim)"}}>Auto-saved</div>
+                <div style={{display:"flex",gap:10}}>
+                  <span onClick={()=>{setFinnOpen(!finnOpen);if(!finnOpen){setContainerMsgs([{role:"assistant",content:`You're in Inferno mode. The fire is real. I'm here when you need me. What do you need right now?`}])}}} style={{fontSize:12,color:finnOpen?"#C07848":"#C0784890",background:"var(--bg-card-alt)",border:"1px solid #C0784820",borderRadius:8,padding:"7px 16px",cursor:"pointer",fontWeight:500}}>{finnOpen?"Close Finn":"Ask Finn"}</span>
+                  <span onClick={goHome} style={{fontSize:12,color:"var(--text-muted)",cursor:"pointer",padding:"7px 12px",background:"var(--bg-card-alt)",border:"1px solid var(--border)",borderRadius:8}}>Home</span>
+                </div>
+              </div>
+            </>}
+
+            {/* MANUSCRIPT surface */}
+            {forgeMode==="manuscript"&&<>
               <div style={{padding:"12px 40px 10px",borderBottom:"1px solid var(--border)",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
                 <div>
                   <span style={{fontSize:11,color:"var(--text-muted)"}}>Chapter {currentScene.chapter}, Scene {currentScene.scene}</span>
@@ -1592,6 +1819,7 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
                 </div>
               </div>
             </>:<div style={{flex:1,display:"flex",alignItems:"center",justifyContent:"center"}}><p style={{color:"var(--text-dim)"}}>Select a scene or create one.</p></div>}
+            </>}
           </div>
 
           {/* Right: Finn Panel */}
@@ -1627,6 +1855,41 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
               {sparks.length>0&&<><div style={{fontSize:8,textTransform:"uppercase",letterSpacing:"0.15em",color:"var(--accent-50)",fontWeight:500,marginTop:8,marginBottom:4}}>Dopamine Map</div><div style={{fontSize:10,color:"var(--text-dim)"}}>{sparks.length} sparks</div></>}
             </div>}
           </div>}
+
+          {/* ORGANIZE WITH FINN OVERLAY */}
+          {organizeOpen&&organizeResult&&<div style={{position:"absolute",top:0,left:0,right:0,bottom:0,background:"rgba(var(--bg-card-rgb),0.6)",zIndex:200,display:"flex",alignItems:"flex-end"}} onClick={e=>{if(e.target===e.currentTarget){setOrganizeOpen(false)}}}>
+            <div style={{background:"var(--bg-card)",border:"1px solid var(--border)",borderRadius:"16px 16px 0 0",padding:"24px 24px 28px",width:"100%",maxHeight:"80%",overflowY:"auto",animation:"fu .3s ease-out"}}>
+              <div style={{fontSize:9,textTransform:"uppercase",letterSpacing:"0.22em",color:"#9A8AB0",fontWeight:500,marginBottom:12}}>Organize with Finn</div>
+              <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:17,color:"var(--text-primary)",lineHeight:1.7,marginBottom:20}}>Here's what I found. Approve what belongs in your Story Bible or Manuscript. You can change your mind on anything.</div>
+              {[["characters","Characters","→ Story Bible","#5A7A8A"],["world","World / Setting","→ Story Bible","#907860"],["plot","Plot Moments","→ Manuscript","#5A6B3A"],["questions","Questions","→ Coaching","#7A6EA0"]].map(([key,label,dest,color])=>(organizeResult[key]||[]).length>0&&<div key={key} style={{marginBottom:18}}>
+                <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:10,paddingBottom:6,borderBottom:"1px solid var(--border)"}}>
+                  <div style={{width:7,height:7,borderRadius:"50%",background:color}}/>
+                  <span style={{fontSize:11,fontWeight:500,color:"var(--text-muted)",textTransform:"uppercase",letterSpacing:"0.08em",fontFamily:"'DM Sans',sans-serif"}}>{label}</span>
+                  <span style={{fontSize:10,color:"var(--text-dim)",marginLeft:"auto",fontFamily:"'DM Sans',sans-serif"}}>{dest}</span>
+                </div>
+                {(organizeResult[key]||[]).map((item,idx)=>(
+                  <div key={idx} style={{border:"1px solid var(--border)",borderRadius:8,padding:"10px 12px",marginBottom:8,background:item.status==="approved"?"var(--bg-card)":item.status==="dismissed"?"var(--bg-card)":"var(--bg-card)",opacity:item.status==="dismissed"?.5:1,borderColor:item.status==="approved"?"#5A7A5C40":item.status==="dismissed"?"var(--border)":"var(--border)"}}>
+                    <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:14,color:item.status==="dismissed"?"var(--text-dim)":"var(--text-primary)",lineHeight:1.65,marginBottom:8,textDecoration:item.status==="dismissed"?"line-through":"none"}}>{item.text}</div>
+                    <div style={{display:"flex",gap:6,alignItems:"center"}}>
+                      {item.status!=="approved"&&<button onClick={()=>updateOrganizeItem(key,idx,"approved")} style={{background:"#5A7A5C",border:"none",borderRadius:5,padding:"4px 12px",fontSize:11,color:"#F0EAE0",cursor:"pointer",fontFamily:"'DM Sans',sans-serif"}}>Approve</button>}
+                      {item.status!=="dismissed"&&<button onClick={()=>updateOrganizeItem(key,idx,"dismissed")} style={{background:"none",border:"1px solid var(--border)",borderRadius:5,padding:"4px 12px",fontSize:11,color:"var(--text-dim)",cursor:"pointer",fontFamily:"'DM Sans',sans-serif"}}>Dismiss</button>}
+                      {item.status!=="pending"&&<button onClick={()=>updateOrganizeItem(key,idx,"pending")} style={{background:"none",border:"1px solid var(--border-mid)",borderRadius:5,padding:"4px 10px",fontSize:11,color:"var(--text-dim)",cursor:"pointer",fontFamily:"'DM Sans',sans-serif"}}>Undo</button>}
+                      {item.status==="approved"&&<span style={{fontSize:11,color:"#5A7A5C",fontFamily:"'DM Sans',sans-serif",marginLeft:4}}>✓ Will be added</span>}
+                    </div>
+                  </div>
+                ))}
+              </div>)}
+              <div style={{borderTop:"1px solid var(--border)",paddingTop:16,marginTop:4}}>
+                <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:14,fontStyle:"italic",color:"var(--text-muted)",marginBottom:14,lineHeight:1.6}}>Your Idea Lab stays exactly as it is. Where do you want to go next?</div>
+                <div style={{display:"flex",gap:8}}>
+                  <div onClick={()=>commitOrganized("bible")} style={{flex:1,background:"var(--accent)",border:"none",borderRadius:8,padding:"11px",textAlign:"center",cursor:"pointer"}}><span style={{fontSize:12,fontWeight:500,color:"var(--bg-deepest)",fontFamily:"'DM Sans',sans-serif"}}>Open Story Bible</span></div>
+                  <div onClick={()=>commitOrganized("manuscript")} style={{flex:1,background:"var(--bg-card-alt)",border:"1px solid var(--border)",borderRadius:8,padding:"11px",textAlign:"center",cursor:"pointer"}}><span style={{fontSize:12,color:"var(--text-muted)",fontFamily:"'DM Sans',sans-serif"}}>Open Manuscript</span></div>
+                  <div onClick={()=>{commitOrganized("stay");setOrganizeOpen(false);}} style={{flex:1,background:"var(--bg-card-alt)",border:"1px solid var(--border)",borderRadius:8,padding:"11px",textAlign:"center",cursor:"pointer"}}><span style={{fontSize:12,color:"var(--text-dim)",fontFamily:"'DM Sans',sans-serif"}}>Stay in Idea Lab</span></div>
+                </div>
+              </div>
+            </div>
+          </div>}
+
         </div>;
       })()}
 
