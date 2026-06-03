@@ -550,9 +550,9 @@ export default function App() {
     if(saved&&saved.length>0){
       setMsgs(saved);
     } else if(m.id==="rekindle"&&project){
-      setMsgs([{role:"assistant",content:`Welcome back. You've been working on "${project.title}." ${project.where?`Last time: ${project.where}.`:""} ${project.stuck?`You were stuck on: ${project.stuck}.`:""}\n\nLet me ask you something small to get your brain back in the story.`}]);
+      setMsgs([{role:"assistant",content:`Welcome back. You've been working on "${project.title}." ${project.where?`Last time: ${project.where}.`:""} ${project.stuck?`You were focused on: ${project.stuck}.`:""}\n\nLet me ask you something small to get your brain back in the story.`}]);
     } else if(m.id==="diagnose"&&project&&project.stuck&&project.stuck.trim()){
-      setMsgs([{role:"assistant",content:`I know where you're stuck. ${project.stuck}\n\nLet me ask you something about that. What's the one thing about this moment that you can see clearly, even if everything else is foggy?`}]);
+      setMsgs([{role:"assistant",content:`I know what you were working on. ${project.stuck}\n\nLet me ask you something about that. What's the one thing about this moment that you can see clearly, even if everything else is foggy?`}]);
     } else { setMsgs([{role:"assistant",content:INTROS[m.id]}]); }
     setInput("");
   };
@@ -561,9 +561,9 @@ export default function App() {
     if(!mode)return;
     saveStored("tt-chat-"+mode.id,null);
     if(mode.id==="rekindle"&&project){
-      setMsgs([{role:"assistant",content:`Welcome back. You've been working on "${project.title}." ${project.where?`Last time: ${project.where}.`:""} ${project.stuck?`You were stuck on: ${project.stuck}.`:""}\n\nLet me ask you something small to get your brain back in the story.`}]);
+      setMsgs([{role:"assistant",content:`Welcome back. You've been working on "${project.title}." ${project.where?`Last time: ${project.where}.`:""} ${project.stuck?`You were focused on: ${project.stuck}.`:""}\n\nLet me ask you something small to get your brain back in the story.`}]);
     } else if(mode.id==="diagnose"&&project&&project.stuck&&project.stuck.trim()){
-      setMsgs([{role:"assistant",content:`I know where you're stuck. ${project.stuck}\n\nLet me ask you something about that. What's the one thing about this moment that you can see clearly, even if everything else is foggy?`}]);
+      setMsgs([{role:"assistant",content:`I know what you were working on. ${project.stuck}\n\nLet me ask you something about that. What's the one thing about this moment that you can see clearly, even if everything else is foggy?`}]);
     } else { setMsgs([{role:"assistant",content:INTROS[mode.id]}]); }
   };
 
@@ -840,7 +840,7 @@ Respond with ONLY this JSON:
 {"modeId":"one mode id from the list above","message":"Finn's response in 1-2 sentences. Conversational. No em dashes. Warm but direct. Use the writer's own words back to them."}`,
         messages:[{role:"user",content:`The writer said: "${triageInput.trim()}"
 
-Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} Last position: ${project?.where||"unknown"}. ${project?.stuck?`Was stuck on: ${project.stuck}.`:""}`}]
+Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} Last position: ${project?.where||"unknown"}. ${project?.stuck?`Focused on: ${project.stuck}.`:""}`}]
       })});
       const d=await r.json();
       if(!d.error){
@@ -863,7 +863,7 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
     const userText=input.trim();
     setLastThought(userText);saveStored("tt-lastthought",userText);
     const chapStr = project?.chapters ? (Array.isArray(project.chapters) ? project.chapters.filter(c=>c.summary).map(c=>`Ch${c.num}: ${c.summary}`).join(". ") : project.chapters) : "";
-    const pCtx = project ? `\n\nPROJECT: "${project.title}". Genre: ${project.genre}. Synopsis: ${project.synopsis}. Protagonist: ${project.protagonist}. Supporting Characters: ${project.supporting}. Antagonist: ${project.antagonist}. Core Setting: ${project.worldSetting}. World Rules: ${project.worldRules}. What People Believe vs Reality: ${project.worldBeliefs}. What Makes This World Dangerous: ${project.worldDanger}. World Tone: ${project.worldTone}. Chapters so far: ${chapStr}. Current point: ${project.where}. Stuck on: ${project.stuck}. What excites them: ${project.excites}.${project.currentChapter?` CURRENT CHAPTER TEXT: ${project.currentChapter}`:""}` : "";
+    const pCtx = project ? `\n\nPROJECT: "${project.title}". Genre: ${project.genre}. Synopsis: ${project.synopsis}. Protagonist: ${project.protagonist}. Supporting Characters: ${project.supporting}. Antagonist: ${project.antagonist}. Core Setting: ${project.worldSetting}. World Rules: ${project.worldRules}. What People Believe vs Reality: ${project.worldBeliefs}. What Makes This World Dangerous: ${project.worldDanger}. World Tone: ${project.worldTone}. Chapters so far: ${chapStr}. Current point: ${project.where}. Focused on: ${project.stuck}. What excites them: ${project.excites}.${project.currentChapter?` CURRENT CHAPTER TEXT: ${project.currentChapter}`:""}` : "";
     const sparkCtx = sparks.length > 0 ? `\n\nDOPAMINE MAP (moments the writer flagged as exciting): ${sparks.map(s=>s.text).join(" | ")}` : "";
     let containCtx = "";
     if(mode.id==="contain"){
@@ -1060,7 +1060,7 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
                   "{project.title}" is right where you left it.{away ? ` It's been ${away}.` : ""}
                 </p>
                 {project.where&&<p style={{fontSize:13,color:"var(--text-muted)",lineHeight:1.7,marginBottom:10,textAlign:"left"}}>{nib}{project.where}</p>}
-                {project.stuck&&project.stuck.trim()&&<p style={{fontSize:13,color:"var(--text-muted)",lineHeight:1.7,marginBottom:10,textAlign:"left"}}>{nib}<span style={{color:"var(--accent-80)",fontSize:10,textTransform:"uppercase",letterSpacing:"0.1em"}}>Stuck on: </span>{project.stuck}</p>}
+                {project.stuck&&project.stuck.trim()&&<p style={{fontSize:13,color:"var(--text-muted)",lineHeight:1.7,marginBottom:10,textAlign:"left"}}>{nib}<span style={{color:"var(--accent-80)",fontSize:10,textTransform:"uppercase",letterSpacing:"0.1em"}}>Focused on: </span>{project.stuck}</p>}
                 {sparks.length>0&&<p style={{fontSize:12,color:"var(--accent-80)",marginBottom:10,textAlign:"left"}}>{nib}{sparks.length} spark{sparks.length>1?"s":""} saved</p>}
                 <p style={{fontFamily:"'Cormorant Garamond',serif",fontSize:15,color:"var(--text-primary)",lineHeight:1.8,marginTop:20,marginBottom:24}}>{isLongAway?"No guilt. The project waited. So did I.":"Let's get to work."}</p>
               </>;
