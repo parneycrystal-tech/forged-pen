@@ -281,6 +281,10 @@ export default function App() {
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
   const [screen, setScreen] = useState("welcome");
+  const [userName, setUserName] = useState("");
+  const [welcomeInput, setWelcomeInput] = useState("");
+  const [welcomeStep, setWelcomeStep] = useState("intro");
+  const [welcomeRoute, setWelcomeRoute] = useState(null);
   const [ti] = useState(Math.floor(Math.random()*TORCHES.length));
   const [flipped, setFlipped] = useState(false);
   const [loadMsg] = useState(LOAD[Math.floor(Math.random()*LOAD.length)]);
@@ -393,6 +397,8 @@ export default function App() {
     if (ilt) setIdeaLabText(ilt);
     if (ilb) setIdeaLabBuckets(ilb);
     if (inft) setInfernoText(inft);
+    const un = loadStored("tt-username");
+    if (un) setUserName(un);
   };
 
   const migrateLocalToCloud=async()=>{
@@ -531,7 +537,7 @@ export default function App() {
     const nm=[...containerMsgs,{role:"user",content:userText}];setContainerMsgs(nm);setContainerInput("");setLoading(true);
     const ctrl=new AbortController();abortRef.current=ctrl;
     try{
-      const r=await fetch("/api/chat",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({system:CONTAINER_FINN+sceneCtx+pCtx+sparkCtx,messages:nm.map(m=>({role:m.role,content:m.content}))}),signal:ctrl.signal});
+      const r=await fetch("/api/chat",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({system:CONTAINER_FINN+sceneCtx+pCtx+sparkCtx+(userName?`\n\nThe writer's name is ${userName}. Use their name naturally.`:""),messages:nm.map(m=>({role:m.role,content:m.content}))}),signal:ctrl.signal});
       const d=await r.json();
       if(d.error){setContainerMsgs(p=>[...p,{role:"assistant",content:`Connection issue: ${d.error}`}])}
       else{
@@ -865,6 +871,7 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
     const chapStr = project?.chapters ? (Array.isArray(project.chapters) ? project.chapters.filter(c=>c.summary).map(c=>`Ch${c.num}: ${c.summary}`).join(". ") : project.chapters) : "";
     const pCtx = project ? `\n\nPROJECT: "${project.title}". Genre: ${project.genre}. Synopsis: ${project.synopsis}. Protagonist: ${project.protagonist}. Supporting Characters: ${project.supporting}. Antagonist: ${project.antagonist}. Core Setting: ${project.worldSetting}. World Rules: ${project.worldRules}. What People Believe vs Reality: ${project.worldBeliefs}. What Makes This World Dangerous: ${project.worldDanger}. World Tone: ${project.worldTone}. Chapters so far: ${chapStr}. Current point: ${project.where}. Focused on: ${project.stuck}. What excites them: ${project.excites}.${project.currentChapter?` CURRENT CHAPTER TEXT: ${project.currentChapter}`:""}` : "";
     const sparkCtx = sparks.length > 0 ? `\n\nDOPAMINE MAP (moments the writer flagged as exciting): ${sparks.map(s=>s.text).join(" | ")}` : "";
+    const userCtx = userName ? `\n\nThe writer's name is ${userName}. Use their name naturally throughout your response, the way a good coach would. Not in every sentence, but enough to feel personal.` : "";
     let containCtx = "";
     if(mode.id==="contain"){
       const modeIds=["diagnose","craft","scene","character","plot","voice","micro","perfectionism","smoke","instinct","simmer","forge","inferno","rekindle"];
@@ -885,7 +892,7 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
         method:"POST",
         headers:{"Content-Type":"application/json"},
         body:JSON.stringify({
-          system: mode.sys + pCtx + sparkCtx + containCtx,
+          system: mode.sys + pCtx + sparkCtx + containCtx + userCtx,
           messages: nm.map(m=>({role:m.role,content:m.content}))
         }),
         signal:ctrl.signal
@@ -1047,30 +1054,112 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
       </div>}
 
       {/* WELCOME */}
-      {user&&screen==="welcome"&&<div onClick={()=>{saveSession(null);setScreen("home")}} style={{position:"fixed",top:0,left:0,right:0,bottom:0,background:"var(--bg-base)",zIndex:200,display:"flex",alignItems:"center",justifyContent:"center",padding:24,cursor:"pointer"}}>
-        <div style={{maxWidth:480,textAlign:"center",animation:"fi .6s ease-out"}}>
-          <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:28,fontWeight:600,color:"var(--accent)",marginBottom:6}}>Forged Pen</div>
-          {project?<>
-            {(()=>{
-              const away = getTimeAway();
-              const isLongAway = away && (away.includes("day") || (away.includes("hour") && parseInt(away)>=12));
-              const nib = <svg width="10" height="14" viewBox="0 0 10 14" style={{verticalAlign:"middle",marginRight:6,opacity:0.5}}><path d="M5 0L6.2 5L5 12L3.8 5Z" fill="var(--accent)"/><circle cx="5" cy="4.5" r="0.8" fill="var(--accent)"/></svg>;
-              return <>
-                <p style={{fontFamily:"'Cormorant Garamond',serif",fontSize:16,color:"var(--text-primary)",lineHeight:1.8,marginBottom:12,marginTop:16}}>
-                  "{project.title}" is right where you left it.{away ? ` It's been ${away}.` : ""}
-                </p>
-                {project.where&&<p style={{fontSize:13,color:"var(--text-muted)",lineHeight:1.7,marginBottom:10,textAlign:"left"}}>{nib}{project.where}</p>}
-                {project.stuck&&project.stuck.trim()&&<p style={{fontSize:13,color:"var(--text-muted)",lineHeight:1.7,marginBottom:10,textAlign:"left"}}>{nib}<span style={{color:"var(--accent-80)",fontSize:10,textTransform:"uppercase",letterSpacing:"0.1em"}}>Focused on: </span>{project.stuck}</p>}
-                {sparks.length>0&&<p style={{fontSize:12,color:"var(--accent-80)",marginBottom:10,textAlign:"left"}}>{nib}{sparks.length} spark{sparks.length>1?"s":""} saved</p>}
-                <p style={{fontFamily:"'Cormorant Garamond',serif",fontSize:15,color:"var(--text-primary)",lineHeight:1.8,marginTop:20,marginBottom:24}}>{isLongAway?"No guilt. The project waited. So did I.":"Let's get to work."}</p>
-              </>;
-            })()}
-          </>:<>
-            <p style={{fontSize:12,color:"var(--text-dim)",marginTop:4,marginBottom:20}}>Your writing coach, not your ghostwriter</p>
-            <p style={{fontFamily:"'Cormorant Garamond',serif",fontSize:16,color:"var(--text-primary)",lineHeight:1.8,marginBottom:8}}>Hey. I'm Finnigan. But call me Finn.</p>
-            <p style={{fontFamily:"'Cormorant Garamond',serif",fontSize:15,color:"var(--text-muted)",lineHeight:1.8,marginBottom:24}}>I ask the question you've been circling around, you realize you knew the answer the whole time, then you go write something extraordinary.</p>
-          </>}
-          <p style={{fontSize:11,color:"var(--text-dim)"}}>Tap anywhere to begin</p>
+      {user&&screen==="welcome"&&<div style={{position:"fixed",top:0,left:0,right:0,bottom:0,background:"#2E2620",zIndex:200,display:"flex",alignItems:"center",justifyContent:"center",padding:24,overflowY:"auto"}}>
+        <div style={{maxWidth:420,width:"100%",animation:"fi .6s ease-out"}}>
+
+          {/* NEW USER FLOW */}
+          {!userName&&<div style={{background:"#EDE6DA",borderRadius:10,padding:"40px 36px",border:"1px solid #C8BC9A"}}>
+            <div style={{textAlign:"center",marginBottom:28}}>
+              <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:13,letterSpacing:"0.18em",textTransform:"uppercase",color:"#A8884A",marginBottom:4}}>Forged Pen</div>
+              <div style={{fontSize:9,color:"#B0A080",letterSpacing:"0.14em",textTransform:"uppercase",fontFamily:"'DM Sans',sans-serif"}}>Where Stories Are Shaped</div>
+            </div>
+
+            {welcomeStep==="intro"&&<>
+              <div style={{borderTop:"1px solid #D8CEB0",paddingTop:28,marginBottom:24}}>
+                <p style={{fontFamily:"'Cormorant Garamond',serif",fontSize:20,fontWeight:400,color:"#1E1C14",lineHeight:1.75,marginBottom:16}}>Hey. I'm Finnigan. Finn for short.</p>
+                <p style={{fontFamily:"'Cormorant Garamond',serif",fontSize:17,fontWeight:300,color:"#3A3428",lineHeight:1.85,marginBottom:14}}>I'm not here to write your story. That part belongs to you and nobody else. I'm here for the moments when it gets tangled, when the words won't come, when you can't see the shape of what you're building.</p>
+                <p style={{fontFamily:"'Cormorant Garamond',serif",fontSize:17,fontWeight:300,color:"#3A3428",lineHeight:1.85}}>I ask questions, find what's working, and help you hear the story that's already in you.</p>
+              </div>
+              <div style={{borderTop:"1px solid #D8CEB0",paddingTop:24}}>
+                <p style={{fontFamily:"'Cormorant Garamond',serif",fontSize:16,fontStyle:"italic",color:"#5A5040",marginBottom:14}}>What should I call you?</p>
+                <input autoFocus value={welcomeInput} onChange={e=>setWelcomeInput(e.target.value)} onKeyDown={e=>{if(e.key==="Enter"&&welcomeInput.trim()){const n=welcomeInput.trim();setUserName(n);saveStored("tt-username",n);cloudSave("tt-username",n);setWelcomeStep("routing");setWelcomeInput("");}}} placeholder="Your first name, or whatever you'd like" style={{width:"100%",background:"transparent",border:"none",borderBottom:"1px solid #C8BC9A",padding:"8px 0",fontFamily:"'Cormorant Garamond',serif",fontSize:17,color:"#1E1C14",outline:"none",letterSpacing:"0.01em"}}/>
+                {welcomeInput.trim()&&<div onClick={()=>{const n=welcomeInput.trim();setUserName(n);saveStored("tt-username",n);cloudSave("tt-username",n);setWelcomeStep("routing");setWelcomeInput("");}} style={{background:"#5A6B3A",borderRadius:7,padding:"11px",textAlign:"center",cursor:"pointer",marginTop:18}}>
+                  <span style={{fontSize:13,fontWeight:500,color:"#F0EAE0",fontFamily:"'DM Sans',sans-serif"}}>Continue</span>
+                </div>}
+              </div>
+            </>}
+
+            {welcomeStep==="routing"&&<>
+              <div style={{borderTop:"1px solid #D8CEB0",paddingTop:24,marginBottom:20}}>
+                <p style={{fontFamily:"'Cormorant Garamond',serif",fontSize:18,color:"#1E1C14",marginBottom:6}}>Good to meet you, {userName}.</p>
+                <p style={{fontFamily:"'Cormorant Garamond',serif",fontSize:16,fontStyle:"italic",color:"#5A5040"}}>Where are you with your story right now?</p>
+              </div>
+              <div style={{display:"flex",flexDirection:"column",gap:10}}>
+                {[
+                  {id:"idealab",label:"I have an idea I'm still developing",sub:"A spark, a character, a feeling. Something worth building."},
+                  {id:"storybible",label:"I've developed my story but haven't started writing yet",sub:"Characters, world, outline. Ready to bring it in."},
+                  {id:"manuscript",label:"I have a manuscript in progress",sub:"Already writing. Ready to go deeper."},
+                  {id:"forge",label:"I just need to finish what I've started",sub:"The story is there. I need to get out of my own way."}
+                ].map(opt=>(
+                  <div key={opt.id} onClick={()=>setWelcomeRoute(opt.id)&&setWelcomeStep("response")||setWelcomeRoute(opt.id)||setWelcomeStep("response")} style={{background:welcomeRoute===opt.id?"#F5EEE4":"#F0EAE0",border:"1px solid "+(welcomeRoute===opt.id?"#A8884A":"#C8BC9A"),borderRadius:8,padding:"14px 16px",cursor:"pointer",transition:"all .2s"}}>
+                    <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:16,color:"#1E1C14",marginBottom:4}}>{opt.label}</div>
+                    <div style={{fontSize:11,color:"#7A6E60",fontFamily:"'DM Sans',sans-serif"}}>{opt.sub}</div>
+                  </div>
+                ))}
+              </div>
+            </>}
+
+            {welcomeStep==="response"&&welcomeRoute&&<>
+              <div style={{borderTop:"1px solid #D8CEB0",paddingTop:24,marginBottom:24}}>
+                {welcomeRoute==="idealab"&&<>
+                  <p style={{fontFamily:"'Cormorant Garamond',serif",fontSize:16,fontWeight:300,color:"#3A3428",lineHeight:1.85,marginBottom:14}}>Good. Ideas are where everything starts. We don't need a full story yet, just the spark you already have.</p>
+                  <p style={{fontFamily:"'Cormorant Garamond',serif",fontSize:16,fontWeight:300,color:"#3A3428",lineHeight:1.85,marginBottom:14}}>I'm going to take you to The Forge. There's a space in there called the Idea Lab, and that's where we'll begin. No structure required. Just pour everything out, whatever you know, whatever you're feeling, whatever questions you're sitting with.</p>
+                  <p style={{fontFamily:"'Cormorant Garamond',serif",fontSize:16,fontWeight:300,color:"#3A3428",lineHeight:1.85}}>We'll build from there, {userName}.</p>
+                  <div onClick={()=>{setForgeMode("idealab");initScenes();}} style={{background:"#5A6B3A",borderRadius:7,padding:"11px",textAlign:"center",cursor:"pointer",marginTop:20}}><span style={{fontSize:13,fontWeight:500,color:"#F0EAE0",fontFamily:"'DM Sans',sans-serif"}}>Take me to The Forge</span></div>
+                </>}
+                {welcomeRoute==="storybible"&&<>
+                  <p style={{fontFamily:"'Cormorant Garamond',serif",fontSize:16,fontWeight:300,color:"#3A3428",lineHeight:1.85,marginBottom:14}}>You know your story. You just haven't put it on the page yet.</p>
+                  <p style={{fontFamily:"'Cormorant Garamond',serif",fontSize:16,fontWeight:300,color:"#3A3428",lineHeight:1.85,marginBottom:14}}>Bring it into Forged Pen. Your Story Bible is where your characters, your world, and your plot live. You can upload documents, input things directly, or both. Once I can see your story, I can coach you.</p>
+                  <p style={{fontFamily:"'Cormorant Garamond',serif",fontSize:16,fontWeight:300,color:"#3A3428",lineHeight:1.85}}>The Forge is waiting when you're ready, {userName}.</p>
+                  <div onClick={()=>{saveSession(null);setScreen("setup");}} style={{background:"#5A6B3A",borderRadius:7,padding:"11px",textAlign:"center",cursor:"pointer",marginTop:20}}><span style={{fontSize:13,fontWeight:500,color:"#F0EAE0",fontFamily:"'DM Sans',sans-serif"}}>Set up my Story Bible</span></div>
+                </>}
+                {welcomeRoute==="manuscript"&&<>
+                  <p style={{fontFamily:"'Cormorant Garamond',serif",fontSize:16,fontWeight:300,color:"#3A3428",lineHeight:1.85,marginBottom:14}}>You can't let your story go, and it refuses to let you go. The only choice is forward, for both of you. I'm here to help you do that.</p>
+                  <p style={{fontFamily:"'Cormorant Garamond',serif",fontSize:16,fontWeight:300,color:"#3A3428",lineHeight:1.85,marginBottom:20}}>Bring your work into Forged Pen. You don't have to untangle everything today. We go one thread at a time. What do you need first, {userName}?</p>
+                  <div style={{display:"flex",flexDirection:"column",gap:8}}>
+                    <div onClick={()=>{saveSession(null);setScreen("setup");}} style={{background:"#5A6B3A",borderRadius:7,padding:"10px",textAlign:"center",cursor:"pointer"}}><span style={{fontSize:13,fontWeight:500,color:"#F0EAE0",fontFamily:"'DM Sans',sans-serif"}}>Set up my Story Bible</span></div>
+                    <div onClick={()=>{initScenes();}} style={{background:"none",border:"1px solid #C8BC9A",borderRadius:7,padding:"10px",textAlign:"center",cursor:"pointer"}}><span style={{fontSize:13,color:"#5A5040",fontFamily:"'DM Sans',sans-serif"}}>Take me to The Forge</span></div>
+                  </div>
+                </>}
+                {welcomeRoute==="forge"&&<>
+                  <p style={{fontFamily:"'Cormorant Garamond',serif",fontSize:16,fontWeight:300,color:"#3A3428",lineHeight:1.85,marginBottom:14}}>You know your story. You know what needs to be written. The only thing standing between you and the page is getting there.</p>
+                  <p style={{fontFamily:"'Cormorant Garamond',serif",fontSize:16,fontWeight:300,color:"#3A3428",lineHeight:1.85}}>The Forge is yours, {userName}. No detours, no setup, just you and your story. I'll be here when you need me and out of your way when you don't.</p>
+                  <div onClick={()=>{initScenes();}} style={{background:"#5A6B3A",borderRadius:7,padding:"11px",textAlign:"center",cursor:"pointer",marginTop:20}}><span style={{fontSize:13,fontWeight:500,color:"#F0EAE0",fontFamily:"'DM Sans',sans-serif"}}>Take me to The Forge</span></div>
+                </>}
+                <div style={{textAlign:"center",marginTop:12}}><span onClick={()=>setWelcomeStep("routing")} style={{fontSize:11,color:"#908878",cursor:"pointer",fontFamily:"'DM Sans',sans-serif"}}>That's not quite right</span></div>
+              </div>
+            </>}
+
+            <div style={{textAlign:"center",marginTop:16,paddingTop:16,borderTop:"1px solid #D8CEB0"}}>
+              <p style={{fontSize:12,color:"#9A8870",lineHeight:1.6,fontFamily:"'DM Sans',sans-serif"}}>Your content never trains AI.<br/>Your story is yours, always.</p>
+            </div>
+          </div>}
+
+          {/* RETURNING USER */}
+          {userName&&<div onClick={()=>{saveSession(null);setScreen("home")}} style={{textAlign:"center",cursor:"pointer"}}>
+            <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:28,fontWeight:600,color:"var(--accent)",marginBottom:6}}>Forged Pen</div>
+            {project?<>
+              {(()=>{
+                const away = getTimeAway();
+                const isLongAway = away && (away.includes("day") || (away.includes("hour") && parseInt(away)>=12));
+                const nib = <svg width="10" height="14" viewBox="0 0 10 14" style={{verticalAlign:"middle",marginRight:6,opacity:0.5}}><path d="M5 0L6.2 5L5 12L3.8 5Z" fill="var(--accent)"/><circle cx="5" cy="4.5" r="0.8" fill="var(--accent)"/></svg>;
+                return <>
+                  <p style={{fontFamily:"'Cormorant Garamond',serif",fontSize:16,color:"var(--text-primary)",lineHeight:1.8,marginBottom:12,marginTop:16}}>
+                    {userName?`Welcome back, ${userName}. `:""}"{project.title}" is right where you left it.{away ? ` It's been ${away}.` : ""}
+                  </p>
+                  {project.where&&<p style={{fontSize:13,color:"var(--text-muted)",lineHeight:1.7,marginBottom:10,textAlign:"left"}}>{nib}{project.where}</p>}
+                  {project.stuck&&project.stuck.trim()&&<p style={{fontSize:13,color:"var(--text-muted)",lineHeight:1.7,marginBottom:10,textAlign:"left"}}>{nib}<span style={{color:"var(--accent-80)",fontSize:10,textTransform:"uppercase",letterSpacing:"0.1em"}}>Focused on: </span>{project.stuck}</p>}
+                  {sparks.length>0&&<p style={{fontSize:12,color:"var(--accent-80)",marginBottom:10,textAlign:"left"}}>{nib}{sparks.length} spark{sparks.length>1?"s":""} saved</p>}
+                  <p style={{fontFamily:"'Cormorant Garamond',serif",fontSize:15,color:"var(--text-primary)",lineHeight:1.8,marginTop:20,marginBottom:24}}>{isLongAway?"No guilt. The project waited. So did I.":"Let's get to work."}</p>
+                </>;
+              })()}
+            </>:<>
+              <p style={{fontSize:12,color:"var(--text-dim)",marginTop:4,marginBottom:20}}>Your writing coach, not your ghostwriter</p>
+              <p style={{fontFamily:"'Cormorant Garamond',serif",fontSize:16,color:"var(--text-primary)",lineHeight:1.8,marginBottom:24}}>Good to see you, {userName}. Ready to write?</p>
+            </>}
+            <p style={{fontSize:11,color:"var(--text-dim)"}}>Tap anywhere to begin</p>
+          </div>}
+
         </div>
       </div>}
 
