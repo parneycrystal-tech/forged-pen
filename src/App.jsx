@@ -1054,7 +1054,7 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
       </div>}
 
       {/* WELCOME */}
-      {user&&screen==="welcome"&&<div style={{position:"fixed",top:0,left:0,right:0,bottom:0,background:"#2E2620",zIndex:200,display:"flex",alignItems:"center",justifyContent:"center",padding:24,overflowY:"auto"}}>
+      {user&&screen==="welcome"&&<div style={{position:"fixed",top:0,left:0,right:0,bottom:0,background:userName?"var(--bg-base)":"#2E2620",zIndex:200,display:"flex",alignItems:"center",justifyContent:"center",padding:24,overflowY:"auto"}}>
         <div style={{maxWidth:420,width:"100%",animation:"fi .6s ease-out"}}>
 
           {/* NEW USER FLOW */}
@@ -1136,7 +1136,7 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
           </div>}
 
           {/* RETURNING USER */}
-          {userName&&<div onClick={()=>{saveSession(null);setScreen("home")}} style={{textAlign:"center",cursor:"pointer"}}>
+          {userName&&<div onClick={()=>{saveSession(null);setScreen("home")}} style={{textAlign:"center",cursor:"pointer",animation:"fi .6s ease-out"}}>
             <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:28,fontWeight:600,color:"var(--accent)",marginBottom:6}}>Forged Pen</div>
             {project?<>
               {(()=>{
