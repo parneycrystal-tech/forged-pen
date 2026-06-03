@@ -1757,7 +1757,7 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
             </>}
 
             {/* MANUSCRIPT surface */}
-            {forgeMode==="manuscript"&&<>
+            {forgeMode==="manuscript"&&(currentScene?<>
               <div style={{padding:"12px 40px 10px",borderBottom:"1px solid var(--border)",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
                 <div>
                   <span style={{fontSize:11,color:"var(--text-muted)"}}>Chapter {currentScene.chapter}, Scene {currentScene.scene}</span>
@@ -1818,8 +1818,7 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
                   <span onClick={goHome} style={{fontSize:12,color:"var(--text-muted)",cursor:"pointer",padding:"7px 12px",background:"var(--bg-card-alt)",border:"1px solid var(--border)",borderRadius:8}}>Home</span>
                 </div>
               </div>
-            </>:<div style={{flex:1,display:"flex",alignItems:"center",justifyContent:"center"}}><p style={{color:"var(--text-dim)"}}>Select a scene or create one.</p></div>}
-            </>}
+            </>:<div style={{flex:1,display:"flex",alignItems:"center",justifyContent:"center"}}><p style={{color:"var(--text-dim)"}}>Select a scene or create one.</p></div>)}
           </div>
 
           {/* Right: Finn Panel */}
