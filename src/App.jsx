@@ -1542,7 +1542,7 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
             {/* Three-mode toggle */}
             <div style={{display:"flex",gap:2,background:"var(--bg-deepest)",borderRadius:8,padding:3,marginBottom:14}}>
               {[["manuscript","Manuscript","var(--accent)"],["idealab","Idea Lab","#9A8AB0"],["inferno","Inferno","#C07848"]].map(([m,label,color])=>(
-                <div key={m} onClick={()=>setForgeMode(m)} style={{flex:1,padding:"5px 2px",borderRadius:5,background:forgeMode===m?"var(--bg-card-alt)":"transparent",color:forgeMode===m?color:"var(--text-faint)",fontSize:9,textAlign:"center",cursor:"pointer",transition:"all .2s",fontFamily:"'DM Sans',sans-serif"}}>
+                <div key={m} onClick={()=>setForgeMode(m)} style={{flex:1,padding:"8px 4px",borderRadius:5,background:forgeMode===m?"var(--bg-card-alt)":"transparent",color:forgeMode===m?color:"var(--text-dim)",fontSize:11,textAlign:"center",cursor:"pointer",transition:"all .2s",fontFamily:"'DM Sans',sans-serif",fontWeight:forgeMode===m?500:400}}>
                   {label}
                 </div>
               ))}
