@@ -270,10 +270,9 @@ function BibTab({id,label,active,onClick}){return <button onClick={()=>onClick(i
 
 const PROFILE_QUESTIONS=[
   {id:"q1",q:"How long have you been writing?",opts:["Just starting out","A few years in","I've been writing for years","I've been published"],multi:false,addl:"Anything Finn should know about your writing background?"},
-  {id:"q2",q:"Everyone thinks and works differently. Knowing a little about your working style helps Finn coach you in a way that actually fits your brain. This is completely optional.",opts:["I work best in short focused bursts","I tend to jump around rather than write linearly","I get easily overwhelmed by too many options","I have a hard time starting even when I know what to write","I lose momentum quickly after a good session","None of these feel relevant"],multi:true,addl:"Anything else about how you work best?",disclaimer:"Forged Pen is a writing tool, not a mental health service. If you're experiencing a crisis please reach out to a qualified professional."},
+  {id:"q2",q:"How does your writing brain work? Choose everything that feels true.",opts:["I work best in short focused bursts","I tend to jump around rather than write linearly","I get easily overwhelmed by too many options","I have a hard time starting even when I know what to write","I lose momentum quickly after a good session","I can write for long stretches when I'm in flow","I write linearly, start to finish","It depends completely on the day"],multi:true,addl:"Anything else about how you work best?",disclaimer:"Forged Pen is a writing tool, not a mental health service. If you're experiencing a crisis please reach out to a qualified professional."},
   {id:"q3",q:"What matters most to you right now?",opts:["I have a spark and I want to see where it goes","I'm developing an idea that isn't fully formed yet","I'm deep in a manuscript and need to keep going","I want to get better at the craft while I write","I need to finish what I've started","All of the above honestly"],multi:true,addl:"Anything else Finn should know about where you want to go?"},
-  {id:"q4",q:"How do you usually write when things are flowing?",opts:["Long uninterrupted sessions when I can get them","Short bursts whenever I can grab them","I write out of order, whatever scene calls to me","I write linearly, start to finish","It depends completely on the day","I honestly have no idea yet"],multi:true,addl:"Anything else about how you write?"},
-  {id:"q5",q:"How do you want Finn to show up?",opts:["Direct and straight to the point","Warm and encouraging with the hard truth underneath","Ask me questions more than give me answers","Push me when I need it, back off when I don't","I'm not sure yet, figure it out as we go"],multi:false,addl:"Anything else about how you like to be coached?"}
+  {id:"q4",q:"How do you want Finn to show up?",opts:["Direct and straight to the point","Warm and encouraging with the hard truth underneath","Ask me questions more than give me answers","Push me when I need it, back off when I don't","I'm not sure yet, figure it out as we go"],multi:false,addl:"Anything else about how you like to be coached?"}
 ];
 
 export default function App() {
@@ -294,7 +293,7 @@ export default function App() {
   const [welcomeStep, setWelcomeStep] = useState("intro");
   const [welcomeRoute, setWelcomeRoute] = useState(null);
   const [profileStep, setProfileStep] = useState(1);
-  const [profileAnswers, setProfileAnswers] = useState({q1:{selected:[],text:""},q2:{selected:[],text:""},q3:{selected:[],text:""},q4:{selected:[],text:""},q5:{selected:[],text:""}});
+  const [profileAnswers, setProfileAnswers] = useState({q1:{selected:[],text:""},q2:{selected:[],text:""},q3:{selected:[],text:""},q4:{selected:[],text:""}});
   const [userProfile, setUserProfile] = useState(null);
   const [onboardingDone, setOnboardingDone] = useState(false);
   const [ti] = useState(Math.floor(Math.random()*TORCHES.length));
@@ -1206,6 +1205,9 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
                   <textarea value={ans.text} onChange={e=>setProfileAnswers(prev=>({...prev,[q.id]:{...prev[q.id],text:e.target.value}}))} placeholder="Optional..." rows={2} style={{width:"100%",background:"transparent",border:"none",borderBottom:"1px solid #C8BC9A",padding:"6px 0",fontFamily:"'Cormorant Garamond',serif",fontSize:14,color:"#1E1C14",outline:"none",resize:"none",lineHeight:1.6}}/>
                 </div>
                 <div style={{display:"flex",gap:8}}>
+                  {profileStep>1&&<div onClick={()=>setProfileStep(s=>s-1)} style={{background:"none",border:"1px solid #C8BC9A",borderRadius:7,padding:"10px 14px",cursor:"pointer"}}>
+                    <span style={{fontSize:12,color:"#908878",fontFamily:"'DM Sans',sans-serif"}}>← Back</span>
+                  </div>}
                   <div onClick={()=>{
                     if(isLast){saveProfile(profileAnswers);routeToDestination();}
                     else setProfileStep(s=>s+1);
