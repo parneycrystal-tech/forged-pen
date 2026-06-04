@@ -268,6 +268,14 @@ function Btn({children,onClick,s}){return <button onClick={onClick} style={{back
 function BibTab({id,label,active,onClick}){return <button onClick={()=>onClick(id)} style={{background:active?"var(--bg-card-alt)":"none",border:active?"1px solid var(--border-mid)":"1px solid transparent",borderRadius:8,color:active?"var(--accent)":"var(--text-dim)",fontSize:12,padding:"6px 14px",cursor:"pointer",fontFamily:"'DM Sans',sans-serif"}}>{label}</button>}
 
 
+const PROFILE_QUESTIONS=[
+  {id:"q1",q:"How long have you been writing?",opts:["Just starting out","A few years in","I've been writing for years","I've been published"],multi:false,addl:"Anything Finn should know about your writing background?"},
+  {id:"q2",q:"Everyone thinks and works differently. Knowing a little about your working style helps Finn coach you in a way that actually fits your brain. This is completely optional.",opts:["I work best in short focused bursts","I tend to jump around rather than write linearly","I get easily overwhelmed by too many options","I have a hard time starting even when I know what to write","I lose momentum quickly after a good session","None of these feel relevant"],multi:true,addl:"Anything else about how you work best?",disclaimer:"Forged Pen is a writing tool, not a mental health service. If you're experiencing a crisis please reach out to a qualified professional."},
+  {id:"q3",q:"What matters most to you right now?",opts:["I have a spark and I want to see where it goes","I'm developing an idea that isn't fully formed yet","I'm deep in a manuscript and need to keep going","I want to get better at the craft while I write","I need to finish what I've started","All of the above honestly"],multi:true,addl:"Anything else Finn should know about where you want to go?"},
+  {id:"q4",q:"How do you usually write when things are flowing?",opts:["Long uninterrupted sessions when I can get them","Short bursts whenever I can grab them","I write out of order, whatever scene calls to me","I write linearly, start to finish","It depends completely on the day","I honestly have no idea yet"],multi:true,addl:"Anything else about how you write?"},
+  {id:"q5",q:"How do you want Finn to show up?",opts:["Direct and straight to the point","Warm and encouraging with the hard truth underneath","Ask me questions more than give me answers","Push me when I need it, back off when I don't","I'm not sure yet, figure it out as we go"],multi:false,addl:"Anything else about how you like to be coached?"}
+];
+
 export default function App() {
   const [user, setUser] = useState(null);
   const [authLoading, setAuthLoading] = useState(true);
@@ -285,6 +293,9 @@ export default function App() {
   const [welcomeInput, setWelcomeInput] = useState("");
   const [welcomeStep, setWelcomeStep] = useState("intro");
   const [welcomeRoute, setWelcomeRoute] = useState(null);
+  const [profileStep, setProfileStep] = useState(1);
+  const [profileAnswers, setProfileAnswers] = useState({q1:{selected:[],text:""},q2:{selected:[],text:""},q3:{selected:[],text:""},q4:{selected:[],text:""},q5:{selected:[],text:""}});
+  const [userProfile, setUserProfile] = useState(null);
   const [ti] = useState(Math.floor(Math.random()*TORCHES.length));
   const [flipped, setFlipped] = useState(false);
   const [loadMsg] = useState(LOAD[Math.floor(Math.random()*LOAD.length)]);
@@ -398,7 +409,9 @@ export default function App() {
     if (ilb) setIdeaLabBuckets(ilb);
     if (inft) setInfernoText(inft);
     const un = loadStored("tt-username");
+    const up = loadStored("tt-userprofile");
     if (un) setUserName(un);
+    if (up) setUserProfile(up);
   };
 
   const migrateLocalToCloud=async()=>{
@@ -734,6 +747,29 @@ Respond with ONLY this JSON (no markdown, no backticks):
     saveStored("tt-project",updated);
   };
 
+  const routeToDestination=()=>{
+    if(welcomeRoute==="idealab"){setForgeMode("idealab");initScenes();}
+    else if(welcomeRoute==="storybible"){saveSession(null);setScreen("setup");}
+    else if(welcomeRoute==="manuscript"||welcomeRoute==="forge"){initScenes();}
+    else{saveSession(null);setScreen("home");}
+  };
+
+  const saveProfile=(answers)=>{
+    const profile={...answers,completedAt:new Date().toISOString(),routePath:welcomeRoute};
+    setUserProfile(profile);
+    saveStored("tt-userprofile",profile);
+    cloudSave("tt-userprofile",profile);
+  };
+
+  const toggleProfileOption=(qid,opt)=>{
+    const q=PROFILE_QUESTIONS.find(q=>q.id===qid);
+    setProfileAnswers(prev=>{
+      const curr=prev[qid].selected;
+      const updated=q.multi?(curr.includes(opt)?curr.filter(o=>o!==opt):[...curr,opt]):[opt];
+      return {...prev,[qid]:{...prev[qid],selected:updated}};
+    });
+  };
+
   const handleEndSession=async()=>{
     if(msgs.length<2||endSessionLoading)return;
     setEndSessionLoading(true);
@@ -872,6 +908,7 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
     const pCtx = project ? `\n\nPROJECT: "${project.title}". Genre: ${project.genre}. Synopsis: ${project.synopsis}. Protagonist: ${project.protagonist}. Supporting Characters: ${project.supporting}. Antagonist: ${project.antagonist}. Core Setting: ${project.worldSetting}. World Rules: ${project.worldRules}. What People Believe vs Reality: ${project.worldBeliefs}. What Makes This World Dangerous: ${project.worldDanger}. World Tone: ${project.worldTone}. Chapters so far: ${chapStr}. Current point: ${project.where}. Focused on: ${project.stuck}. What excites them: ${project.excites}.${project.currentChapter?` CURRENT CHAPTER TEXT: ${project.currentChapter}`:""}` : "";
     const sparkCtx = sparks.length > 0 ? `\n\nDOPAMINE MAP (moments the writer flagged as exciting): ${sparks.map(s=>s.text).join(" | ")}` : "";
     const userCtx = userName ? `\n\nThe writer's name is ${userName}. Use their name naturally throughout your response, the way a good coach would. Not in every sentence, but enough to feel personal.` : "";
+    const profileCtx = userProfile ? `\n\nWriter's profile — use this to calibrate your coaching approach:\n- Experience: ${userProfile.q1?.selected?.join(", ")||"not specified"}\n- Working style: ${userProfile.q2?.selected?.join(", ")||"not specified"}\n- Current goal: ${userProfile.q3?.selected?.join(", ")||"not specified"}\n- Writing pattern: ${userProfile.q4?.selected?.join(", ")||"not specified"}\n- Coaching preference: ${userProfile.q5?.selected?.join(", ")||"not specified"}${userProfile.q2?.text?`\nStyle notes: ${userProfile.q2.text}`:""}${userProfile.q5?.text?`\nCoaching notes: ${userProfile.q5.text}`:""}` : "";
     let containCtx = "";
     if(mode.id==="contain"){
       const modeIds=["diagnose","craft","scene","character","plot","voice","micro","perfectionism","smoke","instinct","simmer","forge","inferno","rekindle"];
@@ -892,7 +929,7 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
         method:"POST",
         headers:{"Content-Type":"application/json"},
         body:JSON.stringify({
-          system: mode.sys + pCtx + sparkCtx + containCtx + userCtx,
+          system: mode.sys + pCtx + sparkCtx + containCtx + userCtx + profileCtx,
           messages: nm.map(m=>({role:m.role,content:m.content}))
         }),
         signal:ctrl.signal
@@ -1105,30 +1142,83 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
                   <p style={{fontFamily:"'Cormorant Garamond',serif",fontSize:16,fontWeight:300,color:"#3A3428",lineHeight:1.85,marginBottom:14}}>Good. Ideas are where everything starts. We don't need a full story yet, just the spark you already have.</p>
                   <p style={{fontFamily:"'Cormorant Garamond',serif",fontSize:16,fontWeight:300,color:"#3A3428",lineHeight:1.85,marginBottom:14}}>I'm going to take you to The Forge. There's a space in there called the Idea Lab, and that's where we'll begin. No structure required. Just pour everything out, whatever you know, whatever you're feeling, whatever questions you're sitting with.</p>
                   <p style={{fontFamily:"'Cormorant Garamond',serif",fontSize:16,fontWeight:300,color:"#3A3428",lineHeight:1.85}}>We'll build from there, {userName}.</p>
-                  <div onClick={()=>{setForgeMode("idealab");initScenes();}} style={{background:"#5A6B3A",borderRadius:7,padding:"11px",textAlign:"center",cursor:"pointer",marginTop:20}}><span style={{fontSize:13,fontWeight:500,color:"#F0EAE0",fontFamily:"'DM Sans',sans-serif"}}>Take me to The Forge</span></div>
                 </>}
                 {welcomeRoute==="storybible"&&<>
                   <p style={{fontFamily:"'Cormorant Garamond',serif",fontSize:16,fontWeight:300,color:"#3A3428",lineHeight:1.85,marginBottom:14}}>You know your story. You just haven't put it on the page yet.</p>
                   <p style={{fontFamily:"'Cormorant Garamond',serif",fontSize:16,fontWeight:300,color:"#3A3428",lineHeight:1.85,marginBottom:14}}>Bring it into Forged Pen. Your Story Bible is where your characters, your world, and your plot live. You can upload documents, input things directly, or both. Once I can see your story, I can coach you.</p>
                   <p style={{fontFamily:"'Cormorant Garamond',serif",fontSize:16,fontWeight:300,color:"#3A3428",lineHeight:1.85}}>The Forge is waiting when you're ready, {userName}.</p>
-                  <div onClick={()=>{saveSession(null);setScreen("setup");}} style={{background:"#5A6B3A",borderRadius:7,padding:"11px",textAlign:"center",cursor:"pointer",marginTop:20}}><span style={{fontSize:13,fontWeight:500,color:"#F0EAE0",fontFamily:"'DM Sans',sans-serif"}}>Set up my Story Bible</span></div>
                 </>}
                 {welcomeRoute==="manuscript"&&<>
                   <p style={{fontFamily:"'Cormorant Garamond',serif",fontSize:16,fontWeight:300,color:"#3A3428",lineHeight:1.85,marginBottom:14}}>You can't let your story go, and it refuses to let you go. The only choice is forward, for both of you. I'm here to help you do that.</p>
-                  <p style={{fontFamily:"'Cormorant Garamond',serif",fontSize:16,fontWeight:300,color:"#3A3428",lineHeight:1.85,marginBottom:20}}>Bring your work into Forged Pen. You don't have to untangle everything today. We go one thread at a time. What do you need first, {userName}?</p>
-                  <div style={{display:"flex",flexDirection:"column",gap:8}}>
-                    <div onClick={()=>{saveSession(null);setScreen("setup");}} style={{background:"#5A6B3A",borderRadius:7,padding:"10px",textAlign:"center",cursor:"pointer"}}><span style={{fontSize:13,fontWeight:500,color:"#F0EAE0",fontFamily:"'DM Sans',sans-serif"}}>Set up my Story Bible</span></div>
-                    <div onClick={()=>{initScenes();}} style={{background:"none",border:"1px solid #C8BC9A",borderRadius:7,padding:"10px",textAlign:"center",cursor:"pointer"}}><span style={{fontSize:13,color:"#5A5040",fontFamily:"'DM Sans',sans-serif"}}>Take me to The Forge</span></div>
-                  </div>
+                  <p style={{fontFamily:"'Cormorant Garamond',serif",fontSize:16,fontWeight:300,color:"#3A3428",lineHeight:1.85}}>Bring your work into Forged Pen. You don't have to untangle everything today. We go one thread at a time. What do you need first, {userName}?</p>
                 </>}
                 {welcomeRoute==="forge"&&<>
                   <p style={{fontFamily:"'Cormorant Garamond',serif",fontSize:16,fontWeight:300,color:"#3A3428",lineHeight:1.85,marginBottom:14}}>You know your story. You know what needs to be written. The only thing standing between you and the page is getting there.</p>
                   <p style={{fontFamily:"'Cormorant Garamond',serif",fontSize:16,fontWeight:300,color:"#3A3428",lineHeight:1.85}}>The Forge is yours, {userName}. No detours, no setup, just you and your story. I'll be here when you need me and out of your way when you don't.</p>
-                  <div onClick={()=>{initScenes();}} style={{background:"#5A6B3A",borderRadius:7,padding:"11px",textAlign:"center",cursor:"pointer",marginTop:20}}><span style={{fontSize:13,fontWeight:500,color:"#F0EAE0",fontFamily:"'DM Sans',sans-serif"}}>Take me to The Forge</span></div>
                 </>}
+                <div onClick={()=>setWelcomeStep("profile-prompt")} style={{background:"#5A6B3A",borderRadius:7,padding:"11px",textAlign:"center",cursor:"pointer",marginTop:20}}><span style={{fontSize:13,fontWeight:500,color:"#F0EAE0",fontFamily:"'DM Sans',sans-serif"}}>Continue</span></div>
                 <div style={{textAlign:"center",marginTop:12}}><span onClick={()=>setWelcomeStep("routing")} style={{fontSize:11,color:"#908878",cursor:"pointer",fontFamily:"'DM Sans',sans-serif"}}>That's not quite right</span></div>
               </div>
             </>}
+
+            {welcomeStep==="profile-prompt"&&<>
+              <div style={{borderTop:"1px solid #D8CEB0",paddingTop:24,marginBottom:24}}>
+                <p style={{fontFamily:"'Cormorant Garamond',serif",fontSize:17,color:"#1E1C14",lineHeight:1.75,marginBottom:10}}>One last thing before we dive in, {userName}.</p>
+                <p style={{fontFamily:"'Cormorant Garamond',serif",fontSize:15,fontWeight:300,color:"#3A3428",lineHeight:1.85,marginBottom:6}}>The more I know about how you think and work, the better I can coach you. Everything you share stays inside Forged Pen. It's never sold, never shared, never used to train AI. It's yours. It just helps me be more useful to you.</p>
+                <p style={{fontFamily:"'Cormorant Garamond',serif",fontSize:15,fontWeight:300,color:"#3A3428",lineHeight:1.85,marginBottom:20}}>Would you like to set up your profile now or as we go?</p>
+                <div style={{display:"flex",flexDirection:"column",gap:8}}>
+                  <div onClick={()=>{setWelcomeStep("profile");setProfileStep(1);}} style={{background:"#5A6B3A",borderRadius:7,padding:"11px",textAlign:"center",cursor:"pointer"}}><span style={{fontSize:13,fontWeight:500,color:"#F0EAE0",fontFamily:"'DM Sans',sans-serif"}}>Let's do it now</span></div>
+                  <div onClick={()=>{routeToDestination();}} style={{background:"none",border:"1px solid #C8BC9A",borderRadius:7,padding:"11px",textAlign:"center",cursor:"pointer"}}><span style={{fontSize:13,color:"#5A5040",fontFamily:"'DM Sans',sans-serif"}}>As we go</span></div>
+                </div>
+              </div>
+            </>}
+
+            {welcomeStep==="profile"&&(()=>{
+              const q=PROFILE_QUESTIONS[profileStep-1];
+              const ans=profileAnswers[q.id];
+              const hasAnswer=ans.selected.length>0;
+              const isLast=profileStep===PROFILE_QUESTIONS.length;
+              return <div style={{borderTop:"1px solid #D8CEB0",paddingTop:24}}>
+                <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}>
+                  <div style={{fontSize:10,color:"#908878",fontFamily:"'DM Sans',sans-serif",letterSpacing:"0.1em",textTransform:"uppercase"}}>Question {profileStep} of {PROFILE_QUESTIONS.length}</div>
+                  <div style={{display:"flex",gap:4}}>{PROFILE_QUESTIONS.map((_,i)=><div key={i} style={{width:20,height:3,borderRadius:2,background:i<profileStep?"#5A6B3A":"#D8CEB0"}}/>)}</div>
+                </div>
+                <p style={{fontFamily:"'Cormorant Garamond',serif",fontSize:16,color:"#1E1C14",lineHeight:1.75,marginBottom:16}}>{q.q}</p>
+                {q.disclaimer&&<p style={{fontSize:11,color:"#908878",fontFamily:"'DM Sans',sans-serif",lineHeight:1.6,marginBottom:14,fontStyle:"italic"}}>{q.disclaimer}</p>}
+                <div style={{display:"flex",flexDirection:"column",gap:8,marginBottom:16}}>
+                  {q.opts.map(opt=>{
+                    const sel=ans.selected.includes(opt);
+                    return <div key={opt} onClick={()=>toggleProfileOption(q.id,opt)} style={{display:"flex",alignItems:"center",gap:10,padding:"10px 14px",borderRadius:8,border:"1px solid "+(sel?"#5A6B3A":"#C8BC9A"),background:sel?"#EEF2E8":"#F0EAE0",cursor:"pointer",transition:"all .15s"}}>
+                      <div style={{width:16,height:16,borderRadius:q.multi?3:"50%",border:"1px solid "+(sel?"#5A6B3A":"#C8BC9A"),background:sel?"#5A6B3A":"transparent",flexShrink:0,display:"flex",alignItems:"center",justifyContent:"center"}}>
+                        {sel&&<div style={{width:8,height:8,borderRadius:q.multi?1:"50%",background:"#F0EAE0"}}/>}
+                      </div>
+                      <span style={{fontFamily:"'Cormorant Garamond',serif",fontSize:14,color:"#1E1C14",lineHeight:1.5}}>{opt}</span>
+                    </div>;
+                  })}
+                </div>
+                <div style={{marginBottom:16}}>
+                  <p style={{fontSize:11,color:"#908878",fontFamily:"'DM Sans',sans-serif",marginBottom:6,fontStyle:"italic"}}>{q.addl}</p>
+                  <textarea value={ans.text} onChange={e=>setProfileAnswers(prev=>({...prev,[q.id]:{...prev[q.id],text:e.target.value}}))} placeholder="Optional..." rows={2} style={{width:"100%",background:"transparent",border:"none",borderBottom:"1px solid #C8BC9A",padding:"6px 0",fontFamily:"'Cormorant Garamond',serif",fontSize:14,color:"#1E1C14",outline:"none",resize:"none",lineHeight:1.6}}/>
+                </div>
+                <div style={{display:"flex",gap:8}}>
+                  <div onClick={()=>{
+                    if(isLast){saveProfile(profileAnswers);routeToDestination();}
+                    else setProfileStep(s=>s+1);
+                  }} style={{flex:1,background:hasAnswer?"#5A6B3A":"#D8CEB0",borderRadius:7,padding:"10px",textAlign:"center",cursor:hasAnswer?"pointer":"default"}}>
+                    <span style={{fontSize:13,fontWeight:500,color:hasAnswer?"#F0EAE0":"#908878",fontFamily:"'DM Sans',sans-serif"}}>{isLast?"Let's go":"Next"}</span>
+                  </div>
+                  <div onClick={()=>{
+                    if(isLast){saveProfile(profileAnswers);routeToDestination();}
+                    else setProfileStep(s=>s+1);
+                  }} style={{background:"none",border:"1px solid #C8BC9A",borderRadius:7,padding:"10px 14px",cursor:"pointer"}}>
+                    <span style={{fontSize:12,color:"#908878",fontFamily:"'DM Sans',sans-serif"}}>Skip</span>
+                  </div>
+                </div>
+                <div style={{textAlign:"center",marginTop:10}}>
+                  <span onClick={()=>routeToDestination()} style={{fontSize:11,color:"#908878",cursor:"pointer",fontFamily:"'DM Sans',sans-serif"}}>I'll come back to this</span>
+                </div>
+              </div>;
+            })()}
 
             <div style={{textAlign:"center",marginTop:16,paddingTop:16,borderTop:"1px solid #D8CEB0"}}>
               <p style={{fontSize:12,color:"#9A8870",lineHeight:1.6,fontFamily:"'DM Sans',sans-serif"}}>Your content never trains AI.<br/>Your story is yours, always.</p>
