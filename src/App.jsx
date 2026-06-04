@@ -1097,15 +1097,15 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
           {/* NEW USER FLOW */}
           {!userName&&<div style={{background:"#EDE6DA",borderRadius:10,padding:"40px 36px",border:"1px solid #C8BC9A"}}>
             <div style={{textAlign:"center",marginBottom:28}}>
-              <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:13,letterSpacing:"0.18em",textTransform:"uppercase",color:"#A8884A",marginBottom:4}}>Forged Pen</div>
-              <div style={{fontSize:9,color:"#B0A080",letterSpacing:"0.14em",textTransform:"uppercase",fontFamily:"'DM Sans',sans-serif"}}>Where Stories Are Shaped</div>
+              <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:16,letterSpacing:"0.18em",textTransform:"uppercase",color:"#A8884A",marginBottom:6}}>Forged Pen</div>
+              <div style={{fontSize:11,color:"#8A7860",letterSpacing:"0.14em",textTransform:"uppercase",fontFamily:"'DM Sans',sans-serif"}}>Where Stories Are Shaped</div>
             </div>
 
             {welcomeStep==="intro"&&<>
               <div style={{borderTop:"1px solid #D8CEB0",paddingTop:28,marginBottom:24}}>
                 <p style={{fontFamily:"'Cormorant Garamond',serif",fontSize:20,fontWeight:400,color:"#1E1C14",lineHeight:1.75,marginBottom:16}}>Hey. I'm Finnigan. Finn for short.</p>
-                <p style={{fontFamily:"'Cormorant Garamond',serif",fontSize:17,fontWeight:300,color:"#3A3428",lineHeight:1.85,marginBottom:14}}>I'm not here to write your story. That part belongs to you and nobody else. I'm here for the moments when it gets tangled, when the words won't come, when you can't see the shape of what you're building.</p>
-                <p style={{fontFamily:"'Cormorant Garamond',serif",fontSize:17,fontWeight:300,color:"#3A3428",lineHeight:1.85}}>I ask questions, find what's working, and help you hear the story that's already in you.</p>
+                <p style={{fontFamily:"'Cormorant Garamond',serif",fontSize:17,fontWeight:300,color:"#3A3428",lineHeight:1.85,marginBottom:14}}>I'm not here to write your story. That part belongs to you. I'm here for the moments when your plot gets tangled, your words stall, and you can't see the shape of what you're building.</p>
+                <p style={{fontFamily:"'Cormorant Garamond',serif",fontSize:17,fontWeight:300,color:"#3A3428",lineHeight:1.85}}>I'm here to coach you through it all or stand away when you don't need me.</p>
               </div>
               <div style={{borderTop:"1px solid #D8CEB0",paddingTop:24}}>
                 <p style={{fontFamily:"'Cormorant Garamond',serif",fontSize:16,fontStyle:"italic",color:"#5A5040",marginBottom:14}}>What should I call you?</p>
