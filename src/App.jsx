@@ -296,6 +296,7 @@ export default function App() {
   const [profileStep, setProfileStep] = useState(1);
   const [profileAnswers, setProfileAnswers] = useState({q1:{selected:[],text:""},q2:{selected:[],text:""},q3:{selected:[],text:""},q4:{selected:[],text:""},q5:{selected:[],text:""}});
   const [userProfile, setUserProfile] = useState(null);
+  const [onboardingDone, setOnboardingDone] = useState(false);
   const [ti] = useState(Math.floor(Math.random()*TORCHES.length));
   const [flipped, setFlipped] = useState(false);
   const [loadMsg] = useState(LOAD[Math.floor(Math.random()*LOAD.length)]);
@@ -410,8 +411,10 @@ export default function App() {
     if (inft) setInfernoText(inft);
     const un = loadStored("tt-username");
     const up = loadStored("tt-userprofile");
+    const od = loadStored("tt-onboarding-done");
     if (un) setUserName(un);
     if (up) setUserProfile(up);
+    if (od) setOnboardingDone(true);
   };
 
   const migrateLocalToCloud=async()=>{
@@ -748,6 +751,8 @@ Respond with ONLY this JSON (no markdown, no backticks):
   };
 
   const routeToDestination=()=>{
+    setOnboardingDone(true);
+    saveStored("tt-onboarding-done", true);
     if(welcomeRoute==="idealab"){setForgeMode("idealab");initScenes();}
     else if(welcomeRoute==="storybible"){saveSession(null);setScreen("setup");}
     else if(welcomeRoute==="manuscript"||welcomeRoute==="forge"){initScenes();}
@@ -1095,7 +1100,7 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
         <div style={{maxWidth:420,width:"100%",animation:"fi .6s ease-out"}}>
 
           {/* NEW USER FLOW */}
-          {!userName&&<div style={{background:"#EDE6DA",borderRadius:10,padding:"40px 36px",border:"1px solid #C8BC9A"}}>
+          {!onboardingDone&&<div style={{background:"#EDE6DA",borderRadius:10,padding:"40px 36px",border:"1px solid #C8BC9A"}}>
             <div style={{textAlign:"center",marginBottom:28}}>
               <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:16,letterSpacing:"0.18em",textTransform:"uppercase",color:"#A8884A",marginBottom:6}}>Forged Pen</div>
               <div style={{fontSize:11,color:"#8A7860",letterSpacing:"0.14em",textTransform:"uppercase",fontFamily:"'DM Sans',sans-serif"}}>Where Stories Are Shaped</div>
@@ -1226,7 +1231,7 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
           </div>}
 
           {/* RETURNING USER */}
-          {userName&&<div onClick={()=>{saveSession(null);setScreen("home")}} style={{textAlign:"center",cursor:"pointer",animation:"fi .6s ease-out"}}>
+          {onboardingDone&&<div onClick={()=>{saveSession(null);setScreen("home")}} style={{textAlign:"center",cursor:"pointer",animation:"fi .6s ease-out"}}>
             <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:28,fontWeight:600,color:"var(--accent)",marginBottom:6}}>Forged Pen</div>
             {project?<>
               {(()=>{
