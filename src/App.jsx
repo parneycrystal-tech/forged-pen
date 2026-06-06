@@ -296,6 +296,10 @@ export default function App() {
   const [profileAnswers, setProfileAnswers] = useState({q1:{selected:[],text:""},q2:{selected:[],text:""},q3:{selected:[],text:""},q4:{selected:[],text:""}});
   const [userProfile, setUserProfile] = useState(null);
   const [onboardingDone, setOnboardingDone] = useState(false);
+  const [profileOpen, setProfileOpen] = useState(false);
+  const [profileEditMode, setProfileEditMode] = useState(false);
+  const [profileEditAnswers, setProfileEditAnswers] = useState(null);
+  const [profileEditName, setProfileEditName] = useState("");
   const [ti] = useState(Math.floor(Math.random()*TORCHES.length));
   const [flipped, setFlipped] = useState(false);
   const [loadMsg] = useState(LOAD[Math.floor(Math.random()*LOAD.length)]);
@@ -1268,6 +1272,10 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
             <div style={{fontSize:9,color:"var(--text-dim)",letterSpacing:"0.08em",marginTop:3}}>YOUR WRITING COACH, NOT YOUR GHOSTWRITER</div>
           </div>
           <div style={{display:"flex",gap:10,alignItems:"center"}}>
+            {onboardingDone&&<div onClick={()=>{setProfileOpen(true);setProfileEditMode(false);}} style={{display:"flex",flexDirection:"column",alignItems:"center",cursor:"pointer",opacity:.5,transition:"opacity .2s"}} onMouseOver={e=>e.currentTarget.style.opacity=1} onMouseOut={e=>e.currentTarget.style.opacity=.5} title="Your Profile">
+              <svg width="18" height="18" viewBox="0 0 22 22" fill="none"><rect x="4" y="2" width="11" height="18" rx="1.5" fill="var(--accent)" opacity="0.2" stroke="var(--accent)" strokeWidth="1"/><rect x="7" y="2" width="11" height="18" rx="1.5" fill="var(--accent)" opacity="0.3" stroke="var(--accent)" strokeWidth="1"/><line x1="10" y1="7" x2="15" y2="7" stroke="var(--accent)" strokeWidth="0.8" opacity="0.6"/><line x1="10" y1="10" x2="15" y2="10" stroke="var(--accent)" strokeWidth="0.8" opacity="0.6"/><line x1="10" y1="13" x2="13" y2="13" stroke="var(--accent)" strokeWidth="0.8" opacity="0.6"/></svg>
+              <span style={{fontSize:8,color:"var(--text-dim)",letterSpacing:"0.08em",marginTop:2}}>Profile</span>
+            </div>}
             <span onClick={()=>{const next=theme==="dark"?"light":"dark";setTheme(next);saveStored("tt-theme",next)}} style={{fontSize:16,cursor:"pointer",opacity:.4,padding:"2px 6px"}} title="Toggle theme">{theme==="dark"?"☀":"☾"}</span>
             <span onClick={handleLogout} style={{fontSize:10,color:"var(--text-faint)",cursor:"pointer",padding:"2px 6px"}} title="Sign out">Sign out</span>
             {screen==="chat"&&mode&&<span onClick={goHome} style={{fontSize:12,color:"var(--text-dim)",cursor:"pointer",padding:"4px 0"}}>Back</span>}
@@ -2147,6 +2155,58 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
                 <span style={{fontSize:12,color:"var(--text-muted)"}}>Just go home</span>
               </div>
             </div>
+          </div>
+        </div>
+      </div>}
+
+      {/* PROFILE MODAL */}
+      {profileOpen&&<div onClick={e=>{if(e.target===e.currentTarget){setProfileOpen(false);setProfileEditMode(false);}}} style={{position:"fixed",top:0,left:0,right:0,bottom:0,background:"rgba(10,8,6,0.75)",zIndex:300,display:"flex",alignItems:"center",justifyContent:"center",padding:20}}>
+        <div style={{background:"var(--bg-base)",borderRadius:12,width:"100%",maxWidth:520,maxHeight:"85vh",overflowY:"auto",border:"1px solid var(--border)",animation:"fu .3s ease-out"}}>
+          <div style={{padding:"18px 24px 14px",borderBottom:"1px solid var(--border)",display:"flex",justifyContent:"space-between",alignItems:"center",background:"var(--bg-card)",borderRadius:"12px 12px 0 0",position:"sticky",top:0,zIndex:10}}>
+            <div style={{display:"flex",alignItems:"center",gap:10}}>
+              <svg width="16" height="16" viewBox="0 0 22 22" fill="none"><rect x="4" y="2" width="11" height="18" rx="1.5" fill="var(--accent)" opacity="0.2" stroke="var(--accent)" strokeWidth="1"/><rect x="7" y="2" width="11" height="18" rx="1.5" fill="var(--accent)" opacity="0.3" stroke="var(--accent)" strokeWidth="1"/></svg>
+              <span style={{fontFamily:"'Cormorant Garamond',serif",fontSize:20,fontWeight:500,color:"var(--text-primary)"}}>{profileEditMode?"Edit Profile":"Your Profile"}</span>
+            </div>
+            <div onClick={()=>{setProfileOpen(false);setProfileEditMode(false);}} style={{width:28,height:28,borderRadius:"50%",background:"var(--bg-card-alt)",border:"1px solid var(--border)",display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer",fontSize:13,color:"var(--text-dim)"}}>✕</div>
+          </div>
+          <div style={{padding:"14px 24px",background:"var(--bg-card-alt)",borderBottom:"1px solid var(--border)"}}>
+            <p style={{fontFamily:"'Cormorant Garamond',serif",fontSize:14,fontStyle:"italic",color:"var(--text-muted)",lineHeight:1.65}}>"{profileEditMode?"Update anything that's changed. I'll adjust how I work with you.":"The more I know about how you think and work, the better I can coach you. Everything here stays inside Forged Pen. Always."}"</p>
+            <p style={{fontSize:11,color:"var(--text-dim)",marginTop:5,fontFamily:"'DM Sans',sans-serif"}}>— Finn</p>
+          </div>
+          <div style={{padding:"20px 24px"}}>
+            <div style={{marginBottom:20,paddingBottom:20,borderBottom:"1px solid var(--border)"}}>
+              <div style={{fontSize:10,textTransform:"uppercase",letterSpacing:"0.12em",color:"var(--text-dim)",fontFamily:"'DM Sans',sans-serif",marginBottom:6}}>What Finn calls you</div>
+              {profileEditMode
+                ?<input value={profileEditName} onChange={e=>setProfileEditName(e.target.value)} style={{width:"100%",background:"var(--bg-card-alt)",border:"1px solid var(--border)",borderRadius:7,padding:"8px 12px",fontFamily:"'Cormorant Garamond',serif",fontSize:16,color:"var(--text-primary)",outline:"none"}}/>
+                :<div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:17,color:"var(--text-primary)"}}>{userName||"Not set"}</div>}
+            </div>
+            {PROFILE_QUESTIONS.map((q,qi)=>{
+              const ans=profileEditMode?profileEditAnswers?.[q.id]:userProfile?.[q.id];
+              const selected=ans?.selected||[];
+              return <div key={q.id} style={{marginBottom:18,paddingBottom:18,borderBottom:qi<PROFILE_QUESTIONS.length-1?"1px solid var(--border)":"none"}}>
+                <div style={{fontSize:10,textTransform:"uppercase",letterSpacing:"0.12em",color:"var(--text-dim)",fontFamily:"'DM Sans',sans-serif",marginBottom:5}}>Question {qi+1}</div>
+                <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:15,color:"var(--text-secondary)",lineHeight:1.6,marginBottom:10}}>{q.q}</div>
+                {profileEditMode?<div style={{display:"flex",flexDirection:"column",gap:5}}>
+                  {q.opts.map(opt=>{
+                    const isSel=selected.includes(opt);
+                    return <div key={opt} onClick={()=>{setProfileEditAnswers(prev=>{const curr=prev[q.id].selected;const updated=q.multi?(curr.includes(opt)?curr.filter(o=>o!==opt):[...curr,opt]):[opt];return {...prev,[q.id]:{...prev[q.id],selected:updated}};});}} style={{display:"flex",alignItems:"center",gap:10,padding:"8px 12px",borderRadius:7,border:"1px solid "+(isSel?"var(--accent)":"var(--border)"),background:isSel?"var(--accent-0a)":"var(--bg-card-alt)",cursor:"pointer",transition:"all .15s"}}>
+                      <div style={{width:14,height:14,borderRadius:q.multi?3:"50%",border:"1px solid "+(isSel?"var(--accent)":"var(--border)"),background:isSel?"var(--accent)":"transparent",flexShrink:0,display:"flex",alignItems:"center",justifyContent:"center"}}>
+                        {isSel&&<div style={{width:6,height:6,borderRadius:q.multi?1:"50%",background:"var(--bg-deepest)"}}/>}
+                      </div>
+                      <span style={{fontFamily:"'Cormorant Garamond',serif",fontSize:14,color:"var(--text-primary)"}}>{opt}</span>
+                    </div>;
+                  })}
+                </div>:<div style={{display:"flex",flexWrap:"wrap",gap:6}}>
+                  {selected.length>0?selected.map(s=><div key={s} style={{background:"var(--accent-0a)",border:"1px solid var(--accent-40)",borderRadius:20,padding:"3px 12px",fontSize:12,color:"var(--accent)",fontFamily:"'DM Sans',sans-serif"}}>{s}</div>):<span style={{fontFamily:"'Cormorant Garamond',serif",fontSize:13,fontStyle:"italic",color:"var(--text-dim)"}}>Not answered</span>}
+                </div>}
+              </div>;
+            })}
+          </div>
+          <div style={{padding:"14px 24px",borderTop:"1px solid var(--border)",display:"flex",gap:8,position:"sticky",bottom:0,background:"var(--bg-base)",borderRadius:"0 0 12px 12px"}}>
+            {profileEditMode?<>
+              <div onClick={()=>setProfileEditMode(false)} style={{background:"none",border:"1px solid var(--border)",borderRadius:7,padding:"10px 16px",cursor:"pointer"}}><span style={{fontSize:13,color:"var(--text-dim)",fontFamily:"'DM Sans',sans-serif"}}>Cancel</span></div>
+              <div onClick={()=>{const newName=profileEditName.trim()||userName;setUserName(newName);saveStored("tt-username",newName);cloudSave("tt-username",newName);const updated={...userProfile,...profileEditAnswers,updatedAt:new Date().toISOString()};setUserProfile(updated);saveStored("tt-userprofile",updated);cloudSave("tt-userprofile",updated);setProfileEditMode(false);}} style={{flex:1,background:"var(--accent)",border:"none",borderRadius:7,padding:"10px",textAlign:"center",cursor:"pointer"}}><span style={{fontSize:13,fontWeight:500,color:"var(--bg-deepest)",fontFamily:"'DM Sans',sans-serif"}}>Save changes</span></div>
+            </>:<div onClick={()=>{setProfileEditAnswers(userProfile?{q1:{...userProfile.q1},q2:{...userProfile.q2},q3:{...userProfile.q3},q4:{...userProfile.q4}}:{q1:{selected:[],text:""},q2:{selected:[],text:""},q3:{selected:[],text:""},q4:{selected:[],text:""}});setProfileEditName(userName||"");setProfileEditMode(true);}} style={{flex:1,background:"var(--accent)",border:"none",borderRadius:7,padding:"10px",textAlign:"center",cursor:"pointer"}}><span style={{fontSize:13,fontWeight:500,color:"var(--bg-deepest)",fontFamily:"'DM Sans',sans-serif"}}>Edit Profile</span></div>}
           </div>
         </div>
       </div>}
