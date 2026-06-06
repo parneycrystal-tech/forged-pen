@@ -1272,9 +1272,9 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
             <div style={{fontSize:9,color:"var(--text-dim)",letterSpacing:"0.08em",marginTop:3}}>YOUR WRITING COACH, NOT YOUR GHOSTWRITER</div>
           </div>
           <div style={{display:"flex",gap:10,alignItems:"center"}}>
-            {onboardingDone&&<div onClick={()=>{setProfileOpen(true);setProfileEditMode(false);}} style={{display:"flex",flexDirection:"column",alignItems:"center",cursor:"pointer",opacity:.5,transition:"opacity .2s"}} onMouseOver={e=>e.currentTarget.style.opacity=1} onMouseOut={e=>e.currentTarget.style.opacity=.5} title="Your Profile">
-              <svg width="18" height="18" viewBox="0 0 22 22" fill="none"><rect x="4" y="2" width="11" height="18" rx="1.5" fill="var(--accent)" opacity="0.2" stroke="var(--accent)" strokeWidth="1"/><rect x="7" y="2" width="11" height="18" rx="1.5" fill="var(--accent)" opacity="0.3" stroke="var(--accent)" strokeWidth="1"/><line x1="10" y1="7" x2="15" y2="7" stroke="var(--accent)" strokeWidth="0.8" opacity="0.6"/><line x1="10" y1="10" x2="15" y2="10" stroke="var(--accent)" strokeWidth="0.8" opacity="0.6"/><line x1="10" y1="13" x2="13" y2="13" stroke="var(--accent)" strokeWidth="0.8" opacity="0.6"/></svg>
-              <span style={{fontSize:8,color:"var(--text-dim)",letterSpacing:"0.08em",marginTop:2}}>Profile</span>
+            {onboardingDone&&<div onClick={()=>{setProfileOpen(true);setProfileEditMode(false);}} style={{display:"flex",flexDirection:"column",alignItems:"center",cursor:"pointer",opacity:.8,transition:"opacity .2s"}} onMouseOver={e=>e.currentTarget.style.opacity=1} onMouseOut={e=>e.currentTarget.style.opacity=.8} title="Your Profile">
+              <svg width="20" height="20" viewBox="0 0 22 22" fill="none"><rect x="4" y="2" width="11" height="18" rx="1.5" fill="var(--accent)" opacity="0.3" stroke="var(--accent)" strokeWidth="1.2"/><rect x="7" y="2" width="11" height="18" rx="1.5" fill="var(--accent)" opacity="0.4" stroke="var(--accent)" strokeWidth="1.2"/><line x1="10" y1="7" x2="15" y2="7" stroke="var(--accent)" strokeWidth="1" opacity="0.7"/><line x1="10" y1="10" x2="15" y2="10" stroke="var(--accent)" strokeWidth="1" opacity="0.7"/><line x1="10" y1="13" x2="13" y2="13" stroke="var(--accent)" strokeWidth="1" opacity="0.7"/></svg>
+              <span style={{fontSize:8,color:"var(--text-muted)",letterSpacing:"0.08em",marginTop:2}}>Profile</span>
             </div>}
             <span onClick={()=>{const next=theme==="dark"?"light":"dark";setTheme(next);saveStored("tt-theme",next)}} style={{fontSize:16,cursor:"pointer",opacity:.4,padding:"2px 6px"}} title="Toggle theme">{theme==="dark"?"☀":"☾"}</span>
             <span onClick={handleLogout} style={{fontSize:10,color:"var(--text-faint)",cursor:"pointer",padding:"2px 6px"}} title="Sign out">Sign out</span>
@@ -2170,7 +2170,7 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
             <div onClick={()=>{setProfileOpen(false);setProfileEditMode(false);}} style={{width:28,height:28,borderRadius:"50%",background:"var(--bg-card-alt)",border:"1px solid var(--border)",display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer",fontSize:13,color:"var(--text-dim)"}}>✕</div>
           </div>
           <div style={{padding:"14px 24px",background:"var(--bg-card-alt)",borderBottom:"1px solid var(--border)"}}>
-            <p style={{fontFamily:"'Cormorant Garamond',serif",fontSize:14,fontStyle:"italic",color:"var(--text-muted)",lineHeight:1.65}}>"{profileEditMode?"Update anything that's changed. I'll adjust how I work with you.":"The more I know about how you think and work, the better I can coach you. Everything here stays inside Forged Pen. Always."}"</p>
+            <p style={{fontFamily:"'Cormorant Garamond',serif",fontSize:14,fontStyle:"italic",color:"var(--text-muted)",lineHeight:1.65}}>"{profileEditMode?"Update anything that's changed. I'll adjust how I work with you.":"The more I know about how you think, work, and write, the better I can coach you. Everything here stays inside Forged Pen. Always."}"</p>
             <p style={{fontSize:11,color:"var(--text-dim)",marginTop:5,fontFamily:"'DM Sans',sans-serif"}}>— Finn</p>
           </div>
           <div style={{padding:"20px 24px"}}>
