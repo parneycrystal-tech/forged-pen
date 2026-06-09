@@ -1188,7 +1188,7 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
     const prevStuck=project?.stuck||"";
     const newStuck=pForm.stuck||"";
     const focusedTimestamp=newStuck!==prevStuck&&newStuck.trim()?new Date().toLocaleDateString():project?.focusedTimestamp||"";
-    const p={...pForm,stuck:newStuck.substring(0,100),focusedTimestamp,updated:new Date().toLocaleDateString()};
+    const p={...pForm,stuck:newStuck.substring(0,200),focusedTimestamp,updated:new Date().toLocaleDateString()};
     setProject(p);saveStored("tt-project",p);
     const existingScenes=loadStored("tt-scenes");
     if((!existingScenes||existingScenes.length===0)&&pForm.chapters&&pForm.chapters.some(c=>c.summary)){
@@ -1329,7 +1329,7 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
       </div>}
 
       {/* WELCOME */}
-      {user&&screen==="welcome"&&<div style={{position:"fixed",top:0,left:0,right:0,bottom:0,background:userName?"var(--bg-base)":"#2E2620",zIndex:200,display:"flex",alignItems:"center",justifyContent:"center",padding:24,overflowY:"auto"}}>
+      {user&&screen==="welcome"&&<div style={{position:"fixed",top:0,left:0,right:0,bottom:0,background:"#2E2620",zIndex:200,display:"flex",alignItems:"center",justifyContent:"center",padding:24,overflowY:"auto"}}>
         <div style={{maxWidth:420,width:"100%",animation:"fi .6s ease-out"}}>
 
           {/* NEW USER FLOW */}
@@ -1470,8 +1470,8 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
           {onboardingDone&&<div onClick={()=>{saveSession(null);setScreen("home")}} style={{cursor:"pointer",animation:"fi .6s ease-out",maxWidth:480,width:"100%"}}>
             <div style={{background:"#EDE6DA",borderRadius:10,padding:"40px 40px 32px",border:"1px solid #C8BC9A"}}>
               <div style={{textAlign:"center",marginBottom:28,borderBottom:"1px solid #D8CEB0",paddingBottom:24}}>
-                <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:11,letterSpacing:"0.2em",textTransform:"uppercase",color:"#A8884A",marginBottom:4}}>Forged Pen</div>
-                <div style={{fontSize:8,color:"#B0A080",letterSpacing:"0.14em",textTransform:"uppercase",fontFamily:"'DM Sans',sans-serif"}}>Where Stories Are Shaped</div>
+                <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:28,fontWeight:600,letterSpacing:"0.05em",color:"#A8884A",marginBottom:4}}>Forged Pen</div>
+                <div style={{fontSize:9,color:"#B0A080",letterSpacing:"0.16em",textTransform:"uppercase",fontFamily:"'DM Sans',sans-serif"}}>Where Stories Are Shaped</div>
               </div>
               <div style={{textAlign:"center",marginBottom:24}}>
                 <p style={{fontFamily:"'Cormorant Garamond',serif",fontSize:19,fontWeight:400,color:"#1E1C14",lineHeight:1.7,marginBottom:0}}>{userName?`Welcome back, ${userName}.`:"Welcome back."}</p>
@@ -1834,10 +1834,10 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
                 <div style={{display:"flex",alignItems:"center",gap:8}}>
                   {project?.focusedTimestamp&&<span style={{fontSize:9,color:"var(--text-dim)",fontFamily:"'DM Sans',sans-serif"}}>Updated {project.focusedTimestamp}</span>}
                   {pForm.stuck&&<span onClick={()=>updateField("stuck","")} style={{fontSize:9,color:"var(--text-dim)",cursor:"pointer",border:"1px solid var(--border)",borderRadius:4,padding:"1px 7px",fontFamily:"'DM Sans',sans-serif"}}>Clear</span>}
-                  <span style={{fontSize:9,color:(pForm.stuck||"").length>90?"#B06848":"var(--text-dim)",fontFamily:"'DM Sans',sans-serif"}}>{(pForm.stuck||"").length} / 100</span>
+                  <span style={{fontSize:9,color:(pForm.stuck||"").length>180?"#B06848":"var(--text-dim)",fontFamily:"'DM Sans',sans-serif"}}>{(pForm.stuck||"").length} / 200</span>
                 </div>
               </div>
-              <input className="fi" maxLength={100} placeholder="One sentence. What thread is live right now?" value={pForm.stuck||""} onChange={e=>updateField("stuck",e.target.value)} style={{width:"100%"}}/>
+              <input className="fi" maxLength={200} placeholder="One sentence. What thread is live right now?" value={pForm.stuck||""} onChange={e=>updateField("stuck",e.target.value)} style={{width:"100%"}}/>
             </div>
 
             <FormField label="What excites you most about this project?" k="excites" ph="The slow burn, the world, the voice..." value={pForm.excites} onChange={updateField} multi/>
