@@ -1388,7 +1388,7 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
             </div>}
             <span onClick={()=>{const next=theme==="dark"?"light":"dark";setTheme(next);saveStored("tt-theme",next)}} style={{fontSize:16,cursor:"pointer",opacity:.4,padding:"2px 6px"}} title="Toggle theme">{theme==="dark"?"☀":"☾"}</span>
             <span onClick={handleLogout} style={{fontSize:10,color:"var(--text-faint)",cursor:"pointer",padding:"2px 6px"}} title="Sign out">Sign out</span>
-            {screen==="chat"&&mode&&<span onClick={goHome} style={{fontSize:12,color:"var(--text-dim)",cursor:"pointer",padding:"4px 0"}}>Back</span>}
+            {screen==="chat"&&mode&&<span onClick={()=>{cancelReq();setMode(null);setMsgs([]);setInput("");setFinnOpen(false);setTriageActive(false);setTriageInput("");setTriageResult(null);if(subMenu){setScreen("submenu");}else{setScreen("home");setSubMenu(null);}}} style={{fontSize:12,color:"var(--text-dim)",cursor:"pointer",padding:"4px 0"}}>Back</span>}
           </div>
         </div>
       </div>}
