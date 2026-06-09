@@ -717,7 +717,8 @@ export default function App() {
     const nm=[...containerMsgs,{role:"user",content:userText}];setContainerMsgs(nm);setContainerInput("");setLoading(true);
     const ctrl=new AbortController();abortRef.current=ctrl;
     try{
-      const r=await fetch("/api/chat",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({system:CONTAINER_FINN+sceneCtx+pCtx+sparkCtx+(userName?`\n\nThe writer's name is ${userName}. Use their name naturally.`:""),messages:nm.map(m=>({role:m.role,content:m.content}))}),signal:ctrl.signal});
+      const sessionCtxForge = sessionSummaries.length>0 ? `\n\nRECENT SESSION HISTORY:\n${sessionSummaries.slice(0,5).map((s,i)=>`Session ${i+1}${i===0?" (most recent)":""}: ${s.date} in ${s.mode}. Worked on: ${s.storyElement}. Key insight: ${s.keyInsight}. Still sitting with: ${s.openQuestion}.`).join("\n")}` : "";
+      const r=await fetch("/api/chat",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({system:CONTAINER_FINN+sceneCtx+pCtx+sparkCtx+(userName?`\n\nThe writer's name is ${userName}. Use their name naturally.`:"")+sessionCtxForge,messages:nm.map(m=>({role:m.role,content:m.content}))}),signal:ctrl.signal});
       const d=await r.json();
       if(d.error){setContainerMsgs(p=>[...p,{role:"assistant",content:`Connection issue: ${d.error}`}])}
       else{
@@ -1097,6 +1098,7 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
     const sparkCtx = sparks.length > 0 ? `\n\nDOPAMINE MAP (moments the writer flagged as exciting): ${sparks.map(s=>s.text).join(" | ")}` : "";
     const userCtx = userName ? `\n\nThe writer's name is ${userName}. Use their name naturally throughout your response, the way a good coach would. Not in every sentence, but enough to feel personal.` : "";
     const profileCtx = userProfile ? `\n\nWriter's profile — use this to calibrate your coaching approach:\n- Experience: ${userProfile.q1?.selected?.join(", ")||"not specified"}\n- Working style: ${userProfile.q2?.selected?.join(", ")||"not specified"}\n- Current goal: ${userProfile.q3?.selected?.join(", ")||"not specified"}\n- Writing pattern: ${userProfile.q4?.selected?.join(", ")||"not specified"}\n- Coaching preference: ${userProfile.q5?.selected?.join(", ")||"not specified"}${userProfile.q2?.text?`\nStyle notes: ${userProfile.q2.text}`:""}${userProfile.q5?.text?`\nCoaching notes: ${userProfile.q5.text}`:""}` : "";
+    const sessionCtx = sessionSummaries.length>0 ? `\n\nRECENT SESSION HISTORY (read before responding, use naturally without announcing it):\n${sessionSummaries.slice(0,5).map((s,i)=>`Session ${i+1}${i===0?" (most recent)":""}: ${s.date} in ${s.mode}. Worked on: ${s.storyElement}. Key insight: ${s.keyInsight}. Still sitting with: ${s.openQuestion}. Writer seemed: ${s.writerState}.`).join("\n")}` : "";
     let containCtx = "";
     if(mode.id==="contain"){
       const modeIds=["diagnose","craft","scene","character","plot","voice","micro","perfectionism","smoke","instinct","simmer","forge","inferno","rekindle"];
@@ -1117,7 +1119,7 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
         method:"POST",
         headers:{"Content-Type":"application/json"},
         body:JSON.stringify({
-          system: mode.sys + pCtx + sparkCtx + containCtx + userCtx + profileCtx,
+          system: mode.sys + pCtx + sparkCtx + containCtx + userCtx + profileCtx + sessionCtx,
           messages: nm.map(m=>({role:m.role,content:m.content}))
         }),
         signal:ctrl.signal
