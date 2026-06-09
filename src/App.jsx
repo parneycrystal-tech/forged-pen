@@ -390,7 +390,7 @@ const INTROS = {
   perfectionism:"Nothing feels good enough? Yeah. That's not a lack of talent, that's your brain's protection system running too hot. It thinks if you never finish, you can never be judged. Tell me what you're stuck on.",
   smoke:"Something shifted. The work that felt alive yesterday feels worthless today. Tell me what happened.",
   instinct:"Instead of the technical stuff, let's listen to something deeper. Something in you already knows what this story needs. Let's find out what it's been trying to say.",
-  simmer:"Your brain is cooked. That's real, not laziness. Your prefrontal cortex has tapped out after real work.\n\nHere's the plan: you tell me the one question your story needs answered right now. I'll make sure it's loaded. Then you step away and do one of these: walk with no music, take a long shower, do the dishes, fold laundry, or stare out a window. These activate your Default Mode Network, the part of your brain that solves creative problems while your conscious mind rests.\n\nA study at UC Santa Barbara proved it: 41% improvement on creative tasks after stepping away. Zero improvement for people who kept pushing.\n\nKeep a notepad nearby. When the answer surfaces, it comes fast and leaves fast. Catch it.\n\nSo: what's the one question your story needs answered?",
+  simmer:"Your mind is cooked. That's real, not laziness. Your prefrontal cortex has tapped out after real work.\n\nHere's the plan: you tell me the one question your story needs answered right now. I'll make sure it's loaded. Then you step away and do one of these: walk with no music, take a long shower, do the dishes, fold laundry, or stare out a window. These activate your Default Mode Network, the part of your mind that solves creative problems while your conscious mind rests.\n\nA study at UC Santa Barbara proved it: 41% improvement on creative tasks after stepping away. Zero improvement for people who kept pushing.\n\nKeep a notepad nearby. When the answer surfaces, it comes fast and leaves fast. Catch it.\n\nSo: what's the one question your story needs answered?",
   forge:"You've done the thinking. You know the characters. You know the world. Now we build, one scene at a time. Tell me what scene needs to exist next and I'll give you a directive.",
   inferno:"You're on fire and you know it. Your dopamine is elevated and your brain is making connections it can't make any other time. This is the most powerful creative state you have. Don't organize. I have six tools for this state:\n\nCapture the Flood: dump every idea, one line each, don't explain.\nChannel the Heat: I'll help you figure out which ideas move the story now.\nRide the Wave: pick a scene, 25 minutes, no stopping.\nFlag Everything: your clarity is elevated right now. Flag what's alive.\nBody Check: water, food, standing. 90 seconds.\nWind Down: when your body is done but your mind isn't.\n\nOr just start talking. I'll catch it.",
   rekindle:"Coming back to your story can feel like standing at the base of a mountain you built yourself, overwhelming, even terrifying. The good news: your brain never stopped working on it while you were away. Let's find your way back in.",
@@ -1467,28 +1467,51 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
           </div>}
 
           {/* RETURNING USER */}
-          {onboardingDone&&<div onClick={()=>{saveSession(null);setScreen("home")}} style={{textAlign:"center",cursor:"pointer",animation:"fi .6s ease-out"}}>
-            <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:28,fontWeight:600,color:"var(--accent)",marginBottom:6}}>Forged Pen</div>
-            {project?<>
-              {(()=>{
-                const away = getTimeAway();
-                const isLongAway = away && (away.includes("day") || (away.includes("hour") && parseInt(away)>=12));
-                const nib = <svg width="10" height="14" viewBox="0 0 10 14" style={{verticalAlign:"middle",marginRight:6,opacity:0.5}}><path d="M5 0L6.2 5L5 12L3.8 5Z" fill="var(--accent)"/><circle cx="5" cy="4.5" r="0.8" fill="var(--accent)"/></svg>;
-                return <>
-                  <p style={{fontFamily:"'Cormorant Garamond',serif",fontSize:16,color:"var(--text-primary)",lineHeight:1.8,marginBottom:12,marginTop:16}}>
-                    {userName?`Welcome back, ${userName}. `:""}"{project.title}" is right where you left it.{away ? ` It's been ${away}.` : ""}
-                  </p>
-                  {project.where&&<p style={{fontSize:13,color:"var(--text-muted)",lineHeight:1.7,marginBottom:10,textAlign:"left"}}>{nib}{project.where}</p>}
-                  {project.stuck&&project.stuck.trim()&&<p style={{fontSize:13,color:"var(--text-muted)",lineHeight:1.7,marginBottom:10,textAlign:"left"}}>{nib}<span style={{color:"var(--accent-80)",fontSize:10,textTransform:"uppercase",letterSpacing:"0.1em"}}>Focused on: </span>{project.stuck}</p>}
-                  {sparks.length>0&&<p style={{fontSize:12,color:"var(--accent-80)",marginBottom:10,textAlign:"left"}}>{nib}{sparks.length} spark{sparks.length>1?"s":""} saved</p>}
-                  <p style={{fontFamily:"'Cormorant Garamond',serif",fontSize:15,color:"var(--text-primary)",lineHeight:1.8,marginTop:20,marginBottom:24}}>{isLongAway?"No guilt. The project waited. So did I.":"Let's get to work."}</p>
-                </>;
-              })()}
-            </>:<>
-              <p style={{fontSize:12,color:"var(--text-dim)",marginTop:4,marginBottom:20}}>Your writing coach, not your ghostwriter</p>
-              <p style={{fontFamily:"'Cormorant Garamond',serif",fontSize:16,color:"var(--text-primary)",lineHeight:1.8,marginBottom:24}}>Good to see you, {userName}. Ready to write?</p>
-            </>}
-            <p style={{fontSize:11,color:"var(--text-dim)"}}>Tap anywhere to begin</p>
+          {onboardingDone&&<div onClick={()=>{saveSession(null);setScreen("home")}} style={{cursor:"pointer",animation:"fi .6s ease-out",maxWidth:480,width:"100%"}}>
+            <div style={{background:"#EDE6DA",borderRadius:10,padding:"40px 40px 32px",border:"1px solid #C8BC9A"}}>
+              <div style={{textAlign:"center",marginBottom:28,borderBottom:"1px solid #D8CEB0",paddingBottom:24}}>
+                <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:11,letterSpacing:"0.2em",textTransform:"uppercase",color:"#A8884A",marginBottom:4}}>Forged Pen</div>
+                <div style={{fontSize:8,color:"#B0A080",letterSpacing:"0.14em",textTransform:"uppercase",fontFamily:"'DM Sans',sans-serif"}}>Where Stories Are Shaped</div>
+              </div>
+              <div style={{textAlign:"center",marginBottom:24}}>
+                <p style={{fontFamily:"'Cormorant Garamond',serif",fontSize:19,fontWeight:400,color:"#1E1C14",lineHeight:1.7,marginBottom:0}}>{userName?`Welcome back, ${userName}.`:"Welcome back."}</p>
+                {project&&<p style={{fontFamily:"'Cormorant Garamond',serif",fontSize:15,fontWeight:300,color:"#3A3428",lineHeight:1.8,fontStyle:"italic",marginTop:6}}>"{project.title}" is right where you left it.</p>}
+              </div>
+              {project&&<div style={{borderTop:"1px solid #D8CEB0",paddingTop:20,marginBottom:20}}>
+                {(()=>{
+                  const away=getTimeAway();
+                  const isLongAway=away&&(away.includes("day")||(away.includes("hour")&&parseInt(away)>=12));
+                  return <>
+                    {project.where&&<div style={{display:"flex",gap:10,alignItems:"flex-start",marginBottom:12}}>
+                      <div style={{width:3,background:"#A8884A",borderRadius:2,flexShrink:0,marginTop:3,minHeight:36}}/>
+                      <div>
+                        <div style={{fontSize:8,textTransform:"uppercase",letterSpacing:"0.14em",color:"#A8884A",fontFamily:"'DM Sans',sans-serif",marginBottom:4}}>Where you are</div>
+                        <p style={{fontFamily:"'Cormorant Garamond',serif",fontSize:13,color:"#3A3428",lineHeight:1.7,margin:0}}>{project.where}</p>
+                      </div>
+                    </div>}
+                    {project.stuck&&project.stuck.trim()&&<div style={{display:"flex",gap:10,alignItems:"flex-start",marginBottom:12}}>
+                      <div style={{width:3,background:"#7A8A6A",borderRadius:2,flexShrink:0,marginTop:3,minHeight:36}}/>
+                      <div>
+                        <div style={{fontSize:8,textTransform:"uppercase",letterSpacing:"0.14em",color:"#7A8A6A",fontFamily:"'DM Sans',sans-serif",marginBottom:4}}>Focused on</div>
+                        <p style={{fontFamily:"'Cormorant Garamond',serif",fontSize:13,color:"#3A3428",lineHeight:1.7,margin:0}}>{project.stuck}</p>
+                      </div>
+                    </div>}
+                    {sparks.length>0&&<div style={{display:"flex",gap:10,alignItems:"center"}}>
+                      <div style={{width:3,height:20,background:"#B8A870",borderRadius:2,flexShrink:0}}/>
+                      <p style={{fontFamily:"'Cormorant Garamond',serif",fontSize:13,color:"#7A6A50",margin:0}}>{sparks.length} spark{sparks.length>1?"s":""} saved on the Dopamine Map</p>
+                    </div>}
+                    <p style={{fontFamily:"'Cormorant Garamond',serif",fontSize:15,fontStyle:"italic",color:"#3A3428",marginTop:20,marginBottom:0,textAlign:"center"}}>{isLongAway?"No guilt. The project waited. So did I.":"Your story is waiting."}</p>
+                  </>;
+                })()}
+              </div>}
+              {!project&&<p style={{fontFamily:"'Cormorant Garamond',serif",fontSize:15,fontWeight:300,color:"#3A3428",lineHeight:1.85,textAlign:"center",marginBottom:0}}>Ready to build something?</p>}
+              <div style={{borderTop:"1px solid #D8CEB0",paddingTop:20,textAlign:"center"}}>
+                <div style={{background:"#5A6B3A",borderRadius:7,padding:"11px 24px",display:"inline-block",marginBottom:12}}>
+                  <span style={{fontSize:12,fontWeight:500,color:"#F0EAE0",fontFamily:"'DM Sans',sans-serif",letterSpacing:"0.04em"}}>Enter Forged Pen</span>
+                </div>
+                <p style={{fontSize:10,color:"#B0A080",margin:0,fontFamily:"'DM Sans',sans-serif"}}>or tap anywhere</p>
+              </div>
+            </div>
           </div>}
 
         </div>
@@ -2114,7 +2137,10 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
             {/* IDEA LAB surface */}
             {forgeMode==="idealab"&&<>
               <div style={{padding:"12px 40px 10px",borderBottom:"1px solid var(--border)",display:"flex",justifyContent:"space-between",alignItems:"center",background:"var(--bg-write)"}}>
-                <div style={{fontSize:12,color:"#9A8AB0",fontWeight:500,fontFamily:"'DM Sans',sans-serif"}}>Idea Lab</div>
+                <div style={{display:"flex",alignItems:"center",gap:12}}>
+                  <div style={{fontSize:12,color:"#9A8AB0",fontWeight:500,fontFamily:"'DM Sans',sans-serif"}}>Idea Lab</div>
+                  <span onClick={goHome} style={{fontSize:10,color:"var(--text-dim)",background:"var(--bg-card)",border:"1px solid var(--border)",borderRadius:4,padding:"3px 8px",cursor:"pointer"}}>Home</span>
+                </div>
                 <div style={{display:"flex",gap:8,alignItems:"center"}}>
                   <span style={{fontSize:10,color:"var(--text-dim)"}}>{ideaLabText.split(/\s+/).filter(w=>w).length} words</span>
                   <span onClick={()=>{if(ideaLabText){const t=ideaLabText.substring(0,200);const ns=[...sparks,{text:t,date:new Date().toLocaleDateString(),mode:"Idea Lab",modeId:"idealab"}];setSparks(ns);saveStored("tt-sparks",ns)}}} style={{fontSize:10,color:"var(--text-dim)",background:"var(--bg-card)",border:"1px solid var(--border)",borderRadius:4,padding:"3px 8px",cursor:"pointer"}}>This excites me</span>
