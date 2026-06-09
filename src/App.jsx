@@ -487,6 +487,8 @@ export default function App() {
   const [endSessionResult, setEndSessionResult] = useState(null);
   const [endSessionSceneId, setEndSessionSceneId] = useState(null);
   const [endSessionCommitting, setEndSessionCommitting] = useState(false);
+  const [sessionSummaries, setSessionSummaries] = useState([]);
+  const [historyScreen, setHistoryScreen] = useState(false);
   const [sceneNotesOpen, setSceneNotesOpen] = useState(false);
   const [forgeMode, setForgeMode] = useState("manuscript");
   const [ideaLabText, setIdeaLabText] = useState("");
@@ -570,9 +572,11 @@ export default function App() {
     const un = loadStored("tt-username");
     const up = loadStored("tt-userprofile");
     const od = loadStored("tt-onboarding-done");
+    const ss = loadStored("tt-session-summaries");
     if (un) setUserName(un);
     if (up) setUserProfile(up);
     if (od) setOnboardingDone(true);
+    if (ss) setSessionSummaries(ss);
   };
 
   const migrateLocalToCloud=async()=>{
@@ -948,7 +952,7 @@ Session:
 ${sessionMsgs}
 
 Respond with ONLY this JSON:
-{"summary":"1-2 sentences on what the writer worked through. Conversational, Finn's voice.","insights":["specific thing decided or discovered","second insight if there is one"],"draftText":"Any new prose drafted in the session, or empty string","suggestedAction":"One sentence on the single most useful next step"}`}]
+{"summary":"1-2 sentences on what the writer worked through. Conversational, Finn's voice.","insights":["specific thing decided or discovered","second insight if there is one"],"draftText":"Any new prose drafted in the session, or empty string","suggestedAction":"One sentence on the single most useful next step","storyElement":"specific character, scene, or plot point worked on in one short phrase","keyInsight":"single most important thing decided or discovered in one sentence","openQuestion":"what remains unresolved or needs attention next in one sentence","writerState":"one or two words describing how the writer seemed emotionally during this session"}`}]
       })});
       const d=await r.json();
       if(!d.error){
@@ -960,6 +964,25 @@ Respond with ONLY this JSON:
           setEndSessionOpen(true);
           if(activeScene)setEndSessionSceneId(activeScene);
           else if(scenes.length>0)setEndSessionSceneId(scenes[scenes.length-1].id);
+
+          // Save internal session summary
+          const internalSummary={
+            id:"ss_"+Date.now(),
+            date:new Date().toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"}),
+            timestamp:Date.now(),
+            mode:mode?.label||"Coaching",
+            modeId:mode?.id||"",
+            storyElement:result.storyElement||result.insights?.[0]||"",
+            keyInsight:result.keyInsight||result.insights?.[0]||"",
+            openQuestion:result.openQuestion||result.suggestedAction||"",
+            writerState:result.writerState||"",
+            sparksCaptured:sparks.filter(s=>s.date===new Date().toLocaleDateString()).length
+          };
+          const updated=[internalSummary,...sessionSummaries].slice(0,10);
+          setSessionSummaries(updated);
+          saveStored("tt-session-summaries",updated);
+          cloudSave("tt-session-summaries",updated);
+
         }catch(e){
           setEndSessionResult({summary:"Session complete. Good work today.",insights:[],draftText:"",suggestedAction:"Keep going."});
           setEndSessionOpen(true);
@@ -1522,12 +1545,25 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
         </div>}
 
         {/* Dopamine Map */}
-        {sparks.length>0&&<div onClick={()=>setScreen("sparkmap")} className="card" style={{padding:"12px 16px",marginBottom:16,display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+        {sparks.length>0&&<div onClick={()=>setScreen("sparkmap")} className="card" style={{padding:"12px 16px",marginBottom:8,display:"flex",justifyContent:"space-between",alignItems:"center"}}>
           <div style={{flex:1}}>
             <div style={{fontSize:9,textTransform:"uppercase",letterSpacing:"0.18em",color:"var(--accent-70)",fontWeight:500,marginBottom:5}}>Dopamine map</div>
             <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:14,color:"var(--text-muted)",fontStyle:"italic"}}>"{(sparks[sparks.length-1]?.text||"").replace(/\*\*/g,"").replace(/\*/g,"").replace(/#{1,6}\s/g,"").substring(0,120)}"</div>
           </div>
           <div style={{fontSize:11,color:"var(--accent)",marginLeft:12,animation:"wp 4s ease-in-out infinite"}}>{sparks.length} spark{sparks.length>1?"s":""}</div>
+        </div>}
+
+        {/* Session History Card */}
+        {sessionSummaries.length>0&&<div onClick={()=>setHistoryScreen(true)} className="card" style={{padding:"12px 16px",marginBottom:16,display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+          <div style={{flex:1}}>
+            <div style={{fontSize:9,textTransform:"uppercase",letterSpacing:"0.18em",color:"#5A7A8A",fontWeight:500,marginBottom:5}}>Session History</div>
+            <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:14,color:"var(--text-muted)"}}>
+              <span style={{color:"var(--accent)",fontSize:12}}>{sessionSummaries[0].mode}</span>
+              <span style={{color:"var(--text-dim)",fontSize:11,marginLeft:8}}>{sessionSummaries[0].date}</span>
+            </div>
+            <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:13,color:"var(--text-dim)",fontStyle:"italic",marginTop:3}}>{sessionSummaries[0].keyInsight?.substring(0,80)}{sessionSummaries[0].keyInsight?.length>80?"...":""}</div>
+          </div>
+          <div style={{fontSize:11,color:"#5A7A8A",marginLeft:12}}>{sessionSummaries.length} session{sessionSummaries.length>1?"s":""}</div>
         </div>}
 
         {/* Card Grid Row 1 */}
@@ -2314,7 +2350,41 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
         </div>
       </div>}
 
-      {/* PROFILE MODAL */}
+      {/* SESSION HISTORY SCREEN */}
+      {historyScreen&&<div style={{position:"fixed",top:0,left:0,right:0,bottom:0,background:"var(--bg-base)",zIndex:200,overflowY:"auto",animation:"fu .3s ease-out"}}>
+        <div style={{maxWidth:680,margin:"0 auto",padding:"24px 20px 40px"}}>
+          <div onClick={()=>setHistoryScreen(false)} style={{fontSize:12,color:"var(--text-dim)",cursor:"pointer",marginBottom:20}}>← Back</div>
+          <div style={{fontSize:8,textTransform:"uppercase",letterSpacing:"0.25em",color:"#5A7A8A",fontWeight:500,marginBottom:8}}>Session History</div>
+          <p style={{fontFamily:"'Cormorant Garamond',serif",fontSize:16,color:"var(--text-muted)",marginBottom:24,lineHeight:1.7}}>Every session here is proof you came back to your story. Every gap is just a gap, not a verdict.</p>
+
+          {sessionSummaries.length===0&&<p style={{fontFamily:"'Cormorant Garamond',serif",fontSize:15,color:"var(--text-dim)",fontStyle:"italic"}}>No sessions yet. End your first session to start your history.</p>}
+
+          {sessionSummaries.map((s,i)=>(
+            <div key={s.id} style={{background:"var(--bg-card)",border:"1px solid var(--border)",borderRadius:10,padding:"16px 20px",marginBottom:12}}>
+              <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10}}>
+                <div style={{display:"flex",alignItems:"center",gap:10}}>
+                  <span style={{fontSize:12,color:"var(--accent)",fontWeight:500,fontFamily:"'DM Sans',sans-serif"}}>{s.mode}</span>
+                  {s.writerState&&<span style={{fontSize:10,color:"var(--text-dim)",background:"var(--bg-card-alt)",border:"1px solid var(--border)",borderRadius:10,padding:"2px 8px",fontFamily:"'DM Sans',sans-serif"}}>{s.writerState}</span>}
+                </div>
+                <span style={{fontSize:10,color:"var(--text-dim)",fontFamily:"'DM Sans',sans-serif"}}>{s.date}</span>
+              </div>
+              {s.storyElement&&<div style={{marginBottom:8}}>
+                <div style={{fontSize:9,textTransform:"uppercase",letterSpacing:"0.12em",color:"var(--text-dim)",fontWeight:500,marginBottom:3,fontFamily:"'DM Sans',sans-serif"}}>Worked on</div>
+                <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:14,color:"var(--text-primary)",lineHeight:1.6}}>{s.storyElement}</div>
+              </div>}
+              {s.keyInsight&&<div style={{marginBottom:8}}>
+                <div style={{fontSize:9,textTransform:"uppercase",letterSpacing:"0.12em",color:"var(--text-dim)",fontWeight:500,marginBottom:3,fontFamily:"'DM Sans',sans-serif"}}>Key insight</div>
+                <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:14,color:"var(--text-primary)",lineHeight:1.6}}>{s.keyInsight}</div>
+              </div>}
+              {s.openQuestion&&<div style={{marginBottom:s.sparksCaptured>0?8:0}}>
+                <div style={{fontSize:9,textTransform:"uppercase",letterSpacing:"0.12em",color:"var(--text-dim)",fontWeight:500,marginBottom:3,fontFamily:"'DM Sans',sans-serif"}}>Still sitting with</div>
+                <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:14,color:"var(--text-muted)",fontStyle:"italic",lineHeight:1.6}}>{s.openQuestion}</div>
+              </div>}
+              {s.sparksCaptured>0&&<div style={{fontSize:10,color:"var(--accent)",fontFamily:"'DM Sans',sans-serif",marginTop:4}}>{s.sparksCaptured} spark{s.sparksCaptured>1?"s":""} captured this session</div>}
+            </div>
+          ))}
+        </div>
+      </div>}
       {profileOpen&&<div onClick={e=>{if(e.target===e.currentTarget){setProfileOpen(false);setProfileEditMode(false);}}} style={{position:"fixed",top:0,left:0,right:0,bottom:0,background:"rgba(10,8,6,0.75)",zIndex:300,display:"flex",alignItems:"center",justifyContent:"center",padding:20}}>
         <div style={{background:"var(--bg-base)",borderRadius:12,width:"100%",maxWidth:520,maxHeight:"85vh",overflowY:"auto",border:"1px solid var(--border)",animation:"fu .3s ease-out"}}>
           <div style={{padding:"18px 24px 14px",borderBottom:"1px solid var(--border)",display:"flex",justifyContent:"space-between",alignItems:"center",background:"var(--bg-card)",borderRadius:"12px 12px 0 0",position:"sticky",top:0,zIndex:10}}>
