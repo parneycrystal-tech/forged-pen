@@ -1099,6 +1099,54 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
     const userCtx = userName ? `\n\nThe writer's name is ${userName}. Use their name naturally throughout your response, the way a good coach would. Not in every sentence, but enough to feel personal.` : "";
     const profileCtx = userProfile ? `\n\nWriter's profile — use this to calibrate your coaching approach:\n- Experience: ${userProfile.q1?.selected?.join(", ")||"not specified"}\n- Working style: ${userProfile.q2?.selected?.join(", ")||"not specified"}\n- Current goal: ${userProfile.q3?.selected?.join(", ")||"not specified"}\n- Writing pattern: ${userProfile.q4?.selected?.join(", ")||"not specified"}\n- Coaching preference: ${userProfile.q5?.selected?.join(", ")||"not specified"}${userProfile.q2?.text?`\nStyle notes: ${userProfile.q2.text}`:""}${userProfile.q5?.text?`\nCoaching notes: ${userProfile.q5.text}`:""}` : "";
     const sessionCtx = sessionSummaries.length>0 ? `\n\nRECENT SESSION HISTORY (read before responding, use naturally without announcing it):\n${sessionSummaries.slice(0,5).map((s,i)=>`Session ${i+1}${i===0?" (most recent)":""}: ${s.date} in ${s.mode}. Worked on: ${s.storyElement}. Key insight: ${s.keyInsight}. Still sitting with: ${s.openQuestion}. Writer seemed: ${s.writerState}.`).join("\n")}` : "";
+
+    // PATTERN DETECTION
+    const recentSessions=sessionSummaries.slice(0,7);
+    const patternNotes=[];
+
+    // Pattern 1: Mode switching without writing
+    const forgeSessions=recentSessions.filter(s=>s.modeId==="forge"||s.modeId==="inferno");
+    const coachingSessions=recentSessions.filter(s=>s.modeId!=="forge"&&s.modeId!=="inferno");
+    if(coachingSessions.length>=3&&forgeSessions.length===0){
+      const count=coachingSessions.length;
+      if(count>=7){patternNotes.push(`PATTERN DETECTED (strong, name it directly): This writer has opened ${count} coaching sessions without any Forge writing sessions. They are thinking about their story instead of writing it. After acknowledging what they bring today, ask directly: "You've been here ${count} times without opening The Forge. I'm not going to pretend I haven't noticed. What is actually in the way? Not the craft version of the answer. The real one."`);}
+      else if(count>=5){patternNotes.push(`PATTERN DETECTED (moderate, be direct): This writer has had ${count} coaching sessions with no Forge writing. Gently but clearly name it: "You've been doing a lot of thinking about this story. At some point the thinking has to meet the page. What's in the way?"`);}
+      else{patternNotes.push(`PATTERN DETECTED (early, shape the session): This writer has had ${count} coaching sessions without writing in The Forge. Steer naturally toward the page. Ask when they last opened The Forge and what's keeping them from it.`);}
+    }
+
+    // Pattern 2: Returning to same stuck point
+    const storyElements=recentSessions.map(s=>s.storyElement).filter(Boolean);
+    if(storyElements.length>=3){
+      const elementCounts={};
+      storyElements.forEach(e=>{
+        const key=e.toLowerCase().substring(0,40);
+        elementCounts[key]=(elementCounts[key]||0)+1;
+      });
+      const repeated=Object.entries(elementCounts).find(([k,v])=>v>=3);
+      if(repeated){
+        const count=repeated[1];
+        if(count>=5){patternNotes.push(`PATTERN DETECTED (strong): This writer has returned to the same story element "${repeated[0]}" in ${count} sessions. Name it clearly: "You keep coming back to this. I don't think more sessions about it will crack it. Something underneath is driving this. What are you actually afraid will happen if you resolve it?"`);}
+        else{patternNotes.push(`PATTERN DETECTED (moderate): This writer has returned to "${repeated[0]}" across ${count} sessions. Frame it as the story asking for something: "You've come back to this a few times now. That usually means the story is trying to tell you something you haven't heard yet. Let's listen differently this time."`);}
+      }
+    }
+
+    // Pattern 3: Emotional state drift (silent, tone only)
+    const recentStates=recentSessions.slice(0,4).map(s=>s.writerState).filter(Boolean);
+    if(recentStates.length>=3){
+      const anxietyWords=["anxious","worried","stuck","frustrated","overwhelmed","scared","blocked"];
+      const energyWords=["energized","excited","focused","flowing","confident","on fire","good"];
+      const anxiousCount=recentStates.filter(s=>anxietyWords.some(w=>s.toLowerCase().includes(w))).length;
+      const energizedCount=recentStates.filter(s=>energyWords.some(w=>s.toLowerCase().includes(w))).length;
+      if(anxiousCount>=3){patternNotes.push(`EMOTIONAL PATTERN (silent, adjust tone only, never announce): This writer has seemed anxious or distressed across multiple recent sessions. Lead with extra warmth. Be steady and grounding. Reduce pressure in your responses. Do not mention this observation.`);}
+      else if(energizedCount>=3){patternNotes.push(`EMOTIONAL PATTERN (silent, adjust tone only, never announce): This writer has been in a consistently positive creative state across recent sessions. Match their energy. Be more direct and challenging. They can handle it right now.`);}
+    }
+
+    // Pattern 4: Repeated Voice concern
+    const voiceSessions=recentSessions.filter(s=>s.modeId==="voice");
+    if(voiceSessions.length>=3){
+      patternNotes.push(`PATTERN DETECTED: This writer has returned to Voice and Style ${voiceSessions.length} times. This keeps surfacing for a reason. After addressing what they bring today, suggest staying with this longer: "This keeps coming up. Your instinct is telling you something about this story's voice that one session hasn't answered. Let's stay here longer this time and really find it."`);}
+
+    const patternCtx=patternNotes.length>0?`\n\nPATTERN AWARENESS FOR THIS SESSION:\n${patternNotes.join("\n\n")}`:"";
     let containCtx = "";
     if(mode.id==="contain"){
       const modeIds=["diagnose","craft","scene","character","plot","voice","micro","perfectionism","smoke","instinct","simmer","forge","inferno","rekindle"];
@@ -1119,7 +1167,7 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
         method:"POST",
         headers:{"Content-Type":"application/json"},
         body:JSON.stringify({
-          system: mode.sys + pCtx + sparkCtx + containCtx + userCtx + profileCtx + sessionCtx,
+          system: mode.sys + pCtx + sparkCtx + containCtx + userCtx + profileCtx + sessionCtx + patternCtx,
           messages: nm.map(m=>({role:m.role,content:m.content}))
         }),
         signal:ctrl.signal
