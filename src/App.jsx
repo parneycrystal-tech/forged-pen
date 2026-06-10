@@ -1289,6 +1289,8 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
         .fi{background:var(--bg-card);border:1px solid var(--border);border-radius:8px;padding:10px 14px;color:var(--text-primary);font-family:'Cormorant Garamond',serif;font-size:15px;width:100%;outline:none}.fi:focus{border-color:var(--accent-40)}
         .right-sb{display:none}
         @media(min-width:1100px){.right-sb{display:flex}}
+        .left-panel{display:none}
+        @media(min-width:1300px){.left-panel{display:block}}
       `}</style>
 
       {/* LOADING */}
@@ -1537,7 +1539,21 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
       </div>}
 
       {/* HOME */}
-      {screen==="home"&&<div style={{maxWidth:820,margin:"0 auto",padding:"0 20px 20px",animation:"fu .5s ease-out"}}>
+      {screen==="home"&&<div style={{display:"flex",minHeight:"calc(100vh - 60px)"}}>
+
+        {/* Left Image Panel */}
+        <div style={{width:220,flexShrink:0,position:"sticky",top:60,height:"calc(100vh - 60px)",overflow:"hidden",display:"none"}} className="left-panel">
+          <div style={{
+            width:"100%",height:"100%",
+            backgroundImage:`url('/${theme==="dark"?"Dark Academia Left Side Panel":"Light Academia Left Side Panel"}.png')`,
+            backgroundSize:"cover",
+            backgroundPosition:"center top",
+            opacity:0.85
+          }}/>
+          <div style={{position:"absolute",top:0,right:0,width:60,height:"100%",background:`linear-gradient(90deg,transparent,${theme==="dark"?"#131110":"#F0EAE0"})`}}/>
+        </div>
+
+        <div style={{flex:1,maxWidth:820,margin:"0 auto",padding:"0 20px 20px",animation:"fu .5s ease-out"}}>
         {/* Quote */}
         <div style={{textAlign:"center",padding:"4px 20px 16px"}}>
           <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:17,fontWeight:600,color:"var(--accent-b0)",lineHeight:1.7}}>"{tk.q}"</div>
@@ -1807,7 +1823,8 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
             </div>;
           })}
         </>}
-      </div>}
+        </div>{/* end content */}
+      </div>}{/* end home flex */}
 
       {/* STORY BIBLE SETUP */}
       {screen==="setup"&&<div style={{maxWidth:820,margin:"0 auto",padding:"0 20px 20px",animation:"fu .5s ease-out"}}>
