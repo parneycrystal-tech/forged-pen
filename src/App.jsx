@@ -1,5 +1,7 @@
 import { useState, useRef, useEffect } from "react";
 import { createClient } from "@supabase/supabase-js";
+import darkAcademiaPanel from './Dark Academia Left Side Panel.png';
+import lightAcademiaPanel from './Light Academia Left Side Panel.png';
 
 const supabase = createClient(
   "https://jkygrqexnoiapdubryzy.supabase.co",
@@ -1545,7 +1547,7 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
         <div style={{width:220,flexShrink:0,position:"sticky",top:60,height:"calc(100vh - 60px)",overflow:"hidden",display:"none"}} className="left-panel">
           <div style={{
             width:"100%",height:"100%",
-            backgroundImage:`url('/${theme==="dark"?"Dark Academia Left Side Panel":"Light Academia Left Side Panel"}.png')`,
+            backgroundImage:`url(${theme==="dark"?darkAcademiaPanel:lightAcademiaPanel})`,
             backgroundSize:"cover",
             backgroundPosition:"center top",
             opacity:0.85
