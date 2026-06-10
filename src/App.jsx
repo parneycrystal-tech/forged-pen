@@ -1493,7 +1493,7 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
                       <div style={{width:3,background:"#7A8A6A",borderRadius:2,flexShrink:0,marginTop:3,minHeight:36}}/>
                       <div>
                         <div style={{fontSize:8,textTransform:"uppercase",letterSpacing:"0.14em",color:"#7A8A6A",fontFamily:"'DM Sans',sans-serif",marginBottom:4}}>Focused on</div>
-                        <p style={{fontFamily:"'Cormorant Garamond',serif",fontSize:13,color:"#3A3428",lineHeight:1.7,margin:0}}>{project.stuck}</p>
+                        <p style={{fontFamily:"'Cormorant Garamond',serif",fontSize:13,color:"#3A3428",lineHeight:1.7,margin:0}}>{project.stuck}{project.stuck&&project.stuck.length>=100&&!project.stuck.match(/[.!?]$/)?"...":""}</p>
                       </div>
                     </div>}
                     {sparks.length>0&&<div style={{display:"flex",gap:10,alignItems:"center"}}>
