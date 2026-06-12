@@ -1701,7 +1701,8 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
         <div style={{textAlign:"center",padding:"4px 0 16px"}}>
           <div style={{fontSize:10,color:"var(--text-dim)",lineHeight:1.6}}>Forged Pen is a writing craft tool, not a mental health service or diagnostic tool.<br/>If you are in crisis, please reach out to a qualified professional.</div>
         </div>
-      </div>}
+      </div>{/* end content */}
+      </div>}{/* end home flex */}
 
       {/* DESKTOP RIGHT SIDEBAR */}
       {screen==="home"&&project&&<div className="right-sb" style={{position:"fixed",right:0,top:0,bottom:0,width:260,background:"var(--bg-dark)",borderLeft:"1px solid var(--border)",padding:"22px 18px",flexDirection:"column",overflowY:"auto"}}>
@@ -1820,8 +1821,7 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
             </div>;
           })}
         </>}
-        </div>{/* end content */}
-      </div>}{/* end home flex */}
+        </div>}
 
       {/* STORY BIBLE SETUP */}
       {screen==="setup"&&<div style={{maxWidth:820,margin:"0 auto",padding:"0 20px 20px",animation:"fu .5s ease-out"}}>
