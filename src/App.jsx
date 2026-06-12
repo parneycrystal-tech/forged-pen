@@ -53,7 +53,9 @@ When detected:
 4) GIVE THE SMALLEST ACTION. Never "go write." Instead: "Open The Forge. Go to Chapter 1. Read one paragraph of your own words. Just one. You do not have to write anything new. Just read what you already built."
 NEVER say "go write" or "just start writing" to a fearful writer. The first step is always reading, not writing.
 
-MENTAL HEALTH BOUNDARY: You are a writing coach, not a therapist. Watch for signs that the writer's struggle goes beyond their manuscript: language like "nothing matters," "what's the point of anything," persistent hopelessness that extends beyond the writing, or expressions of self-harm. If you detect this, say: "I want to be honest with you. What you're describing sounds like it might go beyond your manuscript. I'm a writing coach, not a therapist, and I would feel wrong treating this as a writing problem. Please talk to someone who can really support you. You deserve that." Their wellbeing comes before their word count. Always.`;
+MENTAL HEALTH BOUNDARY: You are a writing coach, not a therapist. Watch for signs that the writer's struggle goes beyond their manuscript: language like "nothing matters," "what's the point of anything," persistent hopelessness that extends beyond the writing, or expressions of self-harm. If you detect this, say: "I want to be honest with you. What you're describing sounds like it might go beyond your manuscript. I'm a writing coach, not a therapist, and I would feel wrong treating this as a writing problem. Please talk to someone who can really support you. You deserve that." Their wellbeing comes before their word count. Always.
+
+NO INTERNET ACCESS: You cannot browse the web, look up movies, books, current events, or verify real-world facts. If a writer asks you to research something, look something up, or reverse-engineer a property you don't have detailed knowledge of, do not just say you can't. Instead: acknowledge the limitation briefly, then pivot to what you CAN do. Offer to help them think through the structure, tropes, or elements they want to reimagine based on what they tell you about it. "I can't look that up, but tell me what makes that story work, the core relationships, the conflict, the world, and I'll help you build your version from there." Keep it short and immediately useful.`;
 
 const sp = (x) => `${FINN}\n\n${x}`;
 
@@ -403,6 +405,11 @@ const LOAD = ["Reading. Give me a second.","Sitting with this.","Let me think ab
 
 function loadStored(key) { try { const v = localStorage.getItem(key); return v ? JSON.parse(v) : null; } catch { return null; } }
 function saveStored(key, val) { try { localStorage.setItem(key, JSON.stringify(val)); cloudSave(key, val); } catch {} }
+function clearLocalUserData() {
+  try {
+    Object.keys(localStorage).filter(k=>k.startsWith("tt-")).forEach(k=>localStorage.removeItem(k));
+  } catch {}
+}
 async function cloudSave(key, val) {
   try {
     const { data: { user } } = await supabase.auth.getUser();
@@ -533,9 +540,9 @@ export default function App() {
     supabase.auth.getSession().then(({data:{session}})=>{
       if(session?.user){
         setUser(session.user);
+        clearLocalUserData();
         cloudLoadAll().then(()=>{
           loadAllData();
-          migrateLocalToCloud();
           setAuthLoading(false);
         });
       } else { setAuthLoading(false); }
@@ -543,9 +550,10 @@ export default function App() {
     const {data:{subscription}} = supabase.auth.onAuthStateChange((event,session)=>{
       if(event==="SIGNED_IN"&&session?.user){
         setUser(session.user);
-        cloudLoadAll().then(()=>{loadAllData();migrateLocalToCloud();setAuthLoading(false)});
+        clearLocalUserData();
+        cloudLoadAll().then(()=>{loadAllData();setAuthLoading(false)});
       }
-      if(event==="SIGNED_OUT"){setUser(null);setAuthLoading(false)}
+      if(event==="SIGNED_OUT"){setUser(null);clearLocalUserData();setScreen("welcome");setAuthLoading(false)}
     });
     return ()=>subscription.unsubscribe();
   },[]);
@@ -581,22 +589,6 @@ export default function App() {
     if (up) setUserProfile(up);
     if (od) setOnboardingDone(true);
     if (ss) setSessionSummaries(ss);
-  };
-
-  const migrateLocalToCloud=async()=>{
-    const migrated=loadStored("tt-migrated");
-    if(migrated)return;
-    const keys=["tt-project","tt-sparks","tt-session","tt-lastthought","tt-scenes","tt-pulse","tt-sidebarctx","tt-theme","tt-activescene"];
-    for(const key of keys){
-      const val=loadStored(key);
-      if(val)await cloudSave(key,val);
-    }
-    const chatKeys=Object.keys(localStorage).filter(k=>k.startsWith("tt-chat-"));
-    for(const key of chatKeys){
-      const val=loadStored(key);
-      if(val)await cloudSave(key,val);
-    }
-    localStorage.setItem("tt-migrated","true");
   };
 
   const handleAuth=async(isSignUp)=>{
@@ -1320,7 +1312,7 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
             {authError&&<div style={{fontSize:12,color:"#B06848",marginBottom:12,lineHeight:1.5}}>{authError}</div>}
             {authMsg&&<div style={{fontSize:12,color:"#5A7A5C",marginBottom:12,lineHeight:1.5}}>{authMsg}</div>}
             <div className="sb" onClick={()=>handleAuth(authScreen==="signup")} style={{background:"var(--accent)",borderRadius:8,padding:"12px",textAlign:"center",cursor:"pointer",marginBottom:12}}>
-              <span style={{fontSize:13,fontWeight:500,color:"var(--bg-deepest)"}}>{authScreen==="signup"?"Create Account":"Sign In"}</span>
+              <span style={{fontSize:13,fontWeight:600,color:"#F5F0E6"}}>{authScreen==="signup"?"Create Account":"Sign In"}</span>
             </div>
             <div style={{textAlign:"center"}}>
               <span onClick={()=>{setAuthScreen(authScreen==="login"?"signup":"login");setAuthError("");setAuthMsg("")}} style={{fontSize:12,color:"var(--text-dim)",cursor:"pointer"}}>
@@ -1533,7 +1525,10 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
               <svg width="20" height="20" viewBox="0 0 22 22" fill="none"><rect x="4" y="2" width="11" height="18" rx="1.5" fill="var(--accent)" opacity="0.3" stroke="var(--accent)" strokeWidth="1.2"/><rect x="7" y="2" width="11" height="18" rx="1.5" fill="var(--accent)" opacity="0.4" stroke="var(--accent)" strokeWidth="1.2"/><line x1="10" y1="7" x2="15" y2="7" stroke="var(--accent)" strokeWidth="1" opacity="0.7"/><line x1="10" y1="10" x2="15" y2="10" stroke="var(--accent)" strokeWidth="1" opacity="0.7"/><line x1="10" y1="13" x2="13" y2="13" stroke="var(--accent)" strokeWidth="1" opacity="0.7"/></svg>
               <span style={{fontSize:8,color:"var(--text-muted)",letterSpacing:"0.08em",marginTop:2}}>Profile</span>
             </div>}
-            <span onClick={()=>{const next=theme==="dark"?"light":"dark";setTheme(next);saveStored("tt-theme",next)}} style={{fontSize:16,cursor:"pointer",opacity:.4,padding:"2px 6px"}} title="Toggle theme">{theme==="dark"?"☀":"☾"}</span>
+            <div onClick={()=>{const next=theme==="dark"?"light":"dark";setTheme(next);saveStored("tt-theme",next)}} style={{display:"flex",flexDirection:"column",alignItems:"center",cursor:"pointer",opacity:.8,transition:"opacity .2s"}} onMouseOver={e=>e.currentTarget.style.opacity=1} onMouseOut={e=>e.currentTarget.style.opacity=.8} title="Toggle light/dark theme">
+              <span style={{fontSize:16}}>{theme==="dark"?"☀":"☾"}</span>
+              <span style={{fontSize:8,color:"var(--text-muted)",letterSpacing:"0.08em",marginTop:2}}>{theme==="dark"?"Light":"Dark"}</span>
+            </div>
             <span onClick={handleLogout} style={{fontSize:10,color:"var(--text-faint)",cursor:"pointer",padding:"2px 6px"}} title="Sign out">Sign out</span>
             {screen==="chat"&&mode&&<span onClick={()=>{cancelReq();setMode(null);setMsgs([]);setInput("");setFinnOpen(false);setTriageActive(false);setTriageInput("");setTriageResult(null);if(subMenu){setScreen("submenu");}else{setScreen("home");setSubMenu(null);}}} style={{fontSize:12,color:"var(--text-dim)",cursor:"pointer",padding:"4px 0"}}>Back</span>}
           </div>
