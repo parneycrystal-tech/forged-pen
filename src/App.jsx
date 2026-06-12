@@ -402,6 +402,7 @@ const INTROS = {
 };
 
 const LOAD = ["Reading. Give me a second.","Sitting with this.","Let me think about what you've got here."];
+const LOAD_EXTENDED = ["Looking that up for you...","Checking a few sources...","Almost there. Want to get this right."];
 
 function loadStored(key) { try { const v = localStorage.getItem(key); return v ? JSON.parse(v) : null; } catch { return null; } }
 function saveStored(key, val) { try { localStorage.setItem(key, JSON.stringify(val)); cloudSave(key, val); } catch {} }
@@ -453,6 +454,11 @@ export default function App() {
   const [msgs, setMsgs] = useState([]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
+  useEffect(()=>{
+    if(!loading){setLoadMsg(LOAD[Math.floor(Math.random()*LOAD.length)]);return;}
+    const t=setTimeout(()=>{setLoadMsg(LOAD_EXTENDED[Math.floor(Math.random()*LOAD_EXTENDED.length)])},6000);
+    return ()=>clearTimeout(t);
+  },[loading]);
   const [screen, setScreen] = useState("welcome");
   const [userName, setUserName] = useState("");
   const [welcomeInput, setWelcomeInput] = useState("");
@@ -468,7 +474,7 @@ export default function App() {
   const [profileEditName, setProfileEditName] = useState("");
   const [ti] = useState(Math.floor(Math.random()*TORCHES.length));
   const [flipped, setFlipped] = useState(false);
-  const [loadMsg] = useState(LOAD[Math.floor(Math.random()*LOAD.length)]);
+  const [loadMsg, setLoadMsg] = useState(LOAD[Math.floor(Math.random()*LOAD.length)]);
   const [project, setProject] = useState(null);
   const [pForm, setPForm] = useState({title:"",genre:"",synopsis:"",protagonist:"",supporting:"",antagonist:"",worldSetting:"",worldRules:"",worldBeliefs:"",worldDanger:"",worldTone:"",chapters:[{num:1,summary:""}],where:"",stuck:"",excites:"",currentChapter:""});
   const [sparks, setSparks] = useState([]);
