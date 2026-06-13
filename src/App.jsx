@@ -1710,6 +1710,41 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
       </div>{/* end content */}
       </div>}{/* end home flex */}
 
+      {/* DESKTOP RIGHT SIDEBAR - SKELETON (no project yet) */}
+      {screen==="home"&&!project&&<div className="right-sb" style={{position:"fixed",right:0,top:0,bottom:0,width:260,background:"var(--bg-dark)",borderLeft:"1px solid var(--border)",padding:"22px 18px",flexDirection:"column",overflowY:"auto"}}>
+
+        <div style={{textAlign:"center",marginBottom:16,opacity:.6}}>
+          <div style={{fontSize:10,color:"var(--text-faint)",textTransform:"uppercase",letterSpacing:"0.15em"}}>Curious — Scene Atmosphere</div>
+        </div>
+        <div style={{height:1,background:"var(--border)",marginBottom:16}}/>
+
+        <div style={{marginBottom:16,padding:14,borderRadius:8,border:"1px dashed var(--border)"}}>
+          <div style={{fontSize:11,textTransform:"uppercase",letterSpacing:"0.12em",color:"var(--text-muted)",fontWeight:500,marginBottom:8,opacity:.7}}>Sensory Anchors</div>
+          <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:13,color:"var(--text-dim)",fontStyle:"italic",lineHeight:1.6}}>Sound, sight, and smell will appear here once Finn knows your scene.</div>
+        </div>
+
+        <div style={{marginBottom:16,padding:14,borderRadius:8,border:"1px dashed var(--border)"}}>
+          <div style={{fontSize:11,textTransform:"uppercase",letterSpacing:"0.12em",color:"var(--accent-80)",fontWeight:500,marginBottom:8,opacity:.7}}>The Pulse</div>
+          <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:13,color:"var(--text-dim)",fontStyle:"italic",lineHeight:1.6}}>This is where Finn surfaces the heartbeat of your story, an idea, a thread, a question worth returning to.</div>
+        </div>
+
+        <div style={{marginBottom:16,padding:14,borderRadius:8,border:"1px dashed var(--border)"}}>
+          <div style={{fontSize:11,textTransform:"uppercase",letterSpacing:"0.12em",color:"var(--accent-60)",fontWeight:500,marginBottom:8,opacity:.7}}>Latest Spark</div>
+          <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:13,color:"var(--text-dim)",fontStyle:"italic",lineHeight:1.6}}>Moments that excite you will be flagged and saved here as you write.</div>
+        </div>
+
+        <div style={{marginBottom:16,paddingTop:10,borderTop:"1px solid var(--border)"}}>
+          <div style={{display:"flex",justifyContent:"space-between"}}>
+            <div><div style={{fontSize:20,color:"var(--text-dim)",fontWeight:500}}>&mdash;</div><div style={{fontSize:10,color:"var(--text-dim)",marginTop:2,opacity:.6}}>words</div></div>
+            <div style={{textAlign:"right"}}><div style={{fontSize:20,color:"var(--text-dim)",fontWeight:500}}>&mdash;</div><div style={{fontSize:10,color:"var(--text-dim)",marginTop:2,opacity:.6}}>scenes</div></div>
+          </div>
+        </div>
+
+        <div style={{marginTop:"auto",paddingTop:16,borderTop:"1px solid var(--border)",textAlign:"center"}}>
+          <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:13,color:"var(--text-dim)",fontStyle:"italic",lineHeight:1.7}}>This panel comes alive once your Story Bible is set up.</div>
+        </div>
+      </div>}
+
       {/* DESKTOP RIGHT SIDEBAR */}
       {screen==="home"&&project&&<div className="right-sb" style={{position:"fixed",right:0,top:0,bottom:0,width:260,background:"var(--bg-dark)",borderLeft:"1px solid var(--border)",padding:"22px 18px",flexDirection:"column",overflowY:"auto"}}>
 
