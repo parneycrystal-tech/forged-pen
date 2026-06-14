@@ -479,6 +479,7 @@ export default function App() {
   const [pForm, setPForm] = useState({title:"",genre:"",synopsis:"",protagonist:"",supporting:"",antagonist:"",worldSetting:"",worldRules:"",worldBeliefs:"",worldDanger:"",worldTone:"",chapters:[{num:1,summary:""}],where:"",stuck:"",excites:"",currentChapter:""});
   const [sparks, setSparks] = useState([]);
   const [flaggedIdx, setFlaggedIdx] = useState(null);
+  const [ideaLabSparked, setIdeaLabSparked] = useState(false);
   const [lastSession, setLastSession] = useState(null);
   const [bibTab, setBibTab] = useState("overview");
   const [bibViewTab, setBibViewTab] = useState("overview");
@@ -2003,6 +2004,7 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
                     <div style={{display:"flex",gap:10,alignItems:"center"}}>
                       <div style={{fontSize:9,color:"var(--text-dim)"}}>{s.date}</div>
                       {canNav&&<div style={{fontSize:9,color:"var(--accent-60)"}}>Return &#8594;</div>}
+                      <div onClick={e=>{e.stopPropagation();const updated=sparks.filter((_,idx)=>idx===(sparks.length-1-i)?false:true);setSparks(updated);saveStored("tt-sparks",updated);cloudSave("tt-sparks",updated)}} style={{fontSize:9,color:"var(--text-dim)",cursor:"pointer",padding:"2px 6px",borderRadius:4,border:"1px solid var(--border)",opacity:.6}} title="Remove this spark">✕</div>
                     </div>
                   </div>
                   <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:15,color:"var(--text-primary)",lineHeight:1.7,fontStyle:"italic"}}>"{cleanText}"</div>
@@ -2198,7 +2200,10 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
                 </div>
                 <div style={{display:"flex",gap:8,alignItems:"center"}}>
                   <span style={{fontSize:10,color:"var(--text-dim)"}}>{ideaLabText.split(/\s+/).filter(w=>w).length} words</span>
-                  <span onClick={()=>{if(ideaLabText){const t=ideaLabText.substring(0,200);const ns=[...sparks,{text:t,date:new Date().toLocaleDateString(),mode:"Idea Lab",modeId:"idealab"}];setSparks(ns);saveStored("tt-sparks",ns)}}} style={{fontSize:10,color:"var(--text-dim)",background:"var(--bg-card)",border:"1px solid var(--border)",borderRadius:4,padding:"3px 8px",cursor:"pointer"}}>This excites me</span>
+                  {ideaLabSparked
+                    ? <span style={{fontSize:10,color:"var(--accent)",fontStyle:"italic",padding:"3px 8px"}}>Saved to your Dopamine Map.</span>
+                    : <span onClick={()=>{if(ideaLabText){const t=ideaLabText.substring(0,200);const ns=[...sparks,{text:t,date:new Date().toLocaleDateString(),mode:"Idea Lab",modeId:"idealab"}];setSparks(ns);saveStored("tt-sparks",ns);setIdeaLabSparked(true);setTimeout(()=>setIdeaLabSparked(false),3000)}}} style={{fontSize:10,color:"var(--text-dim)",background:"var(--bg-card)",border:"1px solid var(--border)",borderRadius:4,padding:"3px 8px",cursor:"pointer"}}>This excites me</span>
+                  }
                 </div>
               </div>
               <div style={{flex:1,overflow:"auto",padding:"24px 40px 0"}} onMouseUp={()=>{
