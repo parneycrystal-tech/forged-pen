@@ -1623,7 +1623,13 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
           <svg width="18" height="18" viewBox="0 0 18 18" style={{flexShrink:0}}><path d="M9 1l1.5 4.5L9 16 7.5 5.5z" fill="none" stroke="var(--accent)" strokeWidth="0.9"/><rect x="7" y="15" width="4" height="1.5" rx="0.5" fill="var(--accent)" opacity="0.3"/></svg>
           <div style={{flex:1}}>
             <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:14,fontWeight:600,color:"var(--accent)"}}>The Forge</div>
-            <div style={{fontSize:10,color:"var(--text-dim)",marginTop:2}}>{scenes.length>0?`${getTotalWords()} words across ${scenes.length} scene${scenes.length>1?"s":""}. Continue writing.`:"Open your writing space."}</div>
+            <div style={{fontSize:10,color:"var(--text-dim)",marginTop:2}}>
+              {getTotalWords()>0
+                ? `Manuscript: ${getTotalWords().toLocaleString()} word${getTotalWords()!==1?"s":""} across ${scenes.length} scene${scenes.length!==1?"s":""}. Continue writing.`
+                : scenes.length>0
+                  ? `Manuscript: ${scenes.length} scene${scenes.length!==1?"s":""} ready. Start writing.`
+                  : "Open your writing space."}
+            </div>
           </div>
           <span style={{color:"var(--text-dim)",fontSize:14}}>&#8594;</span>
         </div>
@@ -1995,16 +2001,27 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
             return [...sparks].reverse().map((s,i)=>{
               const cleanText=(s.text||"").replace(/\*\*/g,"").replace(/\*/g,"").replace(/#{1,6}\s/g,"");
               const resolvedModeId=s.modeId||(s.mode&&labelToId[s.mode]!==undefined?labelToId[s.mode]:null);
-              const canNav=resolvedModeId&&MODES.find(m=>m.id===resolvedModeId);
+              const isForgeMode=resolvedModeId==="forge"||resolvedModeId==="idealab"||resolvedModeId==="inferno";
+              const canNav=isForgeMode||(resolvedModeId&&MODES.find(m=>m.id===resolvedModeId));
               return <div key={i} style={{position:"relative",marginBottom:20,animation:"fu .5s ease-out",animationDelay:`${i*0.08}s`,animationFillMode:"both"}}>
                 <div style={{position:"absolute",left:-24,top:6,width:10,height:10,borderRadius:"50%",background:"var(--accent)",opacity:Math.max(1-i*0.08,0.3)}}/>
-                <div onClick={canNav?()=>{const m=MODES.find(x=>x.id===resolvedModeId);if(m)pick(m);}:undefined} style={{background:"var(--bg-card)",border:"1px solid var(--border)",borderRadius:10,padding:"16px 18px",cursor:canNav?"pointer":"default",transition:"border-color .2s"}} className={canNav?"card":""}>
+                <div onClick={canNav?()=>{
+                  if(isForgeMode){
+                    initScenes();
+                    if(resolvedModeId==="idealab")setForgeMode("idealab");
+                    else if(resolvedModeId==="inferno")setForgeMode("inferno");
+                    else setForgeMode("manuscript");
+                  } else {
+                    const m=MODES.find(x=>x.id===resolvedModeId);
+                    if(m)pick(m);
+                  }
+                }:undefined} style={{background:"var(--bg-card)",border:"1px solid var(--border)",borderRadius:10,padding:"16px 18px",cursor:canNav?"pointer":"default",transition:"border-color .2s"}} className={canNav?"card":""}>
                   <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:8}}>
                     <div style={{fontSize:9,color:"var(--accent-80)",textTransform:"uppercase",letterSpacing:"0.15em"}}>{s.mode||"Session"}</div>
                     <div style={{display:"flex",gap:10,alignItems:"center"}}>
                       <div style={{fontSize:9,color:"var(--text-dim)"}}>{s.date}</div>
                       {canNav&&<div style={{fontSize:9,color:"var(--accent-60)"}}>Return &#8594;</div>}
-                      <div onClick={e=>{e.stopPropagation();const updated=sparks.filter((_,idx)=>idx===(sparks.length-1-i)?false:true);setSparks(updated);saveStored("tt-sparks",updated);cloudSave("tt-sparks",updated)}} style={{fontSize:9,color:"var(--text-dim)",cursor:"pointer",padding:"2px 6px",borderRadius:4,border:"1px solid var(--border)",opacity:.6}} title="Remove this spark">✕</div>
+                      <div onClick={e=>{e.stopPropagation();const updated=[...sparks].reverse().filter((_,idx)=>idx!==i).reverse();setSparks(updated);saveStored("tt-sparks",updated);cloudSave("tt-sparks",updated)}} style={{fontSize:9,color:"var(--text-dim)",cursor:"pointer",padding:"2px 8px",borderRadius:4,border:"1px solid var(--border)",opacity:.6,fontFamily:"'DM Sans',sans-serif"}} title="Remove this spark" onMouseOver={e=>{e.currentTarget.style.opacity="1";e.currentTarget.textContent="Remove"}} onMouseOut={e=>{e.currentTarget.style.opacity=".6";e.currentTarget.textContent="✕"}}>✕</div>
                     </div>
                   </div>
                   <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:15,color:"var(--text-primary)",lineHeight:1.7,fontStyle:"italic"}}>"{cleanText}"</div>
