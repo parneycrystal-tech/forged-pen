@@ -502,6 +502,19 @@ export default function App() {
   const [firstSessionCapture, setFirstSessionCapture] = useState({});
   const [firstSessionMsgs, setFirstSessionMsgs] = useState([]);
   const [firstSessionLoading, setFirstSessionLoading] = useState(false);
+
+  // Persist first session conversation across refreshes
+  useEffect(()=>{
+    if(firstSessionMsgs.length>0){
+      try{localStorage.setItem("tt-first-session-msgs",JSON.stringify(firstSessionMsgs));}catch(e){}
+    }
+  },[firstSessionMsgs]);
+
+  useEffect(()=>{
+    if(Object.keys(firstSessionCapture).length>0){
+      try{localStorage.setItem("tt-first-session-capture",JSON.stringify(firstSessionCapture));}catch(e){}
+    }
+  },[firstSessionCapture]);
   const [lastSession, setLastSession] = useState(null);
   const [bibTab, setBibTab] = useState("overview");
   const [bibViewTab, setBibViewTab] = useState("overview");
@@ -616,12 +629,16 @@ export default function App() {
     const ss = loadStored("tt-session-summaries");
     const fsd = loadStored("tt-first-session-done");
     const fsdis = loadStored("tt-first-session-dismissed");
+    const fsmsgs = loadStored("tt-first-session-msgs");
+    const fscap = loadStored("tt-first-session-capture");
     if (un) setUserName(un);
     if (up) setUserProfile(up);
     if (od) setOnboardingDone(true);
     if (ss) setSessionSummaries(ss);
     if (fsd) setFirstSessionDone(true);
     if (fsdis) setFirstSessionDismissed(true);
+    if (fsmsgs && fsmsgs.length>0) setFirstSessionMsgs(fsmsgs);
+    if (fscap && Object.keys(fscap).length>0) setFirstSessionCapture(fscap);
   };
 
   const handleAuth=async(isSignUp)=>{
@@ -967,12 +984,48 @@ Respond with ONLY this JSON (no markdown, no backticks):
     });
   };
 
-  const openFirstSession=()=>{
+  const openFirstSession=async()=>{
     setFirstSessionOpen(true);
-    if(firstSessionMsgs.length===0){
-      const greeting=`${userName?`Good to meet you, ${userName}.`:"Good to meet you."} ${userProfile?.q1?.selected?.[0]?`From your profile: "${userProfile.q1.selected[0]}". That helps me.`:""}\n\nBefore we dive into any of the modes, I want to make sure I actually know your story. Not the summary version. The real one.\n\nLet's start simply. Who is at the center of this?`;
-      setFirstSessionMsgs([{role:"assistant",content:greeting}]);
+    if(firstSessionMsgs.length>0) return; // Resume existing session
+    setFirstSessionLoading(true);
+
+    const profileSummary=userProfile?`
+Experience: ${userProfile.q1?.selected?.join(", ")||"not specified"}
+Writing brain: ${userProfile.q2?.selected?.join(", ")||"not specified"}
+Current goal: ${userProfile.q3?.selected?.join(", ")||"not specified"}
+Coaching preference: ${userProfile.q4?.selected?.join(", ")||"not specified"}
+${userProfile.q2?.text?`Additional notes: ${userProfile.q2.text}`:""}
+${userProfile.q4?.text?`Coaching notes: ${userProfile.q4.text}`:""}`.trim():"No profile information yet.";
+
+    const openingSystem=`You are Finn, the writing coach behind Forged Pen. You are opening your very first session with a new writer. Generate a warm, specific, honest opening message based on what their profile tells you about them.
+
+RULES FOR THIS OPENING:
+Read the profile carefully and demonstrate that you actually understood it, not just read it. Name what their answers reveal about how they work, what they need, and what challenges are likely. Be specific. If they said they lose momentum after good sessions, name that directly. If they're published, acknowledge what that means for the stakes they're likely carrying. If they work in bursts and jump around, say you know how to work with that pattern.
+Then, having shown you know something about them, ask the single most important first question: who is at the center of their story.
+Do not say "I read your profile." Show it through what you know.
+Do not be generic. Do not use superlatives. Do not flatter.
+Use Finn's voice: direct, warm, dry wit when appropriate, honest underneath.
+Never use em dashes. Never use asterisks for emphasis.
+End with exactly one question: who is at the center of this story.
+Under 120 words.`;
+
+    try{
+      const r=await fetch("/api/chat",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({
+        system:openingSystem,
+        messages:[{role:"user",content:`Writer name: ${userName||"unknown"}\n\nProfile:\n${profileSummary}`}]
+      })});
+      const d=await r.json();
+      if(!d.error){
+        const raw=d.content?.filter(b=>b.type==="text").map(b=>b.text).join("")||"";
+        const greeting=raw.trim()||`Good to meet you${userName?`, ${userName}`:""}.  Before we dive into any of the modes, I want to make sure I actually know your story. Not the summary version. The real one.\n\nWho is at the center of this?`;
+        setFirstSessionMsgs([{role:"assistant",content:greeting}]);
+      } else {
+        setFirstSessionMsgs([{role:"assistant",content:`Good to meet you${userName?`, ${userName}`:""}.  Before we dive into any of the modes, I want to make sure I actually know your story. Not the summary version. The real one.\n\nWho is at the center of this?`}]);
+      }
+    }catch(e){
+      setFirstSessionMsgs([{role:"assistant",content:`Good to meet you${userName?`, ${userName}`:""}.  Before we dive into any of the modes, I want to make sure I actually know your story. Not the summary version. The real one.\n\nWho is at the center of this?`}]);
     }
+    setFirstSessionLoading(false);
   };
 
   const sendFirstSession=async(text)=>{
@@ -2670,6 +2723,16 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
           {/* Chat panel */}
           <div style={{flex:1,display:"flex",flexDirection:"column",borderRight:"1px solid var(--border)"}}>
             <div style={{flex:1,overflowY:"auto",padding:"20px 24px",display:"flex",flexDirection:"column",gap:16}}>
+              {firstSessionMsgs.length===0&&firstSessionLoading&&<div style={{display:"flex",gap:12,alignItems:"flex-start"}}>
+                <div style={{width:32,height:32,borderRadius:"50%",background:"var(--bg-card)",border:"1px solid var(--border)",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>
+                  <span style={{fontFamily:"'Cormorant Garamond',serif",fontSize:14,color:"var(--accent)"}}>F</span>
+                </div>
+                <div style={{background:"var(--bg-card)",borderRadius:"0 12px 12px 12px",padding:"14px 16px"}}>
+                  <div style={{display:"flex",gap:4,alignItems:"center"}}>
+                    {[0,1,2].map(i=><div key={i} style={{width:6,height:6,borderRadius:"50%",background:"var(--accent)",opacity:0.4,animation:`wp 1.2s ease-in-out ${i*0.2}s infinite`}}/>)}
+                  </div>
+                </div>
+              </div>}
               {firstSessionMsgs.map((m,i)=>(
                 <div key={i} style={{display:"flex",gap:12,alignItems:"flex-start",flexDirection:m.role==="user"?"row-reverse":"row"}}>
                   <div style={{width:32,height:32,borderRadius:"50%",background:m.role==="user"?"var(--bg-card-alt)":"var(--bg-card)",border:"1px solid var(--border)",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>
@@ -2714,6 +2777,10 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
                     setFirstSessionDone(true);
                     saveStored("tt-first-session-done",true);
                     cloudSave("tt-first-session-done",true);
+                    // Clear session conversation from localStorage since it's now in the Story Bible
+                    try{localStorage.removeItem("tt-first-session-msgs");localStorage.removeItem("tt-first-session-capture");}catch(e){}
+                    setFirstSessionMsgs([]);
+                    setFirstSessionCapture({});
                     setFirstSessionOpen(false);
                   }} style={{padding:"8px 18px",background:"var(--accent)",borderRadius:6,fontSize:12,fontWeight:500,color:"#F0EAE0",cursor:"pointer",fontFamily:"'DM Sans',sans-serif"}}>Save to Story Bible</div>
                   <div onClick={()=>setFirstSessionOpen(false)} style={{padding:"8px 14px",background:"transparent",border:"1px solid var(--border)",borderRadius:6,fontSize:12,color:"var(--text-dim)",cursor:"pointer",fontFamily:"'DM Sans',sans-serif"}}>Edit first</div>
