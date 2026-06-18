@@ -1969,7 +1969,8 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
       {screen==="setup"&&<div style={{maxWidth:820,margin:"0 auto",padding:"0 20px 20px",animation:"fu .5s ease-out"}}>
         <div onClick={goHome} style={{fontSize:12,color:"var(--text-dim)",cursor:"pointer",marginBottom:16}}>Back</div>
         <div style={{fontSize:8,textTransform:"uppercase",letterSpacing:"0.25em",color:"#5A7A8A",fontWeight:500,marginBottom:8}}>Story Bible</div>
-        <p style={{fontSize:13,color:"var(--text-muted)",marginBottom:16,lineHeight:1.6}}>Fill in what you can. Skip what you can't. Come back later. None of this has to be perfect.</p>
+        <p style={{fontSize:13,color:"var(--text-muted)",marginBottom:10,lineHeight:1.6}}>Fill in what you can. Skip what you can't. Come back later. None of this has to be perfect.</p>
+        <div onClick={()=>{setFirstSessionOpen(true);if(firstSessionMsgs.length===0)setFirstSessionMsgs([])}} style={{display:"inline-block",fontSize:12,color:"var(--accent)",cursor:"pointer",marginBottom:16,fontFamily:"'DM Sans',sans-serif",borderBottom:"1px solid var(--accent-40)"}}>Or let Finn help you build this &#8594;</div>
         <div style={{display:"flex",gap:6,marginBottom:16,flexWrap:"wrap"}}><BibTab id="overview" label="Overview" active={bibTab==="overview"} onClick={setBibTab}/><BibTab id="characters" label="Characters" active={bibTab==="characters"} onClick={setBibTab}/><BibTab id="world" label="World" active={bibTab==="world"} onClick={setBibTab}/><BibTab id="chapters" label="Chapters" active={bibTab==="chapters"} onClick={setBibTab}/><BibTab id="current" label="Current Chapter" active={bibTab==="current"} onClick={setBibTab}/></div>
 
         {bibTab==="overview"&&<>
@@ -2630,7 +2631,7 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
             <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:18,fontWeight:500,color:"var(--accent)"}}>First Session with Finn</div>
             <div style={{fontSize:11,color:"var(--text-dim)",fontFamily:"'DM Sans',sans-serif",marginTop:2}}>Your story starts here</div>
           </div>
-          <div onClick={()=>{setFirstSessionOpen(false);setFirstSessionDismissed(true);saveStored("tt-first-session-dismissed",true);cloudSave("tt-first-session-dismissed",true)}} style={{fontSize:11,color:"var(--text-dim)",cursor:"pointer",padding:"5px 12px",border:"1px solid var(--border)",borderRadius:6,fontFamily:"'DM Sans',sans-serif"}}>Dismiss</div>
+          <div onClick={()=>{setFirstSessionOpen(false)}} style={{fontSize:11,color:"var(--text-dim)",cursor:"pointer",padding:"5px 12px",border:"1px solid var(--border)",borderRadius:6,fontFamily:"'DM Sans',sans-serif"}}>Pause for now</div>
         </div>
 
         {/* Body */}
@@ -2645,7 +2646,7 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
                 </div>
                 <div style={{background:"var(--bg-card)",borderRadius:"0 12px 12px 12px",padding:"14px 16px",maxWidth:"85%"}}>
                   <p style={{fontFamily:"'Cormorant Garamond',serif",fontSize:15,lineHeight:1.8,color:"var(--text-primary)"}}>
-                    {userName?`Good to meet you, ${userName}.`:"Good to meet you."} {userProfile?.q1?.selected?.[0]?`I know you've been ${userProfile.q1.selected[0].toLowerCase()}.`:""} That helps me.
+                    {userName?`Good to meet you, ${userName}.`:"Good to meet you."} {userProfile?.q1?.selected?.[0]?`From your profile: "${userProfile.q1.selected[0]}". That helps me.`:""}
                   </p>
                   <p style={{fontFamily:"'Cormorant Garamond',serif",fontSize:15,lineHeight:1.8,color:"var(--text-primary)",marginTop:10}}>Before we dive into any of the modes, I want to make sure I actually know your story. Not the summary version. The real one.</p>
                   <p style={{fontFamily:"'Cormorant Garamond',serif",fontSize:15,lineHeight:1.8,color:"var(--text-primary)",marginTop:10}}>Let's start simply. Who is at the center of this?</p>
