@@ -951,6 +951,14 @@ Respond with ONLY this JSON (no markdown, no backticks):
     });
   };
 
+  const openFirstSession=()=>{
+    setFirstSessionOpen(true);
+    if(firstSessionMsgs.length===0){
+      const greeting=`${userName?`Good to meet you, ${userName}.`:"Good to meet you."} ${userProfile?.q1?.selected?.[0]?`From your profile: "${userProfile.q1.selected[0]}". That helps me.`:""}\n\nBefore we dive into any of the modes, I want to make sure I actually know your story. Not the summary version. The real one.\n\nLet's start simply. Who is at the center of this?`;
+      setFirstSessionMsgs([{role:"assistant",content:greeting}]);
+    }
+  };
+
   const sendFirstSession=async(text)=>{
     if(!text?.trim()||firstSessionLoading)return;
     const userMsg={role:"user",content:text};
@@ -979,11 +987,9 @@ Under 120 words per response.
 After every response, add a JSON capture block on its own line starting with CAPTURE: followed by a JSON object with any of these fields you learned in this exchange: protagonist, protagonistGoal, protagonistDream, protagonistFear, protagonistWound, protagonistBackstory, protagonistMisbelief, supporting, antagonist, worldSetting, worldTone, synopsis, themes (array), excites. Only include fields you actually learned. Leave others out.`;
 
     try{
-      const msgs=[
-        {role:"user",content:"Hi Finn, I'm ready to tell you about my story."},
-        {role:"assistant",content:`${userName?`Good to meet you, ${userName}.`:"Good to meet you."} Before we dive into any of the modes, I want to make sure I actually know your story. Not the summary version. The real one.\n\nLet's start simply. Who is at the center of this?`},
-        ...history.map(m=>({role:m.role,content:m.content}))
-      ];
+      const msgs=history[0]?.role==="assistant"
+        ?[{role:"user",content:"Hi Finn, I'm ready to tell you about my story."},...history.map(m=>({role:m.role,content:m.content}))]
+        :history.map(m=>({role:m.role,content:m.content}));
 
       const r=await fetch("/api/chat",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({system:FIRST_SESSION_SYSTEM,messages:msgs})});
       const d=await r.json();
@@ -1013,10 +1019,17 @@ After every response, add a JSON capture block on its own line starting with CAP
         const choices=choiceLines.map(l=>l.replace("CHOICE: ","").trim());
         clean=clean.replace(/^CHOICE: .+$/gm,"").trim();
 
+        if(!clean){clean="I'm still here. Tell me more about that, or ask me anything about your story.";}
+
         const assistantMsg={role:"assistant",content:clean,choices:choices.length>0?choices:undefined,readyToSave};
         setFirstSessionMsgs([...history,assistantMsg]);
+      } else {
+        setFirstSessionMsgs([...history,{role:"assistant",content:"Something hiccuped on my end. Mind sending that again?"}]);
       }
-    }catch(e){console.log("First session error:",e);}
+    }catch(e){
+      console.log("First session error:",e);
+      setFirstSessionMsgs([...history,{role:"assistant",content:"Something hiccuped on my end. Mind sending that again?"}]);
+    }
     setFirstSessionLoading(false);
   };
 
@@ -1652,7 +1665,7 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
             <div style={{fontSize:9,textTransform:"uppercase",letterSpacing:"0.16em",color:"var(--accent-80)",fontWeight:500,marginBottom:6,fontFamily:"'DM Sans',sans-serif"}}>First Session with Finn</div>
             <p style={{fontFamily:"'Cormorant Garamond',serif",fontSize:15,lineHeight:1.75,color:"var(--text-primary)",marginBottom:12}}>Before you explore, let me learn your story. Ten minutes with you now means every session after this gets smarter.</p>
             <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
-              <div onClick={()=>{setFirstSessionOpen(true);setFirstSessionMsgs([])}} style={{padding:"7px 18px",background:"var(--accent)",borderRadius:6,fontSize:12,fontWeight:500,color:"#F0EAE0",cursor:"pointer",fontFamily:"'DM Sans',sans-serif"}}>Let's do it</div>
+              <div onClick={openFirstSession} style={{padding:"7px 18px",background:"var(--accent)",borderRadius:6,fontSize:12,fontWeight:500,color:"#F0EAE0",cursor:"pointer",fontFamily:"'DM Sans',sans-serif"}}>Let's do it</div>
               <div onClick={()=>{setFirstSessionDismissed(true);saveStored("tt-first-session-dismissed",true);cloudSave("tt-first-session-dismissed",true)}} style={{padding:"7px 14px",background:"transparent",border:"1px solid var(--border)",borderRadius:6,fontSize:12,color:"var(--text-dim)",cursor:"pointer",fontFamily:"'DM Sans',sans-serif"}}>Maybe later</div>
             </div>
           </div>
@@ -1970,7 +1983,7 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
         <div onClick={goHome} style={{fontSize:12,color:"var(--text-dim)",cursor:"pointer",marginBottom:16}}>Back</div>
         <div style={{fontSize:8,textTransform:"uppercase",letterSpacing:"0.25em",color:"#5A7A8A",fontWeight:500,marginBottom:8}}>Story Bible</div>
         <p style={{fontSize:13,color:"var(--text-muted)",marginBottom:10,lineHeight:1.6}}>Fill in what you can. Skip what you can't. Come back later. None of this has to be perfect.</p>
-        <div onClick={()=>{setFirstSessionOpen(true);if(firstSessionMsgs.length===0)setFirstSessionMsgs([])}} style={{display:"inline-block",fontSize:12,color:"var(--accent)",cursor:"pointer",marginBottom:16,fontFamily:"'DM Sans',sans-serif",borderBottom:"1px solid var(--accent-40)"}}>Or let Finn help you build this &#8594;</div>
+        <div onClick={openFirstSession} style={{display:"inline-block",fontSize:12,color:"var(--accent)",cursor:"pointer",marginBottom:16,fontFamily:"'DM Sans',sans-serif",borderBottom:"1px solid var(--accent-40)"}}>Or let Finn help you build this &#8594;</div>
         <div style={{display:"flex",gap:6,marginBottom:16,flexWrap:"wrap"}}><BibTab id="overview" label="Overview" active={bibTab==="overview"} onClick={setBibTab}/><BibTab id="characters" label="Characters" active={bibTab==="characters"} onClick={setBibTab}/><BibTab id="world" label="World" active={bibTab==="world"} onClick={setBibTab}/><BibTab id="chapters" label="Chapters" active={bibTab==="chapters"} onClick={setBibTab}/><BibTab id="current" label="Current Chapter" active={bibTab==="current"} onClick={setBibTab}/></div>
 
         {bibTab==="overview"&&<>
@@ -2640,18 +2653,6 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
           {/* Chat panel */}
           <div style={{flex:1,display:"flex",flexDirection:"column",borderRight:"1px solid var(--border)"}}>
             <div style={{flex:1,overflowY:"auto",padding:"20px 24px",display:"flex",flexDirection:"column",gap:16}}>
-              {firstSessionMsgs.length===0&&<div style={{display:"flex",gap:12,alignItems:"flex-start"}}>
-                <div style={{width:32,height:32,borderRadius:"50%",background:"var(--bg-card)",border:"1px solid var(--border)",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>
-                  <span style={{fontFamily:"'Cormorant Garamond',serif",fontSize:14,color:"var(--accent)"}}>F</span>
-                </div>
-                <div style={{background:"var(--bg-card)",borderRadius:"0 12px 12px 12px",padding:"14px 16px",maxWidth:"85%"}}>
-                  <p style={{fontFamily:"'Cormorant Garamond',serif",fontSize:15,lineHeight:1.8,color:"var(--text-primary)"}}>
-                    {userName?`Good to meet you, ${userName}.`:"Good to meet you."} {userProfile?.q1?.selected?.[0]?`From your profile: "${userProfile.q1.selected[0]}". That helps me.`:""}
-                  </p>
-                  <p style={{fontFamily:"'Cormorant Garamond',serif",fontSize:15,lineHeight:1.8,color:"var(--text-primary)",marginTop:10}}>Before we dive into any of the modes, I want to make sure I actually know your story. Not the summary version. The real one.</p>
-                  <p style={{fontFamily:"'Cormorant Garamond',serif",fontSize:15,lineHeight:1.8,color:"var(--text-primary)",marginTop:10}}>Let's start simply. Who is at the center of this?</p>
-                </div>
-              </div>}
               {firstSessionMsgs.map((m,i)=>(
                 <div key={i} style={{display:"flex",gap:12,alignItems:"flex-start",flexDirection:m.role==="user"?"row-reverse":"row"}}>
                   <div style={{width:32,height:32,borderRadius:"50%",background:m.role==="user"?"var(--bg-card-alt)":"var(--bg-card)",border:"1px solid var(--border)",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>
