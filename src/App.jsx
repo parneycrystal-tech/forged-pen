@@ -1024,11 +1024,12 @@ After every response, add a JSON capture block on its own line starting with CAP
         const assistantMsg={role:"assistant",content:clean,choices:choices.length>0?choices:undefined,readyToSave};
         setFirstSessionMsgs([...history,assistantMsg]);
       } else {
-        setFirstSessionMsgs([...history,{role:"assistant",content:"Something hiccuped on my end. Mind sending that again?"}]);
+        console.log("First session API error:",d.error);
+        setFirstSessionMsgs([...history,{role:"assistant",content:`Something hiccuped on my end${d.error?` (${d.error})`:""}. Mind sending that again?`}]);
       }
     }catch(e){
       console.log("First session error:",e);
-      setFirstSessionMsgs([...history,{role:"assistant",content:"Something hiccuped on my end. Mind sending that again?"}]);
+      setFirstSessionMsgs([...history,{role:"assistant",content:`Something hiccuped on my end (${e.message||"connection issue"}). Mind sending that again?`}]);
     }
     setFirstSessionLoading(false);
   };
