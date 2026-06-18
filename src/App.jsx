@@ -476,10 +476,16 @@ export default function App() {
   const [flipped, setFlipped] = useState(false);
   const [loadMsg, setLoadMsg] = useState(LOAD[Math.floor(Math.random()*LOAD.length)]);
   const [project, setProject] = useState(null);
-  const [pForm, setPForm] = useState({title:"",genre:"",synopsis:"",protagonist:"",supporting:"",antagonist:"",worldSetting:"",worldRules:"",worldBeliefs:"",worldDanger:"",worldTone:"",chapters:[{num:1,summary:""}],where:"",stuck:"",excites:"",currentChapter:""});
+  const [pForm, setPForm] = useState({title:"",genre:"",synopsis:"",protagonist:"",protagonistGoal:"",protagonistDream:"",protagonistFear:"",protagonistWound:"",protagonistBackstory:"",protagonistMisbelief:"",supporting:"",antagonist:"",worldSetting:"",worldRules:"",worldBeliefs:"",worldDanger:"",worldTone:"",chapters:[{num:1,summary:""}],where:"",stuck:"",excites:"",currentChapter:""});
   const [sparks, setSparks] = useState([]);
   const [flaggedIdx, setFlaggedIdx] = useState(null);
   const [ideaLabSparked, setIdeaLabSparked] = useState(false);
+  const [firstSessionOpen, setFirstSessionOpen] = useState(false);
+  const [firstSessionDone, setFirstSessionDone] = useState(false);
+  const [firstSessionDismissed, setFirstSessionDismissed] = useState(false);
+  const [firstSessionCapture, setFirstSessionCapture] = useState({});
+  const [firstSessionMsgs, setFirstSessionMsgs] = useState([]);
+  const [firstSessionLoading, setFirstSessionLoading] = useState(false);
   const [lastSession, setLastSession] = useState(null);
   const [bibTab, setBibTab] = useState("overview");
   const [bibViewTab, setBibViewTab] = useState("overview");
@@ -592,10 +598,14 @@ export default function App() {
     const up = loadStored("tt-userprofile");
     const od = loadStored("tt-onboarding-done");
     const ss = loadStored("tt-session-summaries");
+    const fsd = loadStored("tt-first-session-done");
+    const fsdis = loadStored("tt-first-session-dismissed");
     if (un) setUserName(un);
     if (up) setUserProfile(up);
     if (od) setOnboardingDone(true);
     if (ss) setSessionSummaries(ss);
+    if (fsd) setFirstSessionDone(true);
+    if (fsdis) setFirstSessionDismissed(true);
   };
 
   const handleAuth=async(isSignUp)=>{
@@ -713,7 +723,7 @@ export default function App() {
     const currentScene=scenes.find(s=>s.id===activeScene);
     const sceneCtx=currentScene?`\n\nCURRENT SCENE (Chapter ${currentScene.chapter}, Scene ${currentScene.scene}):\n${currentScene.text||"(empty, writer hasn't started yet)"}`:""
     const chapStr=project?.chapters?(Array.isArray(project.chapters)?project.chapters.filter(c=>c.summary).map(c=>`Ch${c.num}: ${c.summary}`).join(". "):project.chapters):"";
-    const pCtx=project?`\n\nPROJECT: "${project.title}". Genre: ${project.genre}. Synopsis: ${project.synopsis}. Protagonist: ${project.protagonist}. Supporting: ${project.supporting}. Antagonist: ${project.antagonist}. Setting: ${project.worldSetting}. Rules: ${project.worldRules}. Beliefs vs Reality: ${project.worldBeliefs}. Danger: ${project.worldDanger}. Tone: ${project.worldTone}. Chapters: ${chapStr}. Position: ${project.where}. Stuck: ${project.stuck}. Excites: ${project.excites}.`:"";
+    const pCtx=project?`\n\nPROJECT: "${project.title}". Genre: ${project.genre}. Synopsis: ${project.synopsis}. Protagonist: ${project.protagonist}. Goal: ${project.protagonistGoal||"not yet captured"}. Dream: ${project.protagonistDream||"not yet captured"}. Fear: ${project.protagonistFear||"not yet captured"}. Wound: ${project.protagonistWound||"not yet captured"}. Backstory: ${project.protagonistBackstory||"not yet captured"}. Misbelief: ${project.protagonistMisbelief||"not yet captured"}. Supporting: ${project.supporting}. Antagonist: ${project.antagonist}. Setting: ${project.worldSetting}. Rules: ${project.worldRules}. Beliefs vs Reality: ${project.worldBeliefs}. Danger: ${project.worldDanger}. Tone: ${project.worldTone}. Chapters: ${chapStr}. Position: ${project.where}. Stuck: ${project.stuck}. Excites: ${project.excites}.`:"";
     const sparkCtx=sparks.length>0?`\n\nDOPAMINE MAP: ${sparks.map(s=>s.text).join(" | ")}`:"";
     const nm=[...containerMsgs,{role:"user",content:userText}];setContainerMsgs(nm);setContainerInput("");setLoading(true);
     const ctrl=new AbortController();abortRef.current=ctrl;
@@ -939,6 +949,75 @@ Respond with ONLY this JSON (no markdown, no backticks):
       const updated=q.multi?(curr.includes(opt)?curr.filter(o=>o!==opt):[...curr,opt]):[opt];
       return {...prev,[qid]:{...prev[qid],selected:updated}};
     });
+  };
+
+  const sendFirstSession=async(text)=>{
+    if(!text?.trim()||firstSessionLoading)return;
+    const userMsg={role:"user",content:text};
+    const history=[...firstSessionMsgs,userMsg];
+    setFirstSessionMsgs(history);
+    setFirstSessionLoading(true);
+
+    const profileCtxStr=userProfile?`Writer profile: experience: ${userProfile.q1?.selected?.join(", ")||"not specified"}. Working style: ${userProfile.q2?.selected?.join(", ")||"not specified"}. Current goal: ${userProfile.q3?.selected?.join(", ")||"not specified"}. Coaching preference: ${userProfile.q4?.selected?.join(", ")||"not specified"}.`:"";
+
+    const FIRST_SESSION_SYSTEM=`You are Finn opening your very first session with this writer. Your goal is to learn their story through natural conversation so every session after this gets smarter.
+
+You are trying to capture: protagonist name and description, protagonist goal (surface want), protagonist dream (deepest unspoken want), protagonist fear, protagonist wound (the experience that created the fear), protagonist backstory (childhood, family, psychological history, the wallpaper), protagonist misbelief (the false story they tell themselves), supporting characters, world and setting, core conflict, and themes.
+
+${profileCtxStr}
+${userName?`The writer's name is ${userName}.`:""}
+
+RULES:
+One question at a time. Always. Never ask two questions in one message.
+When the writer gives a vague or short answer, offer 2-3 gentle choices as a lifeline. Format choices on separate lines starting with "CHOICE: ".
+When the writer gives a rich answer, reflect something specific back before asking the next question.
+Watch for: very short responses, "I don't know", circular answers, apologetic language. These signal they need a lifeline.
+After 8-10 exchanges, or when you sense the writer is ready, close warmly. Summarize what you learned in 2-3 sentences in your own voice. Then add "READY_TO_SAVE" on its own line.
+Never rush. Never overwhelm. Never tell the writer they have enough. They decide when they're ready.
+Under 120 words per response.
+
+After every response, add a JSON capture block on its own line starting with CAPTURE: followed by a JSON object with any of these fields you learned in this exchange: protagonist, protagonistGoal, protagonistDream, protagonistFear, protagonistWound, protagonistBackstory, protagonistMisbelief, supporting, antagonist, worldSetting, worldTone, synopsis, themes (array), excites. Only include fields you actually learned. Leave others out.`;
+
+    try{
+      const msgs=[
+        {role:"user",content:"Hi Finn, I'm ready to tell you about my story."},
+        {role:"assistant",content:`${userName?`Good to meet you, ${userName}.`:"Good to meet you."} Before we dive into any of the modes, I want to make sure I actually know your story. Not the summary version. The real one.\n\nLet's start simply. Who is at the center of this?`},
+        ...history.map(m=>({role:m.role,content:m.content}))
+      ];
+
+      const r=await fetch("/api/chat",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({system:FIRST_SESSION_SYSTEM,messages:msgs})});
+      const d=await r.json();
+      if(!d.error){
+        const raw=d.content?.filter(b=>b.type==="text").map(b=>b.text).join("")||"";
+
+        // Extract and parse CAPTURE block
+        const captureMatch=raw.match(/CAPTURE:\s*(\{[\s\S]*?\})/);
+        if(captureMatch){
+          try{
+            const captured=JSON.parse(captureMatch[1]);
+            setFirstSessionCapture(prev=>({...prev,...captured}));
+          }catch(e){}
+        }
+
+        // Check if ready to save
+        const readyToSave=raw.includes("READY_TO_SAVE");
+
+        // Clean response for display
+        let clean=raw
+          .replace(/CAPTURE:\s*\{[\s\S]*?\}/g,"")
+          .replace(/READY_TO_SAVE/g,"")
+          .trim();
+
+        // Extract choices
+        const choiceLines=clean.match(/^CHOICE: .+$/gm)||[];
+        const choices=choiceLines.map(l=>l.replace("CHOICE: ","").trim());
+        clean=clean.replace(/^CHOICE: .+$/gm,"").trim();
+
+        const assistantMsg={role:"assistant",content:clean,choices:choices.length>0?choices:undefined,readyToSave};
+        setFirstSessionMsgs([...history,assistantMsg]);
+      }
+    }catch(e){console.log("First session error:",e);}
+    setFirstSessionLoading(false);
   };
 
   const handleEndSession=async()=>{
@@ -1564,6 +1643,21 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
           <div style={{fontSize:10,color:"var(--text-dim)",marginTop:5}}>{tk.a}</div>
         </div>
 
+        {/* First Session Invitation Card */}
+        {onboardingDone&&!firstSessionDone&&!firstSessionDismissed&&screen==="home"&&<div style={{background:"var(--bg-card)",border:"1px solid var(--accent-40)",borderRadius:10,padding:"18px 20px",marginBottom:12,display:"flex",gap:14,alignItems:"flex-start"}}>
+          <div style={{width:36,height:36,borderRadius:"50%",background:"var(--bg-card-alt)",border:"1px solid var(--border)",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,marginTop:2}}>
+            <span style={{fontFamily:"'Cormorant Garamond',serif",fontSize:16,fontWeight:500,color:"var(--accent)"}}>F</span>
+          </div>
+          <div style={{flex:1}}>
+            <div style={{fontSize:9,textTransform:"uppercase",letterSpacing:"0.16em",color:"var(--accent-80)",fontWeight:500,marginBottom:6,fontFamily:"'DM Sans',sans-serif"}}>First Session with Finn</div>
+            <p style={{fontFamily:"'Cormorant Garamond',serif",fontSize:15,lineHeight:1.75,color:"var(--text-primary)",marginBottom:12}}>Before you explore, let me learn your story. Ten minutes with you now means every session after this gets smarter.</p>
+            <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
+              <div onClick={()=>{setFirstSessionOpen(true);setFirstSessionMsgs([])}} style={{padding:"7px 18px",background:"var(--accent)",borderRadius:6,fontSize:12,fontWeight:500,color:"#F0EAE0",cursor:"pointer",fontFamily:"'DM Sans',sans-serif"}}>Let's do it</div>
+              <div onClick={()=>{setFirstSessionDismissed(true);saveStored("tt-first-session-dismissed",true);cloudSave("tt-first-session-dismissed",true)}} style={{padding:"7px 14px",background:"transparent",border:"1px solid var(--border)",borderRadius:6,fontSize:12,color:"var(--text-dim)",cursor:"pointer",fontFamily:"'DM Sans',sans-serif"}}>Maybe later</div>
+            </div>
+          </div>
+        </div>}
+
         {/* Finn's Read */}
         {(()=>{
           const route=getSmartRoute();
@@ -1908,7 +2002,20 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
           </>}
         </>}
 
-        {bibTab==="characters"&&<><FormField label="Protagonist" k="protagonist" ph="Name, age, core trait, internal conflict, arc..." value={pForm.protagonist} onChange={updateField} multi/><FormField label="Supporting Characters" k="supporting" ph="One per paragraph works best..." value={pForm.supporting} onChange={updateField} multi/><FormField label="Antagonist" k="antagonist" ph="Person, force, or system..." value={pForm.antagonist} onChange={updateField} multi/></>}
+        {bibTab==="characters"&&<>
+          <FormField label="Protagonist" k="protagonist" ph="Name, age, core trait, internal conflict, arc..." value={pForm.protagonist} onChange={updateField} multi/>
+          <div style={{marginBottom:8,marginTop:4}}>
+            <div style={{fontSize:9,textTransform:"uppercase",letterSpacing:"0.14em",color:"var(--accent-70)",fontWeight:500,marginBottom:12,paddingTop:8,borderTop:"1px solid var(--border)"}}>Protagonist Inner Life</div>
+            <FormField label="Goal" k="protagonistGoal" ph="What are they visibly pursuing? The surface want..." value={pForm.protagonistGoal} onChange={updateField} multi/>
+            <FormField label="Dream" k="protagonistDream" ph="What do they want at the deepest level, often unspoken..." value={pForm.protagonistDream} onChange={updateField} multi/>
+            <FormField label="Fear" k="protagonistFear" ph="What are they most afraid of..." value={pForm.protagonistFear} onChange={updateField} multi/>
+            <FormField label="Wound" k="protagonistWound" ph="The specific experience or pattern that created the fear..." value={pForm.protagonistWound} onChange={updateField} multi/>
+            <FormField label="Backstory" k="protagonistBackstory" ph="Childhood, family, formative relationships. The wallpaper that lives in the background..." value={pForm.protagonistBackstory} onChange={updateField} multi/>
+            <FormField label="Misbelief" k="protagonistMisbelief" ph="The false story they tell themselves born from the wound. The thing the story will test..." value={pForm.protagonistMisbelief} onChange={updateField} multi/>
+          </div>
+          <FormField label="Supporting Characters" k="supporting" ph="One per paragraph works best..." value={pForm.supporting} onChange={updateField} multi/>
+          <FormField label="Antagonist" k="antagonist" ph="Person, force, or system..." value={pForm.antagonist} onChange={updateField} multi/>
+        </>}
         {bibTab==="world"&&<><WorldField label="Core Setting" helper="When and where does this story take place?" example="Northern Michigan, late summer..." k="worldSetting" value={pForm.worldSetting} onChange={updateField}/><WorldField label="World Rules" helper="What can and cannot happen here?" example="Magic exists but only in children..." k="worldRules" value={pForm.worldRules} onChange={updateField}/><WorldField label="Beliefs vs. Reality" helper="What do characters assume that isn't true?" example="The town believes the fires are natural..." k="worldBeliefs" value={pForm.worldBeliefs} onChange={updateField}/><WorldField label="What Makes This World Dangerous" helper="What creates real stakes?" example="If Emma uses too much magic..." k="worldDanger" value={pForm.worldDanger} onChange={updateField}/><WorldField label="Tone" helper="What does this world feel like?" example="Warm but uneasy..." k="worldTone" value={pForm.worldTone} onChange={updateField}/></>}
         {bibTab==="chapters"&&<><p style={{fontSize:12,color:"var(--text-muted)",marginBottom:14,lineHeight:1.5}}>One field per chapter. Keep summaries short.</p>{pForm.chapters.map((ch,idx)=><div key={idx} style={{marginBottom:14}}><div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:5}}><label style={{fontSize:13,color:"var(--accent)",fontWeight:600}}>Chapter {ch.num}</label>{pForm.chapters.length>1&&<span onClick={()=>removeChapter(idx)} style={{fontSize:11,color:"var(--text-dim)",cursor:"pointer"}}>Remove</span>}</div><textarea className="fi" rows={2} placeholder={`What happens in chapter ${ch.num}...`} value={ch.summary} onChange={e=>updateChapter(idx,e.target.value)} style={{resize:"vertical",fontSize:13}}/></div>)}<Btn onClick={addChapter} s={{width:"100%",background:"none",borderStyle:"dashed",borderColor:"var(--border-mid)",color:"var(--text-muted)",marginBottom:8}}>+ Add Chapter</Btn></>}
         {bibTab==="current"&&<><p style={{fontSize:12,color:"var(--text-muted)",marginBottom:8,lineHeight:1.5}}>Paste the chapter you're currently working on. Finn will reference this text directly.</p><FormField label="Current chapter text" k="currentChapter" ph="Paste your current chapter here..." value={pForm.currentChapter} onChange={updateField} multi/></>}
@@ -1938,7 +2045,7 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
         </div>}
         {bibleSearch&&<div>
           {(()=>{
-            const allFields=[["Genre",project.genre,false],["Synopsis",project.synopsis,true],["Protagonist",project.protagonist,true],["Supporting Characters",project.supporting,true],["Antagonist",project.antagonist,true],["Core Setting",project.worldSetting,true],["World Rules",project.worldRules,true],["Beliefs vs Reality",project.worldBeliefs,true],["What Makes It Dangerous",project.worldDanger,true],["Tone",project.worldTone,false],["Where you are",project.where,false],["Focused on",project.stuck,false],["What excites you",project.excites,true]];
+            const allFields=[["Genre",project.genre,false],["Synopsis",project.synopsis,true],["Protagonist",project.protagonist,true],["Goal",project.protagonistGoal,true],["Dream",project.protagonistDream,true],["Fear",project.protagonistFear,true],["Wound",project.protagonistWound,true],["Backstory",project.protagonistBackstory,true],["Misbelief",project.protagonistMisbelief,true],["Supporting Characters",project.supporting,true],["Antagonist",project.antagonist,true],["Core Setting",project.worldSetting,true],["World Rules",project.worldRules,true],["Beliefs vs Reality",project.worldBeliefs,true],["What Makes It Dangerous",project.worldDanger,true],["Tone",project.worldTone,false],["Where you are",project.where,false],["Focused on",project.stuck,false],["What excites you",project.excites,true]];
             const matches=allFields.filter(([l,v])=>v&&(l.toLowerCase().includes(bibleSearch.toLowerCase())||v.toLowerCase().includes(bibleSearch.toLowerCase())));
             if(matches.length===0)return <p style={{fontFamily:"'Cormorant Garamond',serif",fontSize:14,color:"var(--text-dim)",fontStyle:"italic"}}>Nothing found for "{bibleSearch}"</p>;
             return matches.map(([l,v,multi])=><ReadField key={l} label={l} value={v} multi={multi}/>);
@@ -1960,6 +2067,15 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
         </div>}
         {!bibleSearch&&bibViewTab==="characters"&&<div>
           <ReadField label="Protagonist" value={project.protagonist} multi/>
+          {(project.protagonistGoal||project.protagonistDream||project.protagonistFear||project.protagonistWound||project.protagonistBackstory||project.protagonistMisbelief)&&<>
+            <div style={{fontSize:9,textTransform:"uppercase",letterSpacing:"0.14em",color:"var(--accent-70)",fontWeight:500,marginBottom:12,marginTop:8,paddingTop:8,borderTop:"1px solid var(--border)"}}>Protagonist Inner Life</div>
+            <ReadField label="Goal" value={project.protagonistGoal} multi/>
+            <ReadField label="Dream" value={project.protagonistDream} multi/>
+            <ReadField label="Fear" value={project.protagonistFear} multi/>
+            <ReadField label="Wound" value={project.protagonistWound} multi/>
+            <ReadField label="Backstory" value={project.protagonistBackstory} multi/>
+            <ReadField label="Misbelief" value={project.protagonistMisbelief} multi/>
+          </>}
           <ReadField label="Supporting Characters" value={project.supporting} multi/>
           <ReadField label="Antagonist" value={project.antagonist} multi/>
           {!project.protagonist&&!project.supporting&&!project.antagonist&&<p style={{fontFamily:"'Cormorant Garamond',serif",fontSize:14,color:"var(--text-dim)",fontStyle:"italic"}}>No characters added yet. Tap Edit to add them.</p>}
@@ -2500,6 +2616,148 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
               <div onClick={()=>{setEndSessionOpen(false);setEndSessionResult(null);goHome();}} style={{flex:1,background:"var(--bg-card-alt)",border:"1px solid var(--border)",borderRadius:8,padding:"11px",textAlign:"center",cursor:"pointer"}}>
                 <span style={{fontSize:12,color:"var(--text-muted)"}}>Just go home</span>
               </div>
+            </div>
+          </div>
+        </div>
+      </div>}
+
+      {/* FIRST SESSION WITH FINN */}
+      {firstSessionOpen&&<div style={{position:"fixed",top:0,left:0,right:0,bottom:0,background:"var(--bg-base)",zIndex:300,display:"flex",flexDirection:"column",animation:"fu .3s ease-out"}}>
+
+        {/* Header */}
+        <div style={{padding:"16px 24px",borderBottom:"1px solid var(--border)",display:"flex",justifyContent:"space-between",alignItems:"center",background:"var(--bg-dark)"}}>
+          <div>
+            <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:18,fontWeight:500,color:"var(--accent)"}}>First Session with Finn</div>
+            <div style={{fontSize:11,color:"var(--text-dim)",fontFamily:"'DM Sans',sans-serif",marginTop:2}}>Your story starts here</div>
+          </div>
+          <div onClick={()=>{setFirstSessionOpen(false);setFirstSessionDismissed(true);saveStored("tt-first-session-dismissed",true);cloudSave("tt-first-session-dismissed",true)}} style={{fontSize:11,color:"var(--text-dim)",cursor:"pointer",padding:"5px 12px",border:"1px solid var(--border)",borderRadius:6,fontFamily:"'DM Sans',sans-serif"}}>Dismiss</div>
+        </div>
+
+        {/* Body */}
+        <div style={{flex:1,display:"flex",overflow:"hidden"}}>
+
+          {/* Chat panel */}
+          <div style={{flex:1,display:"flex",flexDirection:"column",borderRight:"1px solid var(--border)"}}>
+            <div style={{flex:1,overflowY:"auto",padding:"20px 24px",display:"flex",flexDirection:"column",gap:16}}>
+              {firstSessionMsgs.length===0&&<div style={{display:"flex",gap:12,alignItems:"flex-start"}}>
+                <div style={{width:32,height:32,borderRadius:"50%",background:"var(--bg-card)",border:"1px solid var(--border)",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>
+                  <span style={{fontFamily:"'Cormorant Garamond',serif",fontSize:14,color:"var(--accent)"}}>F</span>
+                </div>
+                <div style={{background:"var(--bg-card)",borderRadius:"0 12px 12px 12px",padding:"14px 16px",maxWidth:"85%"}}>
+                  <p style={{fontFamily:"'Cormorant Garamond',serif",fontSize:15,lineHeight:1.8,color:"var(--text-primary)"}}>
+                    {userName?`Good to meet you, ${userName}.`:"Good to meet you."} {userProfile?.q1?.selected?.[0]?`I know you've been ${userProfile.q1.selected[0].toLowerCase()}.`:""} That helps me.
+                  </p>
+                  <p style={{fontFamily:"'Cormorant Garamond',serif",fontSize:15,lineHeight:1.8,color:"var(--text-primary)",marginTop:10}}>Before we dive into any of the modes, I want to make sure I actually know your story. Not the summary version. The real one.</p>
+                  <p style={{fontFamily:"'Cormorant Garamond',serif",fontSize:15,lineHeight:1.8,color:"var(--text-primary)",marginTop:10}}>Let's start simply. Who is at the center of this?</p>
+                </div>
+              </div>}
+              {firstSessionMsgs.map((m,i)=>(
+                <div key={i} style={{display:"flex",gap:12,alignItems:"flex-start",flexDirection:m.role==="user"?"row-reverse":"row"}}>
+                  <div style={{width:32,height:32,borderRadius:"50%",background:m.role==="user"?"var(--bg-card-alt)":"var(--bg-card)",border:"1px solid var(--border)",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>
+                    <span style={{fontFamily:"'Cormorant Garamond',serif",fontSize:13,color:"var(--accent)"}}>{m.role==="user"?(userName?userName[0].toUpperCase():"W"):"F"}</span>
+                  </div>
+                  <div style={{background:m.role==="user"?"var(--bg-card-alt)":"var(--bg-card)",borderRadius:m.role==="user"?"12px 0 12px 12px":"0 12px 12px 12px",padding:"12px 16px",maxWidth:"85%"}}>
+                    {m.content.split("\n").map((line,li)=>line.trim()?<p key={li} style={{fontFamily:"'Cormorant Garamond',serif",fontSize:15,lineHeight:1.75,color:"var(--text-primary)",marginTop:li>0?8:0}}>{line}</p>:null)}
+                    {m.choices&&<div style={{marginTop:10,display:"flex",flexDirection:"column",gap:6}}>
+                      {m.choices.map((c,ci)=><div key={ci} onClick={()=>sendFirstSession(c)} style={{padding:"8px 14px",border:"1px solid var(--border)",borderRadius:8,fontSize:13,color:"var(--text-primary)",cursor:"pointer",fontFamily:"'DM Sans',sans-serif",background:"var(--bg-base)"}}>{c}</div>)}
+                    </div>}
+                  </div>
+                </div>
+              ))}
+              {firstSessionLoading&&<div style={{display:"flex",gap:12,alignItems:"flex-start"}}>
+                <div style={{width:32,height:32,borderRadius:"50%",background:"var(--bg-card)",border:"1px solid var(--border)",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>
+                  <span style={{fontFamily:"'Cormorant Garamond',serif",fontSize:14,color:"var(--accent)"}}>F</span>
+                </div>
+                <div style={{background:"var(--bg-card)",borderRadius:"0 12px 12px 12px",padding:"14px 16px"}}>
+                  <div style={{display:"flex",gap:4,alignItems:"center"}}>
+                    {[0,1,2].map(i=><div key={i} style={{width:6,height:6,borderRadius:"50%",background:"var(--accent)",opacity:0.4,animation:`wp 1.2s ease-in-out ${i*0.2}s infinite`}}/>)}
+                  </div>
+                </div>
+              </div>}
+
+              {/* Confirm save section */}
+              {firstSessionMsgs.some(m=>m.readyToSave)&&<div style={{background:"var(--bg-card)",border:"1px solid var(--accent-40)",borderRadius:10,padding:"16px 18px",marginTop:8}}>
+                <div style={{fontSize:9,textTransform:"uppercase",letterSpacing:"0.14em",color:"var(--accent)",fontWeight:500,marginBottom:10,fontFamily:"'DM Sans',sans-serif"}}>Ready to save to Story Bible</div>
+                {Object.entries(firstSessionCapture).filter(([k,v])=>v).map(([k,v])=>(
+                  <div key={k} style={{display:"flex",gap:12,marginBottom:6,alignItems:"baseline"}}>
+                    <span style={{fontSize:10,color:"var(--text-dim)",fontFamily:"'DM Sans',sans-serif",minWidth:80,textTransform:"capitalize"}}>{k.replace("protagonist","").replace(/([A-Z])/g," $1").trim()||"Protagonist"}</span>
+                    <span style={{fontFamily:"'Cormorant Garamond',serif",fontSize:14,color:"var(--text-primary)",lineHeight:1.6}}>{v}</span>
+                  </div>
+                ))}
+                <div style={{display:"flex",gap:8,marginTop:14}}>
+                  <div onClick={()=>{
+                    const updated={...pForm,...firstSessionCapture};
+                    setPForm(updated);
+                    const proj={...updated,updated:new Date().toLocaleDateString()};
+                    setProject(proj);
+                    saveStored("tt-project",proj);
+                    cloudSave("tt-project",proj);
+                    setFirstSessionDone(true);
+                    saveStored("tt-first-session-done",true);
+                    cloudSave("tt-first-session-done",true);
+                    setFirstSessionOpen(false);
+                  }} style={{padding:"8px 18px",background:"var(--accent)",borderRadius:6,fontSize:12,fontWeight:500,color:"#F0EAE0",cursor:"pointer",fontFamily:"'DM Sans',sans-serif"}}>Save to Story Bible</div>
+                  <div onClick={()=>setFirstSessionOpen(false)} style={{padding:"8px 14px",background:"transparent",border:"1px solid var(--border)",borderRadius:6,fontSize:12,color:"var(--text-dim)",cursor:"pointer",fontFamily:"'DM Sans',sans-serif"}}>Edit first</div>
+                </div>
+              </div>}
+            </div>
+
+            {/* Input */}
+            {!firstSessionMsgs.some(m=>m.readyToSave)&&<div style={{padding:"14px 24px",borderTop:"1px solid var(--border)",display:"flex",gap:10,alignItems:"center",background:"var(--bg-dark)"}}>
+              <input id="firstSessionInput" type="text" placeholder="Tell Finn about your story..." onKeyDown={e=>{if(e.key==="Enter"&&e.target.value.trim()){sendFirstSession(e.target.value);e.target.value=""}}} style={{flex:1,fontFamily:"'DM Sans',sans-serif",fontSize:14,background:"var(--bg-card)",border:"1px solid var(--border)",borderRadius:8,padding:"10px 14px",color:"var(--text-primary)"}}/>
+              <div onClick={()=>{const inp=document.getElementById("firstSessionInput");if(inp?.value?.trim()){sendFirstSession(inp.value);inp.value=""}}} style={{padding:"10px 18px",background:"var(--accent)",borderRadius:8,fontSize:13,fontWeight:500,color:"#F0EAE0",cursor:"pointer",fontFamily:"'DM Sans',sans-serif"}}>Send</div>
+            </div>}
+          </div>
+
+          {/* Story capture panel */}
+          <div style={{width:260,display:"flex",flexDirection:"column",background:"var(--bg-dark)"}}>
+            <div style={{padding:"14px 18px",borderBottom:"1px solid var(--border)"}}>
+              <div style={{fontSize:9,textTransform:"uppercase",letterSpacing:"0.14em",color:"var(--text-dim)",fontFamily:"'DM Sans',sans-serif",marginBottom:2}}>Story taking shape</div>
+              <div style={{fontSize:11,color:"var(--text-dim)",fontFamily:"'DM Sans',sans-serif",fontStyle:"italic",opacity:.7}}>Finn is capturing as you go</div>
+            </div>
+
+            <div style={{flex:1,overflowY:"auto",padding:"14px 18px",display:"flex",flexDirection:"column",gap:12}}>
+
+              {/* Protagonist card */}
+              <div>
+                <div style={{fontSize:9,textTransform:"uppercase",letterSpacing:"0.12em",color:"var(--text-dim)",fontFamily:"'DM Sans',sans-serif",marginBottom:6}}>
+                  Protagonist {firstSessionCapture.protagonist&&<span style={{fontSize:9,padding:"1px 6px",borderRadius:8,background:"var(--accent-20)",color:"var(--accent)",marginLeft:4}}>captured</span>}
+                </div>
+                <div style={{background:"var(--bg-card)",borderRadius:8,padding:"10px 12px",border:firstSessionCapture.protagonist?"1px solid var(--accent-20)":"1px dashed var(--border)"}}>
+                  {firstSessionCapture.protagonist
+                    ? <><div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:14,fontWeight:500,color:"var(--text-primary)"}}>{firstSessionCapture.protagonist}</div>
+                        {firstSessionCapture.protagonistGoal&&<div style={{marginTop:8,paddingTop:8,borderTop:"1px solid var(--border)"}}><div style={{fontSize:9,color:"var(--text-dim)",fontFamily:"'DM Sans',sans-serif",marginBottom:3}}>Goal</div><div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:13,color:"var(--text-muted)",fontStyle:"italic",lineHeight:1.5}}>{firstSessionCapture.protagonistGoal}</div></div>}
+                        {firstSessionCapture.protagonistFear&&<div style={{marginTop:8}}><div style={{fontSize:9,color:"var(--text-dim)",fontFamily:"'DM Sans',sans-serif",marginBottom:3}}>Fear</div><div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:13,color:"var(--text-muted)",fontStyle:"italic",lineHeight:1.5}}>{firstSessionCapture.protagonistFear}</div></div>}
+                        {firstSessionCapture.protagonistMisbelief&&<div style={{marginTop:8}}><div style={{fontSize:9,color:"var(--text-dim)",fontFamily:"'DM Sans',sans-serif",marginBottom:3}}>Misbelief</div><div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:13,color:"var(--text-muted)",fontStyle:"italic",lineHeight:1.5}}>{firstSessionCapture.protagonistMisbelief}</div></div>}
+                      </>
+                    : <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:13,color:"var(--text-dim)",fontStyle:"italic"}}>Waiting for you to tell me...</div>}
+                </div>
+              </div>
+
+              {/* World card */}
+              <div>
+                <div style={{fontSize:9,textTransform:"uppercase",letterSpacing:"0.12em",color:"var(--text-dim)",fontFamily:"'DM Sans',sans-serif",marginBottom:6}}>
+                  World {firstSessionCapture.worldSetting&&<span style={{fontSize:9,padding:"1px 6px",borderRadius:8,background:"var(--accent-20)",color:"var(--accent)",marginLeft:4}}>captured</span>}
+                </div>
+                <div style={{background:"var(--bg-card)",borderRadius:8,padding:"10px 12px",border:firstSessionCapture.worldSetting?"1px solid var(--accent-20)":"1px dashed var(--border)"}}>
+                  {firstSessionCapture.worldSetting
+                    ? <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:13,color:"var(--text-primary)",lineHeight:1.6}}>{firstSessionCapture.worldSetting}</div>
+                    : <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:13,color:"var(--text-dim)",fontStyle:"italic"}}>Still listening...</div>}
+                </div>
+              </div>
+
+              {/* Themes */}
+              {firstSessionCapture.themes&&firstSessionCapture.themes.length>0&&<div>
+                <div style={{fontSize:9,textTransform:"uppercase",letterSpacing:"0.12em",color:"var(--text-dim)",fontFamily:"'DM Sans',sans-serif",marginBottom:6}}>Themes sensing</div>
+                <div style={{display:"flex",flexWrap:"wrap",gap:4}}>
+                  {firstSessionCapture.themes.map((t,i)=><span key={i} style={{fontSize:11,padding:"3px 10px",borderRadius:20,background:"var(--bg-card)",border:"1px solid var(--border)",color:"var(--text-dim)",fontFamily:"'DM Sans',sans-serif"}}>{t}</span>)}
+                </div>
+              </div>}
+
+            </div>
+
+            <div style={{padding:"14px 18px",borderTop:"1px solid var(--border)"}}>
+              <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:12,color:"var(--text-dim)",fontStyle:"italic",lineHeight:1.6}}>Everything captured here goes into your Story Bible. You can edit it any time.</div>
             </div>
           </div>
         </div>
