@@ -891,25 +891,43 @@ Respond with ONLY this JSON:
     });
   };
 
-  const generateDefaultSidebarCtx=async(proj)=>{
+  const generateDefaultSidebarCtx=async(proj,ideaLabContent,sceneContent)=>{
     if(!proj)return;
     try{
-      const r=await fetch("/api/chat",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({
-        system:`You are a writing session analyzer. CRITICAL RULE: A sensory anchor must be a detail that was ACTUALLY WRITTEN by the writer in their Story Bible fields below, word for word or extremely close to it. Do not take a real noun (a place, a character name) and invent an elaborate sensory scene around it that the writer never actually wrote. Most Story Bible setups contain little or no actual sensory prose, they're usually summaries and structural notes, not written scenes. In that case sensoryAnchors should be an EMPTY ARRAY. Only populate it if the writer's own fields already contain real sensory description you can quote or closely paraphrase. An empty array is the normal, expected, correct result for most new Story Bibles. Fabricating a sensory detail that was never written is a serious failure that misleads the writer. Respond ONLY with a JSON object. No markdown. No backticks. No explanation. Just the JSON.`,
-        messages:[{role:"user",content:`A writer has set up their Story Bible. Generate atmosphere sidebar content using ONLY what is explicitly written below. Do not add specifics that aren't here.
+      const protagonistDetail=[
+        proj.protagonist?`Name/description: ${proj.protagonist}`:"",
+        proj.protagonistGoal?`Goal: ${proj.protagonistGoal}`:"",
+        proj.protagonistDream?`Dream: ${proj.protagonistDream}`:"",
+        proj.protagonistFear?`Fear: ${proj.protagonistFear}`:"",
+        proj.protagonistWound?`Wound: ${proj.protagonistWound}`:"",
+        proj.protagonistBackstory?`Backstory: ${proj.protagonistBackstory}`:"",
+        proj.protagonistMisbelief?`Misbelief: ${proj.protagonistMisbelief}`:"",
+      ].filter(Boolean).join("\n");
 
-PROJECT: "${proj.title}" - ${proj.genre}
+      const r=await fetch("/api/chat",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({
+        system:`You are a writing session analyzer. CRITICAL RULE: A sensory anchor must be a detail that was ACTUALLY WRITTEN by the writer in their Story Bible fields, Idea Lab, or manuscript below, word for word or extremely close to it. Do not take a real noun (a place, a character name) and invent an elaborate sensory scene around it that the writer never actually wrote. Most Story Bible setups contain little or no actual sensory prose. In that case sensoryAnchors should be an EMPTY ARRAY. Only populate it if the writer's own text already contains real sensory description you can quote or closely paraphrase. An empty array is the normal, expected, correct result. Fabricating a sensory detail is a serious failure. The toneWord must come directly from the writer's own tone field or be inferred from their actual words, not invented. The hook must reference something the writer actually named or described, never invented. Respond ONLY with a JSON object. No markdown. No backticks. No explanation. Just the JSON.`,
+        messages:[{role:"user",content:`Generate atmosphere sidebar content using ONLY what is explicitly written below.
+
+PROJECT: "${proj.title||"Untitled"}" - ${proj.genre||""}
+SYNOPSIS: ${proj.synopsis||"not yet written"}
 SETTING: ${proj.worldSetting||"not specified"}
-TONE: ${proj.worldTone||"not specified"}
-PROTAGONIST: ${(proj.protagonist||"").substring(0,200)}
-WHERE THEY ARE: ${proj.where||"beginning"}
-STUCK ON: ${proj.stuck||"nothing yet"}
+WORLD RULES: ${proj.worldRules||"not specified"}
+WORLD TONE: ${proj.worldTone||"not specified"}
+WHAT MAKES IT DANGEROUS: ${proj.worldDanger||"not specified"}
+PROTAGONIST:
+${protagonistDetail||"not yet captured"}
+SUPPORTING CHARACTERS: ${proj.supporting||"not specified"}
+ANTAGONIST: ${proj.antagonist||"not specified"}
+WHERE THEY ARE IN THE STORY: ${proj.where||"not specified"}
+WHAT THEY'RE FOCUSED ON: ${proj.stuck||"not specified"}
 WHAT EXCITES THEM: ${proj.excites||"not specified"}
+${ideaLabContent?`IDEA LAB CONTENT:\n${ideaLabContent.substring(0,600)}`:""}
+${sceneContent?`CURRENT MANUSCRIPT SCENE:\n${sceneContent.substring(0,600)}`:""}
 
 Respond with ONLY this JSON (no markdown, no backticks):
-{"toneWord":"ONE atmosphere word based only on what's written above","sensoryAnchors":[{"detail":"a sensory detail ACTUALLY WRITTEN above, quoted or closely paraphrased, never invented","sense":"smell/sound/touch/sight/taste"}],"hook":"A question that makes the writer want to open their manuscript. Reference a specific character or story element by name, only if actually named above.","nextBeat":"What the writer should work on next based on where they are in the story","emotionalGoal":"The emotional effect the next scene should achieve in 5 words or less"}
+{"toneWord":"ONE atmosphere word taken directly from the writer's tone field or inferred from their actual words. If nothing clear, leave empty string.","sensoryAnchors":[{"detail":"a sensory detail ACTUALLY WRITTEN above, quoted or closely paraphrased, never invented","sense":"smell/sound/touch/sight/taste"}],"hook":"A question that makes the writer want to open their manuscript. Must reference something the writer actually named or described above. Never invent characters or details not present.","nextBeat":"What the writer should work on next, based only on what they said they are focused on or excited about","emotionalGoal":"The emotional effect the next scene should achieve, in 5 words or less, based only on what's actually here"}
 
-If the fields above don't contain actual sensory description (most won't, they're usually summary text), return sensoryAnchors as an empty array: "sensoryAnchors":[]. Do not invent details to fill it.`}]
+If the fields above don't contain actual sensory description, return sensoryAnchors as an empty array: "sensoryAnchors":[]`}]
       })});
       const d=await r.json();
       if(!d.error){
@@ -927,9 +945,18 @@ If the fields above don't contain actual sensory description (most won't, they'r
   // Populate sidebar from Story Bible when no session context exists yet
   useEffect(()=>{
     if(screen==="home"&&project&&!sidebarCtx){
-      generateDefaultSidebarCtx(project);
+      const currentScene=scenes.find(s=>s.id===activeScene)||scenes[scenes.length-1];
+      generateDefaultSidebarCtx(project, ideaLabText, currentScene?.text||"");
     }
   },[screen,project]);
+
+  // Refresh sidebar when writer adds significant new Story Bible content
+  useEffect(()=>{
+    if(project&&(project.protagonist||project.worldSetting||project.synopsis)){
+      const currentScene=scenes.find(s=>s.id===activeScene)||scenes[scenes.length-1];
+      generateDefaultSidebarCtx(project, ideaLabText, currentScene?.text||"");
+    }
+  },[project?.protagonist,project?.worldSetting,project?.protagonistFear,project?.protagonistMisbelief]);
 
   const generateSidebarContext=async(sessionMsgs,sessionMode,sceneText,sessionModeId)=>{
     if(!project||sessionMsgs.length<2)return;
@@ -940,7 +967,8 @@ If the fields above don't contain actual sensory description (most won't, they'r
         system:`You are a writing session analyzer. CRITICAL RULE: A sensory anchor must be a detail that was ACTUALLY WRITTEN, word for word or extremely close to it, in the conversation or scene text provided. Do not take a real noun mentioned in passing (a place name, a character name, an object) and build an elaborate sensory moment around it that was never actually described. For example, if "Glen Lake" was mentioned only as a location reference, you may NOT invent "the cold mineral smell of lake water on her skin after an August swim", that entire sensory image was never written and is fabrication, even though the place name is real. Only use sensoryAnchors when the conversation or scene text contains an actual sensory description already, a smell, sound, or feeling that was explicitly written out. If the conversation only mentions psychology, backstory, plot, or place names without sensory description, return an EMPTY array. An empty array is the correct and expected output most of the time, especially in early conversations about character and backstory. Returning a fabricated sensory detail is a serious failure that misleads the writer into thinking they wrote something they did not write. Respond ONLY with a JSON object. No markdown. No backticks. No explanation. Just the JSON.`,
         messages:[{role:"user",content:`A writer just finished a session. Generate sidebar context using ONLY what is explicitly present below. Do not add specifics that aren't here.
 
-PROJECT: "${project.title}" - ${project.genre}
+PROJECT: "${project.title||"Untitled"}" - ${project.genre||""}
+PROTAGONIST: ${project.protagonist||""}${project.protagonistGoal?`\nGoal: ${project.protagonistGoal}`:""}${project.protagonistFear?`\nFear: ${project.protagonistFear}`:""}${project.protagonistMisbelief?`\nMisbelief: ${project.protagonistMisbelief}`:""}
 MODE USED: ${sessionMode||"The Forge"}
 RECENT CONVERSATION:\n${recentMsgs}
 ${sceneSnippet?`SCENE TEXT SNIPPET:\n${sceneSnippet}`:""}
