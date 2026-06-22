@@ -1408,15 +1408,15 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
         ============================================ */
 
         :root {
-          --bg-base: #121010;
-          --bg-dark: #141210;
-          --bg-write: #161412;
-          --bg-deepest: #0F0E0C;
-          --bg-card: #1A1816;
-          --bg-card-rgb: 26,24,22;
-          --bg-card-alt: #1E1A16;
-          --border: #221E1A;
-          --border-mid: #2A2420;
+          --bg-base: #141210;
+          --bg-dark: #1A1814;
+          --bg-write: #181614;
+          --bg-deepest: #100E0C;
+          --bg-card: #2A2420;
+          --bg-card-rgb: 42,36,32;
+          --bg-card-alt: #322C26;
+          --border: #4A4030;
+          --border-mid: #3A3428;
           --accent: #A8884A;
           --accent-b0: #A8884AB0;
           --accent-90: #A8884A90;
@@ -1429,24 +1429,24 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
           --accent-15: #A8884A15;
           --accent-0a: #A8884A0A;
           --accent-08: #A8884A08;
-          --text-primary: #D8C8AA;
-          --text-secondary: #C8B8A0;
-          --text-muted: #8A7E6A;
-          --text-dim: #6A6050;
-          --text-faint: #4A4238;
-          --text-deepfaint: #3A3430;
+          --text-primary: #F0E8D0;
+          --text-secondary: #E0D8C0;
+          --text-muted: #A8987A;
+          --text-dim: #8A7A60;
+          --text-faint: #6A5E48;
+          --text-deepfaint: #4A4238;
         }
 
         .theme-light {
-          --bg-base: #F0EAE0;
-          --bg-dark: #E8E0D4;
-          --bg-write: #EDE6DA;
-          --bg-deepest: #E0D8CC;
-          --bg-card: #E4DDD0;
-          --bg-card-rgb: 228,221,208;
-          --bg-card-alt: #DDD6C8;
-          --border: #C8C0B0;
-          --border-mid: #D0C8B8;
+          --bg-base: #E8E0D0;
+          --bg-dark: #DDD5C5;
+          --bg-write: #F0EBE2;
+          --bg-deepest: #D5CDB8;
+          --bg-card: #FDFAF5;
+          --bg-card-rgb: 253,250,245;
+          --bg-card-alt: #F5F0E8;
+          --border: #A89E8C;
+          --border-mid: #C0B8A8;
           --accent: #5A6B3A;
           --accent-b0: #5A6B3AB0;
           --accent-90: #5A6B3A90;
@@ -1462,7 +1462,7 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
           --text-primary: #1E1C14;
           --text-secondary: #2C2A1E;
           --text-muted: #5A5448;
-          --text-dim: #908878;
+          --text-dim: #807060;
           --text-faint: #A09888;
           --text-deepfaint: #B0A898;
         }
@@ -1474,6 +1474,7 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
         @keyframes wp{0%,100%{opacity:.55}50%{opacity:1}}
         .ma,.mu{animation:fu .4s ease-out}
         .card{background:var(--bg-card);border:1px solid var(--border);border-radius:10px;padding:16px;cursor:pointer;transition:all .25s}
+        .theme-light .card{box-shadow:0 1px 4px rgba(0,0,0,0.07)}
         .card:hover{border-color:var(--accent-30);transform:translateY(-1px)}
         .sb{transition:all .2s}.sb:hover:not(:disabled){transform:scale(1.03);filter:brightness(1.1)}
         .cp{cursor:pointer;transition:all .4s}.cp:hover{transform:scale(1.01)}
@@ -1522,7 +1523,7 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
       </div>}
 
       {/* WELCOME */}
-      {user&&screen==="welcome"&&<div style={{position:"fixed",top:0,left:0,right:0,bottom:0,background:"#2E2620",zIndex:200,display:"flex",alignItems:"center",justifyContent:"center",padding:24,overflowY:"auto"}}>
+      {user&&screen==="welcome"&&<div style={{position:"fixed",top:0,left:0,right:0,bottom:0,background:"var(--bg-deepest)",zIndex:200,display:"flex",alignItems:"center",justifyContent:"center",padding:24,overflowY:"auto"}}>
         <div style={{maxWidth:420,width:"100%",animation:"fi .6s ease-out"}}>
 
           {/* NEW USER FLOW */}
