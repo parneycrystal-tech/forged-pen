@@ -32,6 +32,12 @@ THE ABSTRACT-TO-SPECIFIC RHYTHM: Abstract observations have power. Use them. A n
 
 ALWAYS CLOSE WITH A QUESTION OR NEXT MOVE: Never end a response with affirmation. Never end with "you clearly know these people deeply" or "great work" or any closing that shuts the door. Every response ends with either a specific question that makes the writer want to return to their manuscript immediately, or a concrete next step. The door should always be opening, not closing.
 
+PROCRASTINATION VS FEAR: When you notice avoidance language, circling, or a writer who can't start, do not assume which it is. Ask one brief, natural question to find out: "Is this a genuine haven't-gotten-to-it-yet, or does something about it feel harder to face than that?" Pure procrastination has casual low-stakes language, one simple reason, no emotional charge. Fear-driven avoidance has emotional residue even when the writer doesn't name it: over-explanation, defensiveness, multiple stacked justifications, physical language like "I just can't make myself." Respond differently to each. Procrastination needs a micro-step and activation. Fear needs to be named and addressed directly before any step is offered.
+
+WHEN THE WRITER IS DEPLETED: Watch for signs that a writer has been sustaining effort too long: exhaustion and flatness in their responses, short depleted answers, mentions of being tired or brain-fogged, or a sense of pushing through rather than actually being present. When you detect genuine depletion (not fear-based avoidance, which feels like dread and resistance rather than flat exhaustion), offer the following: First validate what's happening without making it a problem. Then help them load one specific question their story needs answered before they step away. Not a list. One question, specific to their actual story. Then suggest one concrete DMN-activating activity: walk without input (no podcast, no music), a real shower, boring repetitive tasks like dishes or laundry, or sitting somewhere with a view and no phone. Remind them to capture anything that surfaces because it comes fast and leaves fast. The science: a 2012 UC Santa Barbara study found 41% improvement on creative tasks after mind-wandering rest. Zero improvement for people who kept pushing. Their brain solves story problems offline. This is not quitting. This is strategy.
+
+PERFECTIONISM AND EXPOSITORY WRITING: When a writer is frozen because what's in their head feels more vivid and complete than what they can get on the page, name it directly: "What's in your head is happening all at once. The page can only take it one word at a time. That gap is the actual difficulty, not your writing ability." Use this specifically in perfectionism paralysis and when a writer is struggling to translate a scene they can see clearly into prose.
+
 PROSE RULE: You are a coach, not a ghostwriter. This is a hierarchy:
 - DEFAULT (90% of responses): Describe the technique in coaching language. What to focus on, what effect to aim for, what order to layer the elements. Give ONE sentence max as an example, clearly marked. "Something like: [one sentence]. Now write it your way."
 - WHEN THE WRITER IS SEVERELY STUCK AND HAS EXISTING TEXT: You may rework a few lines of THEIR words to demonstrate a technique. Always mark it clearly. Always follow with "does this direction feel right?" or "now write your version." You are showing them their own material working harder, not inventing new material.
@@ -427,6 +433,16 @@ function clearLocalUserData() {
     Object.keys(localStorage).filter(k=>k.startsWith("tt-")).forEach(k=>localStorage.removeItem(k));
   } catch {}
 }
+
+// Strip em dashes and asterisk emphasis from all Finn responses
+function finnClean(text) {
+  if(!text) return text;
+  return text
+    .replace(/\u2014/g, ",")      // em dash → comma
+    .replace(/--/g, ",")           // double hyphen em dash variant → comma
+    .replace(/\*\*(.+?)\*\*/g, "$1")  // **bold** → plain
+    .replace(/\*(.+?)\*/g, "$1");     // *italic* → plain
+}
 async function cloudSave(key, val) {
   try {
     const { data: { user } } = await supabase.auth.getUser();
@@ -761,12 +777,12 @@ export default function App() {
     const nm=[...containerMsgs,{role:"user",content:userText}];setContainerMsgs(nm);setContainerInput("");setLoading(true);
     const ctrl=new AbortController();abortRef.current=ctrl;
     try{
-      const sessionCtxForge = sessionSummaries.length>0 ? `\n\nRECENT SESSION HISTORY:\n${sessionSummaries.slice(0,5).map((s,i)=>`Session ${i+1}${i===0?" (most recent)":""}: ${s.date} in ${s.mode}. Worked on: ${s.storyElement}. Key insight: ${s.keyInsight}. Still sitting with: ${s.openQuestion}.`).join("\n")}` : "";
+      const sessionCtxForge = sessionSummaries.length>0 ? `\n\nRECENT SESSION HISTORY:\n${sessionSummaries.slice(0,5).map((s,i)=>`Session ${i+1}${i===0?" (most recent)":""}: ${s.date} in ${s.mode}. Worked on: ${s.storyElement}. Key insight: ${s.keyInsight}. Still sitting with: ${s.openQuestion}.${s.rawTexture?` The writer said, in their own words: "${s.rawTexture}"`:""}`).join("\n")}` : "";
       const r=await fetch("/api/chat",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({system:CONTAINER_FINN+sceneCtx+pCtx+sparkCtx+(userName?`\n\nThe writer's name is ${userName}. Use their name naturally.`:"")+sessionCtxForge,messages:nm.map(m=>({role:m.role,content:m.content}))}),signal:ctrl.signal});
       const d=await r.json();
       if(d.error){setContainerMsgs(p=>[...p,{role:"assistant",content:`Connection issue: ${d.error}`}])}
       else{
-        setContainerMsgs(p=>[...p,{role:"assistant",content:d.content?.filter(b=>b.type==="text").map(b=>b.text).join("\n")||"Connection hiccup."}]);
+        setContainerMsgs(p=>[...p,{role:"assistant",content:finnClean(d.content?.filter(b=>b.type==="text").map(b=>b.text).join("\n"))||"Connection hiccup."}]);
         const cs=scenes.find(s=>s.id===activeScene);
         const newPulse={mode:"The Forge",modeId:"forge",scene:cs?`Ch${cs.chapter}, Scene ${cs.scene}`:"",sceneId:activeScene,title:cs?.title||"",description:containerInput.substring(0,120),time:Date.now()};
         setPulse(newPulse);saveStored("tt-pulse",newPulse);
@@ -817,7 +833,7 @@ Respond with ONLY this JSON:
       })});
       const d=await r.json();
       if(!d.error){
-        const raw=d.content?.filter(b=>b.type==="text").map(b=>b.text).join("")||"";
+        const raw=finnClean(d.content?.filter(b=>b.type==="text").map(b=>b.text).join(""))||"";
         const cleaned=raw.replace(/```json\s*/g,"").replace(/```\s*/g,"").trim();
         try{
           const result=JSON.parse(cleaned);
@@ -897,7 +913,7 @@ If the fields above don't contain actual sensory description (most won't, they'r
       })});
       const d=await r.json();
       if(!d.error){
-        const raw=d.content?.filter(b=>b.type==="text").map(b=>b.text).join("")||"";
+        const raw=finnClean(d.content?.filter(b=>b.type==="text").map(b=>b.text).join(""))||"";
         const cleaned=raw.replace(/```json\s*/g,"").replace(/```\s*/g,"").trim();
         try{
           const ctx=JSON.parse(cleaned);
@@ -936,7 +952,7 @@ If there are no concrete sensory details actually present in the conversation (f
       })});
       const d=await r.json();
       if(!d.error){
-        const raw=d.content?.filter(b=>b.type==="text").map(b=>b.text).join("")||"";
+        const raw=finnClean(d.content?.filter(b=>b.type==="text").map(b=>b.text).join(""))||"";
         const cleaned=raw.replace(/```json\s*/g,"").replace(/```\s*/g,"").trim();
         try{
           const ctx=JSON.parse(cleaned);
@@ -1028,7 +1044,7 @@ Under 120 words.`;
       })});
       const d=await r.json();
       if(!d.error){
-        const raw=d.content?.filter(b=>b.type==="text").map(b=>b.text).join("")||"";
+        const raw=finnClean(d.content?.filter(b=>b.type==="text").map(b=>b.text).join(""))||"";
         const greeting=raw.trim()||`Good to meet you${userName?`, ${userName}`:""}.  Before we dive into any of the modes, I want to make sure I actually know your story. Not the summary version. The real one.\n\nWho is at the center of this?`;
         setFirstSessionMsgs([{role:"assistant",content:greeting}]);
       } else {
@@ -1075,7 +1091,7 @@ After every response, add a JSON capture block on its own line starting with CAP
       const r=await fetch("/api/chat",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({system:FIRST_SESSION_SYSTEM,messages:msgs})});
       const d=await r.json();
       if(!d.error){
-        const raw=d.content?.filter(b=>b.type==="text").map(b=>b.text).join("")||"";
+        const raw=finnClean(d.content?.filter(b=>b.type==="text").map(b=>b.text).join(""))||"";
 
         // Extract and parse CAPTURE block
         const captureMatch=raw.match(/CAPTURE:\s*(\{[\s\S]*?\})/);
@@ -1118,7 +1134,7 @@ After every response, add a JSON capture block on its own line starting with CAP
   const handleEndSession=async()=>{
     if(msgs.length<2||endSessionLoading)return;
     setEndSessionLoading(true);
-    const sessionMsgs=msgs.slice(-12).map(m=>`${m.role==="user"?"Writer":"Finn"}: ${m.content.substring(0,300)}`).join("\n\n");
+    const sessionMsgs=msgs.slice(-12).map(m=>`${m.role==="user"?"Writer":"Finn"}: ${m.content.substring(0,400)}`).join("\n\n");
     const pCtx=project?`Project: "${project.title}" (${project.genre}).`:"";
     try{
       const r=await fetch("/api/chat",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({
@@ -1130,11 +1146,11 @@ Session:
 ${sessionMsgs}
 
 Respond with ONLY this JSON:
-{"summary":"1-2 sentences on what the writer worked through. Conversational, Finn's voice.","insights":["specific thing decided or discovered","second insight if there is one"],"draftText":"Any new prose drafted in the session, or empty string","suggestedAction":"One sentence on the single most useful next step","storyElement":"specific character, scene, or plot point worked on in one short phrase","keyInsight":"single most important thing decided or discovered in one sentence","openQuestion":"what remains unresolved or needs attention next in one sentence","writerState":"one or two words describing how the writer seemed emotionally during this session"}`}]
+{"summary":"1-2 sentences on what the writer worked through. Conversational, Finn's voice.","insights":["specific thing decided or discovered","second insight if there is one"],"draftText":"Any new prose drafted in the session, or empty string","suggestedAction":"One sentence on the single most useful next step","storyElement":"specific character, scene, or plot point worked on in one short phrase","keyInsight":"single most important thing decided or discovered in one sentence","openQuestion":"what remains unresolved or needs attention next in one sentence","writerState":"one or two words describing how the writer seemed emotionally during this session","rawTexture":"The single most important thing the writer actually said in this session, quoted as close to verbatim as possible, even if it seemed like an aside. The kind of detail that could matter later even if it doesn't seem important now. If nothing specific stands out, leave empty string."}`}]
       })});
       const d=await r.json();
       if(!d.error){
-        const raw=d.content?.filter(b=>b.type==="text").map(b=>b.text).join("")||"";
+        const raw=finnClean(d.content?.filter(b=>b.type==="text").map(b=>b.text).join(""))||"";
         const cleaned=raw.replace(/```json\s*/g,"").replace(/```\s*/g,"").trim();
         try{
           const result=JSON.parse(cleaned);
@@ -1143,7 +1159,7 @@ Respond with ONLY this JSON:
           if(activeScene)setEndSessionSceneId(activeScene);
           else if(scenes.length>0)setEndSessionSceneId(scenes[scenes.length-1].id);
 
-          // Save internal session summary
+          // Save internal session summary with richer texture
           const internalSummary={
             id:"ss_"+Date.now(),
             date:new Date().toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"}),
@@ -1154,6 +1170,7 @@ Respond with ONLY this JSON:
             keyInsight:result.keyInsight||result.insights?.[0]||"",
             openQuestion:result.openQuestion||result.suggestedAction||"",
             writerState:result.writerState||"",
+            rawTexture:result.rawTexture||"",
             sparksCaptured:sparks.filter(s=>s.date===new Date().toLocaleDateString()).length
           };
           const updated=[internalSummary,...sessionSummaries].slice(0,10);
@@ -1236,7 +1253,6 @@ Available modes:
 - perfectionism: paralyzed by perfectionism, can't finish
 - smoke: work suddenly feels worthless, dopamine crash
 - instinct: gut feeling about the story, something feels wrong
-- simmer: brain is fried, needs to step away
 - forge: ready to write, just needs to get to the page
 - inferno: on fire, ideas pouring out, hyperfocus state
 - rekindle: returning after time away, needs to reconnect
@@ -1250,7 +1266,7 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
       })});
       const d=await r.json();
       if(!d.error){
-        const raw=d.content?.filter(b=>b.type==="text").map(b=>b.text).join("")||"";
+        const raw=finnClean(d.content?.filter(b=>b.type==="text").map(b=>b.text).join(""))||"";
         const cleaned=raw.replace(/```json\s*/g,"").replace(/```\s*/g,"").trim();
         try{
           const result=JSON.parse(cleaned);
@@ -1273,7 +1289,7 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
     const sparkCtx = sparks.length > 0 ? `\n\nDOPAMINE MAP (moments the writer flagged as exciting): ${sparks.map(s=>s.text).join(" | ")}` : "";
     const userCtx = userName ? `\n\nThe writer's name is ${userName}. Use their name naturally throughout your response, the way a good coach would. Not in every sentence, but enough to feel personal.` : "";
     const profileCtx = userProfile ? `\n\nWriter's profile — use this to calibrate your coaching approach:\n- Experience: ${userProfile.q1?.selected?.join(", ")||"not specified"}\n- Working style: ${userProfile.q2?.selected?.join(", ")||"not specified"}\n- Current goal: ${userProfile.q3?.selected?.join(", ")||"not specified"}\n- Writing pattern: ${userProfile.q4?.selected?.join(", ")||"not specified"}\n- Coaching preference: ${userProfile.q5?.selected?.join(", ")||"not specified"}${userProfile.q2?.text?`\nStyle notes: ${userProfile.q2.text}`:""}${userProfile.q5?.text?`\nCoaching notes: ${userProfile.q5.text}`:""}` : "";
-    const sessionCtx = sessionSummaries.length>0 ? `\n\nRECENT SESSION HISTORY (read before responding, use naturally without announcing it):\n${sessionSummaries.slice(0,5).map((s,i)=>`Session ${i+1}${i===0?" (most recent)":""}: ${s.date} in ${s.mode}. Worked on: ${s.storyElement}. Key insight: ${s.keyInsight}. Still sitting with: ${s.openQuestion}. Writer seemed: ${s.writerState}.`).join("\n")}` : "";
+    const sessionCtx = sessionSummaries.length>0 ? `\n\nRECENT SESSION HISTORY (read before responding, use naturally without announcing it):\n${sessionSummaries.slice(0,5).map((s,i)=>`Session ${i+1}${i===0?" (most recent)":""}: ${s.date} in ${s.mode}. Worked on: ${s.storyElement}. Key insight: ${s.keyInsight}. Still sitting with: ${s.openQuestion}. Writer seemed: ${s.writerState}.${s.rawTexture?` In their own words: "${s.rawTexture}"`:""}`).join("\n")}` : "";
 
     // PATTERN DETECTION
     const recentSessions=sessionSummaries.slice(0,7);
@@ -1324,7 +1340,7 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
     const patternCtx=patternNotes.length>0?`\n\nPATTERN AWARENESS FOR THIS SESSION:\n${patternNotes.join("\n\n")}`:"";
     let containCtx = "";
     if(mode.id==="contain"){
-      const modeIds=["diagnose","craft","scene","character","plot","voice","micro","perfectionism","smoke","instinct","simmer","forge","inferno","rekindle"];
+      const modeIds=["diagnose","craft","scene","character","plot","voice","micro","perfectionism","smoke","instinct","forge","inferno","rekindle"];
       const snippets=[];
       modeIds.forEach(mid=>{
         const saved=loadStored("tt-chat-"+mid);
@@ -1351,7 +1367,7 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
       if(d.error){
         setMsgs(p=>[...p,{role:"assistant",content:`Connection issue: ${d.error}. Try again in a moment.`}]);
       } else {
-        setMsgs(p=>[...p,{role:"assistant",content:d.content?.filter(b=>b.type==="text").map(b=>b.text).join("\n")||"Connection hiccup."}]);
+        setMsgs(p=>[...p,{role:"assistant",content:finnClean(d.content?.filter(b=>b.type==="text").map(b=>b.text).join("\n"))||"Connection hiccup."}]);
         const newPulse={mode:mode.label,modeId:mode.id,scene:null,description:userText.substring(0,120),vividLine:null,time:Date.now()};
         setPulse(newPulse);saveStored("tt-pulse",newPulse);
       }
@@ -1652,7 +1668,7 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
               </div>
               <div style={{textAlign:"center",marginBottom:24}}>
                 <p style={{fontFamily:"'Cormorant Garamond',serif",fontSize:19,fontWeight:400,color:"#1E1C14",lineHeight:1.7,marginBottom:0}}>{userName?`Welcome back, ${userName}.`:"Welcome back."}</p>
-                {project&&<p style={{fontFamily:"'Cormorant Garamond',serif",fontSize:15,fontWeight:300,color:"#3A3428",lineHeight:1.8,fontStyle:"italic",marginTop:6}}>"{project.title}" is right where you left it.</p>}
+                {project&&<p style={{fontFamily:"'Cormorant Garamond',serif",fontSize:15,fontWeight:300,color:"#3A3428",lineHeight:1.8,fontStyle:"italic",marginTop:6}}>{project.title?`"${project.title}" is right where you left it.`:"Your story is right where you left it."}</p>}
               </div>
               {project&&<div style={{borderTop:"1px solid #D8CEB0",paddingTop:20,marginBottom:20}}>
                 {(()=>{
@@ -1887,12 +1903,8 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
           </div>
         </div>
 
-        {/* Card Grid Row 3 — Inferno removed, now lives in The Forge */}
-        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:20}}>
-          <div className="card" onClick={()=>pick(MODES.find(m=>m.id==="simmer"))} style={{textAlign:"center",padding:"12px 8px"}}>
-            <svg width="14" height="14" viewBox="0 0 14 14" style={{margin:"0 auto 6px",display:"block"}}><ellipse cx="7" cy="9.5" rx="4" ry="2.2" fill="none" stroke="#907860" strokeWidth="0.8"/><path d="M4 9.5c0-3 1.2-4.5 3-4.5s3 1.5 3 4.5" fill="none" stroke="#907860" strokeWidth="0.8"/></svg>
-            <div style={{fontSize:10,fontWeight:500,color:"#907860"}}>Simmer</div>
-          </div>
+        {/* Card Row — Rekindle */}
+        <div style={{marginBottom:20}}>
           <div className="card" onClick={()=>project?pick(MODES.find(m=>m.id==="rekindle")):null} style={{textAlign:"center",padding:"12px 8px",opacity:project?1:.4}}>
             <svg width="14" height="14" viewBox="0 0 14 14" style={{margin:"0 auto 6px",display:"block"}}><path d="M7 2L8.2 5L11 5L8.8 7L9.5 10L7 8.2L4.5 10L5.2 7L3 5L5.8 5Z" fill="none" stroke="var(--accent)" strokeWidth="0.7"/></svg>
             <div style={{fontSize:10,fontWeight:500,color:"var(--accent)"}}>Rekindle</div>
@@ -2112,7 +2124,7 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
           <FormField label="Supporting Characters" k="supporting" ph="One per paragraph works best..." value={pForm.supporting} onChange={updateField} multi/>
           <FormField label="Antagonist" k="antagonist" ph="Person, force, or system..." value={pForm.antagonist} onChange={updateField} multi/>
         </>}
-        {bibTab==="world"&&<><WorldField label="Core Setting" helper="When and where does this story take place?" example="Northern Michigan, late summer..." k="worldSetting" value={pForm.worldSetting} onChange={updateField}/><WorldField label="World Rules" helper="What can and cannot happen here?" example="Magic exists but only in children..." k="worldRules" value={pForm.worldRules} onChange={updateField}/><WorldField label="Beliefs vs. Reality" helper="What do characters assume that isn't true?" example="The town believes the fires are natural..." k="worldBeliefs" value={pForm.worldBeliefs} onChange={updateField}/><WorldField label="What Makes This World Dangerous" helper="What creates real stakes?" example="If Emma uses too much magic..." k="worldDanger" value={pForm.worldDanger} onChange={updateField}/><WorldField label="Tone" helper="What does this world feel like?" example="Warm but uneasy..." k="worldTone" value={pForm.worldTone} onChange={updateField}/></>}
+        {bibTab==="world"&&<><WorldField label="Core Setting" helper="When and where does this story take place?" example="A small coastal town in present-day Maine..." k="worldSetting" value={pForm.worldSetting} onChange={updateField}/><WorldField label="World Rules" helper="What can and cannot happen here?" example="Time can be observed but never changed..." k="worldRules" value={pForm.worldRules} onChange={updateField}/><WorldField label="Beliefs vs. Reality" helper="What do characters assume that isn't true?" example="Everyone believes the disappearances were accidents..." k="worldBeliefs" value={pForm.worldBeliefs} onChange={updateField}/><WorldField label="What Makes This World Dangerous" helper="What creates real stakes?" example="The closer you get to the truth, the more you risk losing..." k="worldDanger" value={pForm.worldDanger} onChange={updateField}/><WorldField label="Tone" helper="What does this world feel like?" example="Warm but uneasy..." k="worldTone" value={pForm.worldTone} onChange={updateField}/></>}
         {bibTab==="chapters"&&<><p style={{fontSize:12,color:"var(--text-muted)",marginBottom:14,lineHeight:1.5}}>One field per chapter. Keep summaries short.</p>{pForm.chapters.map((ch,idx)=><div key={idx} style={{marginBottom:14}}><div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:5}}><label style={{fontSize:13,color:"var(--accent)",fontWeight:600}}>Chapter {ch.num}</label>{pForm.chapters.length>1&&<span onClick={()=>removeChapter(idx)} style={{fontSize:11,color:"var(--text-dim)",cursor:"pointer"}}>Remove</span>}</div><textarea className="fi" rows={2} placeholder={`What happens in chapter ${ch.num}...`} value={ch.summary} onChange={e=>updateChapter(idx,e.target.value)} style={{resize:"vertical",fontSize:13}}/></div>)}<Btn onClick={addChapter} s={{width:"100%",background:"none",borderStyle:"dashed",borderColor:"var(--border-mid)",color:"var(--text-muted)",marginBottom:8}}>+ Add Chapter</Btn></>}
         {bibTab==="current"&&<><p style={{fontSize:12,color:"var(--text-muted)",marginBottom:8,lineHeight:1.5}}>Paste the chapter you're currently working on. Finn will reference this text directly.</p><FormField label="Current chapter text" k="currentChapter" ph="Paste your current chapter here..." value={pForm.currentChapter} onChange={updateField} multi/></>}
         <Btn onClick={handleSetup} s={{width:"100%",background:"var(--accent-20)",borderColor:"var(--accent-40)",fontWeight:600,marginTop:8}}>{project?"Update":"Save"} Story Bible</Btn>
