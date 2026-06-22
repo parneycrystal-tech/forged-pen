@@ -1438,15 +1438,15 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
         }
 
         .theme-light {
-          --bg-base: #E8E0D0;
-          --bg-dark: #DDD5C5;
-          --bg-write: #F0EBE2;
-          --bg-deepest: #D5CDB8;
-          --bg-card: #FDFAF5;
-          --bg-card-rgb: 253,250,245;
-          --bg-card-alt: #F5F0E8;
-          --border: #A89E8C;
-          --border-mid: #C0B8A8;
+          --bg-base: #E0D8C8;
+          --bg-dark: #D5CDB8;
+          --bg-write: #E8E2D5;
+          --bg-deepest: #C8C0B0;
+          --bg-card: #F2EDE4;
+          --bg-card-rgb: 242,237,228;
+          --bg-card-alt: #EAE4D8;
+          --border: #B0A890;
+          --border-mid: #C0B8A0;
           --accent: #5A6B3A;
           --accent-b0: #5A6B3AB0;
           --accent-90: #5A6B3A90;
@@ -1474,7 +1474,7 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
         @keyframes wp{0%,100%{opacity:.55}50%{opacity:1}}
         .ma,.mu{animation:fu .4s ease-out}
         .card{background:var(--bg-card);border:1px solid var(--border);border-radius:10px;padding:16px;cursor:pointer;transition:all .25s}
-        .theme-light .card{box-shadow:0 1px 4px rgba(0,0,0,0.07)}
+        .theme-light .card{border-width:1.5px}
         .card:hover{border-color:var(--accent-30);transform:translateY(-1px)}
         .sb{transition:all .2s}.sb:hover:not(:disabled){transform:scale(1.03);filter:brightness(1.1)}
         .cp{cursor:pointer;transition:all .4s}.cp:hover{transform:scale(1.01)}
