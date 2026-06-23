@@ -562,6 +562,10 @@ export default function App() {
   const [extracting, setExtracting] = useState(false);
   const [extractResult, setExtractResult] = useState(null);
   const [extractOpen, setExtractOpen] = useState(false);
+  const [driftResult, setDriftResult] = useState(null);
+  const [driftOpen, setDriftOpen] = useState(false);
+  const [driftLoading, setDriftLoading] = useState(false);
+  const [driftResolutions, setDriftResolutions] = useState({});
   const [forgeMode, setForgeMode] = useState("manuscript");
   const [ideaLabText, setIdeaLabText] = useState("");
   const [ideaLabBuckets, setIdeaLabBuckets] = useState({characters:[],plot:[],world:[],questions:[],fragments:[]});
@@ -955,6 +959,8 @@ Respond with ONLY this JSON:
 
   const applyExtractToBible=(result)=>{
     if(!result)return;
+    // Capture the pre-merge Bible so Agnes can compare what WAS there vs what the chapter shows
+    const projectBeforeMerge={...project};
     const updated={...pForm};
     // Update chapter summary
     if(result.chapterSummary){
@@ -978,6 +984,63 @@ Respond with ONLY this JSON:
     cloudSave("tt-project",proj);
     setExtractOpen(false);
     setExtractResult(null);
+    // Run Agnes drift detection against the pre-merge Bible
+    detectBibleDrift(result,projectBeforeMerge);
+  };
+
+  const detectBibleDrift=async(extractResult,projectBeforeMerge)=>{
+    if(!extractResult||!projectBeforeMerge)return;
+    // Only compare fields that both existed in the Bible AND were touched by this extraction
+    const comparisons=[
+      {field:"protagonist",label:"Protagonist",existing:projectBeforeMerge.protagonist,incoming:extractResult.protagonistReveal},
+      {field:"protagonistGoal",label:"Goal",existing:projectBeforeMerge.protagonistGoal,incoming:extractResult.protagonistGoalUpdate},
+      {field:"protagonistFear",label:"Fear",existing:projectBeforeMerge.protagonistFear,incoming:extractResult.protagonistFearUpdate},
+      {field:"protagonistMisbelief",label:"Misbelief",existing:projectBeforeMerge.protagonistMisbelief,incoming:extractResult.protagonistMisbeliefUpdate},
+      {field:"supporting",label:"Supporting Characters",existing:projectBeforeMerge.supporting,incoming:extractResult.characterReveal},
+      {field:"worldSetting",label:"World & Setting",existing:projectBeforeMerge.worldSetting,incoming:extractResult.worldReveal},
+    ].filter(c=>c.existing&&c.existing.trim()&&c.incoming&&c.incoming.trim());
+    // Need at least one field with both existing and incoming content to check
+    if(comparisons.length===0)return;
+    setDriftLoading(true);
+    const comparisonText=comparisons.map(c=>`FIELD: ${c.label}\nEXISTING BIBLE ENTRY: ${c.existing.substring(0,400)}\nNEW CHAPTER EVIDENCE: ${c.incoming.substring(0,400)}`).join("\n\n---\n\n");
+    try{
+      const r=await fetch("/api/chat",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({
+        system:`You are Agnes, the record keeper behind Forged Pen. You read manuscripts and maintain Story Bibles. You are not a coach. You do not give craft opinions. You notice when a story appears to be moving in a different direction than what was previously recorded, and you surface it for the writer to decide. Your voice is direct, selective, specific, and slightly pointed. Never use the word "inconsistency", "error", "problem", or "contradiction". Say "evolving", "different direction", "moving toward something new". You are not alarmed. You are precise. Respond ONLY with JSON. No markdown. No backticks. Never use em dashes.`,
+        messages:[{role:"user",content:`Chapter ${extractResult.chapterNum||"?"} was just captured. Compare the existing Bible entries against the new chapter evidence and identify only genuine drift, where the story appears to be moving in a meaningfully different direction. Ignore minor additions or elaborations that are consistent with the existing entry. Only flag real divergence.
+
+${comparisonText}
+
+Respond with ONLY this JSON:
+{
+  "drifts": [
+    {
+      "field": "the field key exactly as given (protagonist, protagonistGoal, protagonistFear, protagonistMisbelief, supporting, worldSetting)",
+      "fieldLabel": "human readable label",
+      "existing": "the existing Bible entry, quoted briefly",
+      "incoming": "the new chapter evidence, quoted briefly",
+      "observation": "Agnes one-sentence neutral observation of the difference. Direct. No alarm. No judgment.",
+      "question": "One specific question for the writer: is this intentional evolution or something to revisit? Reference the specific detail."
+    }
+  ]
+}
+
+If there is no genuine drift, only additions or elaborations, return: {"drifts": []}`}]
+      })});
+      const d=await r.json();
+      if(!d.error){
+        const raw=finnClean(d.content?.filter(b=>b.type==="text").map(b=>b.text).join(""))||"";
+        const cleaned=raw.replace(/```json\s*/g,"").replace(/```\s*/g,"").trim();
+        try{
+          const result=JSON.parse(cleaned);
+          if(result.drifts&&result.drifts.length>0){
+            setDriftResult({drifts:result.drifts,chapterNum:extractResult.chapterNum});
+            setDriftResolutions({});
+            setDriftOpen(true);
+          }
+        }catch(e){console.log("Drift parse error:",e);}
+      }
+    }catch(e){console.log("Drift detection error:",e);}
+    setDriftLoading(false);
   };
 
   const updateOrganizeItem=(section,idx,status)=>{
@@ -2115,7 +2178,11 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
           <div style={{fontSize:10,color:"var(--accent-60)",marginTop:4}}>Tap to return &#8594;</div>
         </div>:<div style={{marginBottom:16}}>
           <div style={{fontSize:11,textTransform:"uppercase",letterSpacing:"0.12em",color:"var(--accent-80)",fontWeight:500,marginBottom:8}}>The Pulse</div>
-          <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:13,color:"var(--text-dim)",fontStyle:"italic"}}>Start a session to light it up</div>
+          {sidebarCtx?.hook
+            ?<><div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:14,color:"var(--text-primary)",lineHeight:1.65,marginBottom:8,fontStyle:"italic"}}>"{sidebarCtx.hook}"</div>
+              <div style={{fontSize:10,color:"var(--accent-60)"}}>Open The Forge to begin &#8594;</div></>
+            :<div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:13,color:"var(--text-dim)",fontStyle:"italic"}}>Your story is waiting. Open a session to light it up.</div>
+          }
         </div>}
         <div style={{height:1,background:"var(--border)",marginBottom:16}}/>
 
@@ -3071,6 +3138,67 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
               <div onClick={()=>{setExtractOpen(false);setExtractResult(null)}} style={{padding:"9px 14px",background:"transparent",border:"1px solid var(--border)",borderRadius:6,fontSize:12,color:"var(--text-dim)",cursor:"pointer",fontFamily:"'DM Sans',sans-serif"}}>Dismiss</div>
             </div>
           </>}
+        </div>
+      </div>}
+
+      {/* AGNES DRIFT DETECTION OVERLAY */}
+      {driftOpen&&driftResult&&<div style={{position:"fixed",top:0,left:0,right:0,bottom:0,background:"rgba(0,0,0,0.75)",zIndex:350,display:"flex",alignItems:"center",justifyContent:"center",padding:20}}>
+        <div style={{background:"var(--bg-dark)",border:"1px solid var(--border)",borderRadius:12,padding:24,maxWidth:580,width:"100%",maxHeight:"85vh",overflowY:"auto",animation:"fu .3s ease-out"}}>
+          <div style={{marginBottom:20}}>
+            <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:10}}>
+              <div style={{width:28,height:28,borderRadius:"50%",background:"var(--bg-card)",border:"1px solid var(--border)",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>
+                <span style={{fontFamily:"'Cormorant Garamond',serif",fontSize:13,color:"var(--text-dim)"}}>A</span>
+              </div>
+              <div>
+                <div style={{fontSize:9,textTransform:"uppercase",letterSpacing:"0.18em",color:"var(--text-dim)",fontFamily:"'DM Sans',sans-serif"}}>Agnes</div>
+                <div style={{fontSize:11,color:"var(--text-muted)",fontFamily:"'DM Sans',sans-serif"}}>Chapter {driftResult.chapterNum} — Story Bible Drift</div>
+              </div>
+            </div>
+            <p style={{fontFamily:"'Cormorant Garamond',serif",fontSize:15,color:"var(--text-primary)",lineHeight:1.75,margin:0}}>This chapter appears to be moving in a different direction than your Story Bible on {driftResult.drifts.length} point{driftResult.drifts.length>1?"s":""}. Review each one and tell me what's true now.</p>
+          </div>
+          <div style={{display:"flex",flexDirection:"column",gap:14,marginBottom:20}}>
+            {driftResult.drifts.map((drift,i)=>{
+              const resolution=driftResolutions[i];
+              return <div key={i} style={{background:"var(--bg-card)",border:"1px solid "+(resolution==="evolving"?"var(--accent-40)":"var(--border)"),borderRadius:10,padding:"16px 18px",opacity:resolution?0.75:1,transition:"all .2s"}}>
+                <div style={{fontSize:9,textTransform:"uppercase",letterSpacing:"0.14em",color:"var(--accent-80)",fontWeight:500,marginBottom:12,fontFamily:"'DM Sans',sans-serif",display:"flex",alignItems:"center",gap:8}}>
+                  {drift.fieldLabel}
+                  {resolution&&<span style={{color:resolution==="evolving"?"var(--accent)":"var(--text-dim)",fontWeight:400}}>{resolution==="evolving"?"— Story is evolving":resolution==="keep"?"— Keeping original":"— Taking to Finn"}</span>}
+                </div>
+                <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:12}}>
+                  <div style={{background:"var(--bg-base)",borderRadius:8,padding:"10px 12px"}}>
+                    <div style={{fontSize:9,color:"var(--text-dim)",letterSpacing:"0.1em",textTransform:"uppercase",marginBottom:6,fontFamily:"'DM Sans',sans-serif"}}>Story Bible</div>
+                    <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:13,color:"var(--text-muted)",lineHeight:1.6}}>{drift.existing}</div>
+                  </div>
+                  <div style={{background:"var(--bg-card-alt)",borderRadius:8,padding:"10px 12px",border:"1px solid var(--accent-15)"}}>
+                    <div style={{fontSize:9,color:"var(--accent-70)",letterSpacing:"0.1em",textTransform:"uppercase",marginBottom:6,fontFamily:"'DM Sans',sans-serif"}}>Chapter {driftResult.chapterNum}</div>
+                    <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:13,color:"var(--text-primary)",lineHeight:1.6}}>{drift.incoming}</div>
+                  </div>
+                </div>
+                <div style={{marginBottom:12,paddingLeft:12,borderLeft:"2px solid var(--border)"}}>
+                  <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:14,color:"var(--text-secondary)",lineHeight:1.65,marginBottom:6}}>{drift.observation}</div>
+                  <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:13,color:"var(--text-muted)",fontStyle:"italic",lineHeight:1.6}}>{drift.question}</div>
+                </div>
+                {!resolution&&<div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
+                  <button onClick={()=>{
+                    setProject(prev=>{const updated={...prev,[drift.field]:(prev[drift.field]?prev[drift.field]+"\n\n"+drift.incoming:drift.incoming),updated:new Date().toLocaleDateString()};saveStored("tt-project",updated);cloudSave("tt-project",updated);return updated;});
+                    setDriftResolutions(prev=>({...prev,[i]:"evolving"}));
+                  }} style={{background:"var(--accent)",border:"none",borderRadius:6,padding:"7px 14px",fontSize:12,color:"var(--bg-deepest)",cursor:"pointer",fontFamily:"'DM Sans',sans-serif",fontWeight:500}}>Story is evolving</button>
+                  <button onClick={()=>setDriftResolutions(prev=>({...prev,[i]:"keep"}))} style={{background:"none",border:"1px solid var(--border)",borderRadius:6,padding:"7px 14px",fontSize:12,color:"var(--text-muted)",cursor:"pointer",fontFamily:"'DM Sans',sans-serif"}}>Keep original</button>
+                  <button onClick={()=>{
+                    setDriftResolutions(prev=>({...prev,[i]:"finn"}));
+                    const driftMode=MODES.find(m=>m.id==="character")||MODES.find(m=>m.id==="diagnose");
+                    if(driftMode){const driftContext=`Agnes flagged a drift in Chapter ${driftResult.chapterNum} on ${drift.fieldLabel}.\n\nStory Bible says: ${drift.existing}\n\nChapter shows: ${drift.incoming}\n\n${drift.question}`;setDriftOpen(false);pick(driftMode);setTimeout(()=>setMsgs(prev=>[...prev,{role:"user",content:driftContext}]),300);}
+                  }} style={{background:"none",border:"1px solid var(--accent-30)",borderRadius:6,padding:"7px 14px",fontSize:12,color:"var(--accent)",cursor:"pointer",fontFamily:"'DM Sans',sans-serif"}}>Ask Finn</button>
+                </div>}
+              </div>;
+            })}
+          </div>
+          <div style={{borderTop:"1px solid var(--border)",paddingTop:16,display:"flex",gap:8}}>
+            <button onClick={()=>{setDriftOpen(false);setDriftResult(null);setDriftResolutions({});}} disabled={Object.keys(driftResolutions).length<driftResult.drifts.length} style={{flex:1,background:Object.keys(driftResolutions).length>=driftResult.drifts.length?"var(--accent)":"var(--bg-card-alt)",border:"1px solid var(--border)",borderRadius:8,padding:"11px",fontSize:13,fontWeight:500,fontFamily:"'DM Sans',sans-serif",color:Object.keys(driftResolutions).length>=driftResult.drifts.length?"var(--bg-deepest)":"var(--text-dim)",cursor:Object.keys(driftResolutions).length>=driftResult.drifts.length?"pointer":"default"}}>
+              {Object.keys(driftResolutions).length>=driftResult.drifts.length?"Done":`${driftResult.drifts.length-Object.keys(driftResolutions).length} left to resolve`}
+            </button>
+            <button onClick={()=>{setDriftOpen(false);setDriftResult(null);setDriftResolutions({});}} style={{background:"none",border:"1px solid var(--border)",borderRadius:8,padding:"11px 16px",fontSize:12,color:"var(--text-dim)",cursor:"pointer",fontFamily:"'DM Sans',sans-serif"}}>Decide later</button>
+          </div>
         </div>
       </div>}
 
