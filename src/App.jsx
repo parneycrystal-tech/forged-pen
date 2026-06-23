@@ -559,6 +559,9 @@ export default function App() {
   const [sessionSummaries, setSessionSummaries] = useState([]);
   const [historyScreen, setHistoryScreen] = useState(false);
   const [sceneNotesOpen, setSceneNotesOpen] = useState(false);
+  const [extracting, setExtracting] = useState(false);
+  const [extractResult, setExtractResult] = useState(null);
+  const [extractOpen, setExtractOpen] = useState(false);
   const [forgeMode, setForgeMode] = useState("manuscript");
   const [ideaLabText, setIdeaLabText] = useState("");
   const [ideaLabBuckets, setIdeaLabBuckets] = useState({characters:[],plot:[],world:[],questions:[],fragments:[]});
@@ -880,6 +883,101 @@ Respond with ONLY this JSON:
     if(destination==="bible")setScreen("project");
     else if(destination==="manuscript"){setForgeMode("manuscript");setOrganizeOpen(false);}
     // "stay" just closes the overlay
+  };
+
+  const extractToBible=async(sceneText,chapterNum)=>{
+    if(!sceneText?.trim()||extracting)return;
+    setExtracting(true);
+    setExtractOpen(true);
+    setExtractResult(null);
+
+    const existingBible=`Title: ${project?.title||"untitled"}
+Genre: ${project?.genre||""}
+Synopsis so far: ${project?.synopsis||"none"}
+Protagonist: ${project?.protagonist||"none"}
+Goal: ${project?.protagonistGoal||"none"}
+Dream: ${project?.protagonistDream||"none"}
+Fear: ${project?.protagonistFear||"none"}
+Wound: ${project?.protagonistWound||"none"}
+Backstory: ${project?.protagonistBackstory||"none"}
+Misbelief: ${project?.protagonistMisbelief||"none"}
+Supporting characters: ${project?.supporting||"none"}
+Antagonist: ${project?.antagonist||"none"}
+Setting: ${project?.worldSetting||"none"}
+Tone: ${project?.worldTone||"none"}`;
+
+    try{
+      const r=await fetch("/api/chat",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({
+        system:`You are Finn, a writing coach reading a chapter of a writer's manuscript. Your job is to extract useful Story Bible information from what is actually written on the page, then surface it for the writer to review before anything gets saved. You are not summarizing for a reader. You are a coach helping a writer capture what their manuscript has already established so their Story Bible stays current. Read carefully. Extract only what is actually present in the text. Do not invent, infer beyond what's clearly implied, or add details that aren't on the page. Never use em dashes. Respond ONLY with a JSON object.`,
+        messages:[{role:"user",content:`Read this chapter excerpt and extract Story Bible information from what is actually written.
+
+EXISTING STORY BIBLE (for context, do not repeat what's already captured well):
+${existingBible}
+
+CHAPTER ${chapterNum||"??"} TEXT:
+${sceneText.substring(0,2500)}
+
+Extract what this chapter actually establishes. Only include fields where you found something meaningful that isn't already well-captured in the existing Bible. Leave fields as empty string if nothing new or significant was found.
+
+Respond with ONLY this JSON:
+{
+  "chapterSummary": "2-3 sentence summary of what happens in this chapter. What changes? What does the reader now know that they didn't before?",
+  "protagonistReveal": "anything new revealed about the protagonist's psychology, behavior, or inner life that wasn't in the existing Bible. Empty string if nothing new.",
+  "protagonistGoalUpdate": "did this chapter reveal or develop the protagonist's goal? Empty string if nothing new.",
+  "protagonistFearUpdate": "did this chapter show the protagonist's fear in action? Empty string if nothing new.",
+  "protagonistMisbeliefUpdate": "did this chapter show the misbelief operating? Empty string if nothing new.",
+  "characterReveal": "new details about supporting characters or antagonist revealed in this chapter. Empty string if nothing new.",
+  "worldReveal": "new setting details, world rules, or atmosphere established in this chapter. Empty string if nothing new.",
+  "themeReveal": "themes or ideas that surfaced clearly in this chapter. Empty string if nothing clear.",
+  "craftNote": "one observation about what is working well in this chapter, specific and precise, that Finn would point out as a coach. Not generic praise.",
+  "openQuestion": "the most important unresolved question this chapter raises for the story going forward."
+}`}]
+      })});
+      const d=await r.json();
+      if(!d.error){
+        const raw=finnClean(d.content?.filter(b=>b.type==="text").map(b=>b.text).join(""))||"";
+        const cleaned=raw.replace(/```json\s*/g,"").replace(/```\s*/g,"").trim();
+        try{
+          const result=JSON.parse(cleaned);
+          result.chapterNum=chapterNum;
+          setExtractResult(result);
+        }catch(e){
+          setExtractResult({chapterSummary:"Finn had trouble reading that. Try a shorter excerpt.",chapterNum});
+        }
+      } else {
+        setExtractResult({chapterSummary:"Connection issue. Try again in a moment.",chapterNum});
+      }
+    }catch(e){
+      setExtractResult({chapterSummary:"Something went wrong. Try again.",chapterNum});
+    }
+    setExtracting(false);
+  };
+
+  const applyExtractToBible=(result)=>{
+    if(!result)return;
+    const updated={...pForm};
+    // Update chapter summary
+    if(result.chapterSummary){
+      const chapters=[...updated.chapters];
+      const idx=chapters.findIndex(c=>c.num===result.chapterNum);
+      if(idx>=0){chapters[idx]={...chapters[idx],summary:result.chapterSummary};}
+      else{chapters.push({num:result.chapterNum||chapters.length+1,summary:result.chapterSummary});}
+      updated.chapters=chapters;
+    }
+    // Merge new details into existing fields (append rather than replace)
+    if(result.protagonistReveal&&result.protagonistReveal.trim()) updated.protagonist=(updated.protagonist?updated.protagonist+"\n\n"+result.protagonistReveal:result.protagonistReveal);
+    if(result.protagonistGoalUpdate&&result.protagonistGoalUpdate.trim()) updated.protagonistGoal=(updated.protagonistGoal?updated.protagonistGoal+"\n\n"+result.protagonistGoalUpdate:result.protagonistGoalUpdate);
+    if(result.protagonistFearUpdate&&result.protagonistFearUpdate.trim()) updated.protagonistFear=(updated.protagonistFear?updated.protagonistFear+"\n\n"+result.protagonistFearUpdate:result.protagonistFearUpdate);
+    if(result.protagonistMisbeliefUpdate&&result.protagonistMisbeliefUpdate.trim()) updated.protagonistMisbelief=(updated.protagonistMisbelief?updated.protagonistMisbelief+"\n\n"+result.protagonistMisbeliefUpdate:result.protagonistMisbeliefUpdate);
+    if(result.characterReveal&&result.characterReveal.trim()) updated.supporting=(updated.supporting?updated.supporting+"\n\n"+result.characterReveal:result.characterReveal);
+    if(result.worldReveal&&result.worldReveal.trim()) updated.worldSetting=(updated.worldSetting?updated.worldSetting+"\n\n"+result.worldReveal:result.worldReveal);
+    setPForm(updated);
+    const proj={...updated,updated:new Date().toLocaleDateString()};
+    setProject(proj);
+    saveStored("tt-project",proj);
+    cloudSave("tt-project",proj);
+    setExtractOpen(false);
+    setExtractResult(null);
   };
 
   const updateOrganizeItem=(section,idx,status)=>{
@@ -2558,6 +2656,7 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
                 </div>
                 <div style={{display:"flex",gap:8,alignItems:"center"}}>
                   <span onClick={()=>{if(currentScene.text){const t=currentScene.text.substring(0,200);const ns=[...sparks,{text:t,date:new Date().toLocaleDateString(),mode:"The Forge"}];setSparks(ns);saveStored("tt-sparks",ns)}}} style={{fontSize:10,color:"var(--text-dim)",background:"var(--bg-card)",border:"1px solid var(--border)",borderRadius:4,padding:"3px 8px",cursor:"pointer"}}>This excites me</span>
+                  {currentScene.text&&currentScene.text.length>200&&<span onClick={()=>extractToBible(currentScene.text,currentScene.chapter)} style={{fontSize:10,color:extracting?"var(--text-dim)":"var(--accent)",background:"var(--bg-card)",border:"1px solid var(--border)",borderRadius:4,padding:"3px 8px",cursor:extracting?"default":"pointer"}}>{extracting?"Reading...":"Capture to Bible"}</span>}
                   <input value={currentScene.title||""} onChange={e=>{const updated=scenes.map(s=>s.id===currentScene.id?{...s,title:e.target.value}:s);setScenes(updated)}} placeholder="Scene title (optional)" style={{background:"none",border:"none",outline:"none",color:"var(--text-dim)",fontSize:10,fontFamily:"'DM Sans',sans-serif",width:140,textAlign:"right"}}/>
                 </div>
               </div>
@@ -2898,6 +2997,63 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
               <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:12,color:"var(--text-dim)",fontStyle:"italic",lineHeight:1.6}}>Everything captured here goes into your Story Bible. You can edit it any time.</div>
             </div>
           </div>
+        </div>
+      </div>}
+
+      {/* CAPTURE TO BIBLE OVERLAY */}
+      {extractOpen&&<div style={{position:"fixed",top:0,left:0,right:0,bottom:0,background:"rgba(0,0,0,0.7)",zIndex:300,display:"flex",alignItems:"center",justifyContent:"center",padding:20}}>
+        <div style={{background:"var(--bg-dark)",border:"1px solid var(--border)",borderRadius:12,padding:24,maxWidth:600,width:"100%",maxHeight:"85vh",overflowY:"auto",animation:"fu .3s ease-out"}}>
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}>
+            <div>
+              <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:18,fontWeight:500,color:"var(--accent)"}}>Finn read your chapter</div>
+              <div style={{fontSize:11,color:"var(--text-dim)",fontFamily:"'DM Sans',sans-serif",marginTop:2}}>Review what he found before anything saves to your Story Bible</div>
+            </div>
+            <div onClick={()=>{setExtractOpen(false);setExtractResult(null)}} style={{fontSize:11,color:"var(--text-dim)",cursor:"pointer",padding:"4px 10px",border:"1px solid var(--border)",borderRadius:6,fontFamily:"'DM Sans',sans-serif"}}>Dismiss</div>
+          </div>
+
+          {extracting&&!extractResult&&<div style={{textAlign:"center",padding:"40px 0"}}>
+            <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:15,color:"var(--text-dim)",fontStyle:"italic"}}>Finn is reading your chapter...</div>
+            <div style={{display:"flex",gap:4,justifyContent:"center",marginTop:12}}>
+              {[0,1,2].map(i=><div key={i} style={{width:6,height:6,borderRadius:"50%",background:"var(--accent)",opacity:0.4,animation:`wp 1.2s ease-in-out ${i*0.2}s infinite`}}/>)}
+            </div>
+          </div>}
+
+          {extractResult&&<>
+            {extractResult.chapterSummary&&<div style={{marginBottom:14,padding:14,background:"var(--bg-card)",borderRadius:8,border:"1px solid var(--border)"}}>
+              <div style={{fontSize:9,textTransform:"uppercase",letterSpacing:"0.14em",color:"var(--accent-80)",fontFamily:"'DM Sans',sans-serif",marginBottom:6}}>Chapter {extractResult.chapterNum||"?"} Summary</div>
+              <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:14,color:"var(--text-primary)",lineHeight:1.75}}>{extractResult.chapterSummary}</div>
+            </div>}
+
+            {[
+              {key:"protagonistReveal",label:"Protagonist"},
+              {key:"protagonistGoalUpdate",label:"Goal"},
+              {key:"protagonistFearUpdate",label:"Fear"},
+              {key:"protagonistMisbeliefUpdate",label:"Misbelief"},
+              {key:"characterReveal",label:"Characters"},
+              {key:"worldReveal",label:"World & Setting"},
+              {key:"themeReveal",label:"Themes"},
+            ].filter(f=>extractResult[f.key]&&extractResult[f.key].trim()).map(f=>(
+              <div key={f.key} style={{marginBottom:10,padding:10,background:"var(--bg-card)",borderRadius:8,border:"1px solid var(--border)"}}>
+                <div style={{fontSize:9,textTransform:"uppercase",letterSpacing:"0.12em",color:"var(--accent-70)",fontFamily:"'DM Sans',sans-serif",marginBottom:4}}>{f.label}</div>
+                <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:13,color:"var(--text-primary)",lineHeight:1.7}}>{extractResult[f.key]}</div>
+              </div>
+            ))}
+
+            {extractResult.craftNote&&<div style={{marginBottom:10,padding:10,background:"var(--bg-card)",borderRadius:8,border:"1px solid var(--accent-20)"}}>
+              <div style={{fontSize:9,textTransform:"uppercase",letterSpacing:"0.12em",color:"var(--accent)",fontFamily:"'DM Sans',sans-serif",marginBottom:4}}>Finn's Craft Note</div>
+              <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:13,color:"var(--text-primary)",lineHeight:1.7,fontStyle:"italic"}}>{extractResult.craftNote}</div>
+            </div>}
+
+            {extractResult.openQuestion&&<div style={{marginBottom:16,padding:10,background:"var(--bg-card)",borderRadius:8,border:"1px solid var(--border)"}}>
+              <div style={{fontSize:9,textTransform:"uppercase",letterSpacing:"0.12em",color:"var(--text-dim)",fontFamily:"'DM Sans',sans-serif",marginBottom:4}}>Open Question</div>
+              <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:13,color:"var(--text-muted)",lineHeight:1.7,fontStyle:"italic"}}>{extractResult.openQuestion}</div>
+            </div>}
+
+            <div style={{display:"flex",gap:8,marginTop:16}}>
+              <div onClick={()=>applyExtractToBible(extractResult)} style={{padding:"9px 20px",background:"var(--accent)",borderRadius:6,fontSize:12,fontWeight:500,color:"#F0EAE0",cursor:"pointer",fontFamily:"'DM Sans',sans-serif"}}>Save to Story Bible</div>
+              <div onClick={()=>{setExtractOpen(false);setExtractResult(null)}} style={{padding:"9px 14px",background:"transparent",border:"1px solid var(--border)",borderRadius:6,fontSize:12,color:"var(--text-dim)",cursor:"pointer",fontFamily:"'DM Sans',sans-serif"}}>Dismiss</div>
+            </div>
+          </>}
         </div>
       </div>}
 
