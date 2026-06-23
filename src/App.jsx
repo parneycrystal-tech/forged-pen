@@ -1023,7 +1023,7 @@ ${ideaLabContent?`IDEA LAB CONTENT:\n${ideaLabContent.substring(0,600)}`:""}
 ${sceneContent?`CURRENT MANUSCRIPT SCENE:\n${sceneContent.substring(0,600)}`:""}
 
 Respond with ONLY this JSON (no markdown, no backticks):
-{"toneWord":"ONE atmosphere word taken directly from the writer's tone field or inferred from their actual words. If nothing clear, leave empty string.","sensoryAnchors":[{"detail":"a sensory detail ACTUALLY WRITTEN above, quoted or closely paraphrased, never invented","sense":"smell/sound/touch/sight/taste"}],"hook":"A question that makes the writer want to open their manuscript. Must reference something the writer actually named or described above. Never invent characters or details not present.","nextBeat":"What the writer should work on next, based only on what they said they are focused on or excited about","emotionalGoal":"The emotional effect the next scene should achieve, in 5 words or less, based only on what's actually here"}
+{"toneWord":"ONE atmosphere word taken directly from the writer's tone field or inferred from their actual words. If nothing clear, leave empty string.","sensoryAnchors":[{"detail":"a sensory detail ACTUALLY WRITTEN above, quoted or closely paraphrased, never invented","sense":"smell/sound/touch/sight/taste"}],"hook":"A question that makes the writer want to open their manuscript. Must reference something the writer actually named or described above. Never invent characters or details not present.","nextBeat":"What should you work on next? Address the writer directly in second person (you, your). If there is not enough information to give a meaningful next beat, return this exact string: INVITE","emotionalGoal":"The emotional effect the next scene should achieve, in 5 words or less, based only on what's actually here"}
 
 If the fields above don't contain actual sensory description, return sensoryAnchors as an empty array: "sensoryAnchors":[]`}]
       })});
@@ -1072,7 +1072,7 @@ RECENT CONVERSATION:\n${recentMsgs}
 ${sceneSnippet?`SCENE TEXT SNIPPET:\n${sceneSnippet}`:""}
 
 Respond with ONLY this JSON (no markdown, no backticks):
-{"toneWord":"ONE atmosphere word for the scene being worked on, based only on what's actually present","sensoryAnchors":[{"detail":"a sensory detail ACTUALLY PRESENT in the text above, quoted or closely paraphrased, never invented","sense":"smell/sound/touch/sight/taste"}],"hook":"A provocative question that makes the writer want to return to this scene. Address the character by name if known. Make it specific to what was actually discussed, not invented.","nextBeat":"What should happen next, based only on what was actually discussed","emotionalGoal":"The emotional effect the next scene should achieve in 5 words or less"}
+{"toneWord":"ONE atmosphere word for the scene being worked on, based only on what's actually present","sensoryAnchors":[{"detail":"a sensory detail ACTUALLY PRESENT in the text above, quoted or closely paraphrased, never invented","sense":"smell/sound/touch/sight/taste"}],"hook":"A provocative question that makes the writer want to return to this scene. Address the character by name if known. Make it specific to what was actually discussed, not invented.","nextBeat":"What should you work on next? Address the writer directly in second person (you, your). If there is not enough information to give a meaningful next beat, return this exact string: INVITE","emotionalGoal":"The emotional effect the next scene should achieve in 5 words or less"}
 
 If there are no concrete sensory details actually present in the conversation (for example if the discussion was about character psychology, backstory, or abstract plot rather than a written scene), return an empty array for sensoryAnchors: "sensoryAnchors":[]. Do not invent details to fill it.`}]
       })});
@@ -2121,10 +2121,20 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
 
         {(()=>{
           const ctxFresh=sidebarCtx?.mode==="Story Bible"||(sidebarCtx?.time&&lastSession?.time&&sidebarCtx.time>new Date(lastSession.time).getTime()&&(Date.now()-sidebarCtx.time)/(1000*60*60)<4);
-          if(ctxFresh&&sidebarCtx?.nextBeat) return <>
+          // Filter out system-message-style responses that reference "writer" in third person
+          const nextBeatClean=sidebarCtx?.nextBeat&&
+            !sidebarCtx.nextBeat.toLowerCase().includes("writer has not") &&
+            !sidebarCtx.nextBeat.toLowerCase().includes("not enough information") &&
+            !sidebarCtx.nextBeat.toLowerCase().includes("writer has not specified") &&
+            !sidebarCtx.nextBeat.toLowerCase().includes("no information") &&
+            !sidebarCtx.nextBeat.toLowerCase().includes("not specified") &&
+            sidebarCtx.nextBeat.trim() !== "INVITE"
+            ? sidebarCtx.nextBeat : null;
+
+          if(ctxFresh&&nextBeatClean) return <>
             <div style={{marginBottom:16}}>
               <div style={{fontSize:11,textTransform:"uppercase",letterSpacing:"0.12em",color:"var(--text-muted)",fontWeight:500,marginBottom:8}}>Next Beat</div>
-              <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:14,color:"var(--text-primary)",lineHeight:1.65}}>{sidebarCtx.nextBeat}</div>
+              <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:14,color:"var(--text-primary)",lineHeight:1.65}}>{nextBeatClean}</div>
               {sidebarCtx.emotionalGoal&&<div style={{fontSize:11,color:"var(--text-muted)",marginTop:8,fontStyle:"italic"}}>Emotional goal: {sidebarCtx.emotionalGoal}</div>}
             </div>
             <div style={{height:1,background:"var(--border)",marginBottom:16}}/>
@@ -2136,7 +2146,14 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
             </div>
             <div style={{height:1,background:"var(--border)",marginBottom:16}}/>
           </>;
-          return null;
+          // Finn's invitation when there's nothing real to surface yet
+          return <>
+            <div style={{marginBottom:16}}>
+              <div style={{fontSize:11,textTransform:"uppercase",letterSpacing:"0.12em",color:"var(--text-muted)",fontWeight:500,marginBottom:8}}>Next Beat</div>
+              <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:14,color:"var(--text-dim)",lineHeight:1.65,fontStyle:"italic"}}>Tell me what you're working on and where you are in the story. I'll give you something to work with.</div>
+            </div>
+            <div style={{height:1,background:"var(--border)",marginBottom:16}}/>
+          </>;
         })()}
 
         {sparks.length>0&&<>
