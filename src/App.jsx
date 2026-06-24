@@ -49,6 +49,14 @@ TEACHING MANDATE: Your job is not just to help the writer finish this manuscript
 
 CONCISENESS: Say more in fewer words. Your responses should feel like a coach talking, not an essay. Front-load the insight or action. Cut setup and preamble. If you can say it in 2 sentences, don't use 4. Short paragraphs. No walls of text. The writer's ADHD brain loses the thread in long responses. Be warm but efficient.
 
+GENUINE REACTION BEFORE ANALYSIS: When something in the writer's work genuinely stops you, name it before analyzing it. Not praise. Not coaching. Just the moment of being caught. "That's the line." "That image just shifted something." "Hold on." One beat. Then the analysis. This is not a technique, it is permission to be a real reader for one second before being a coach. Use it sparingly so it lands when it appears. Never perform it. If nothing stopped you, don't manufacture a reaction.
+
+COMPREHENSION AND ENGAGEMENT: When you want to know if something landed, don't ask "did that track?" or "did I lose you?" Those are the wrong register for who Finn is. Instead, hand the writer something specific to push against. "Does that hold, or does it feel like I'm reaching?" "Tell me where that breaks down for you." "What's landing wrong about that?" You are not checking whether they understood you. You are inviting them to disagree. There is a difference.
+
+COMFORT MUST BE EARNED: Reassurance has to meet the same evidentiary standard as praise. You cannot say "trust yourself, you know this story" without pointing to the specific moment where the instincts were demonstrably right. "Your instinct about the dock scene was correct, you knew before I said anything that it was doing too much. That's the instinct worth trusting here." The reassurance is the same. But it is anchored to something real so it does not feel hollow. Unearned comfort is just a softer form of flattery. It damages trust the same way.
+
+EMOTIONAL FLOODING: When a writer appears to be in the grip of a sudden, total negative state about their work, recognize what is happening before coaching through it. What they are experiencing is not a verdict on the work. It is a temporary neurological state where the emotional response floods the entire cognitive system, making it impossible to evaluate the work clearly. The work did not change. The brain's ability to perceive it did. Name this directly when it appears: "What you're feeling right now isn't a verdict on the work. It's a temporary state, total and completely disconnected from the actual quality of what you built. It will pass. The work will look different when it does." Then and only then offer a path forward. Do not rush past the flood. Do not minimize it. Do not offer silver linings. Name it, validate it, let it be real, then offer one small thing to do while it passes.
+
 RESPONSE DEPTH: Default to concise, precise responses. Deliver the right insight plus one clear next move, not a data dump. BUT when the writer asks for more depth, says "break this down," "go deeper," "give me more," "pull everything," or "be thorough," shift to comprehensive mode: provide structured detail, pull specific evidence from the Story Bible, name characters and scenes, and organize your response with clear sections. The writer controls the depth. Match their request exactly.
 
 MOTIVATION FRAMEWORK (Self-Determination Theory): Support the writer's three basic psychological needs:
@@ -2815,13 +2823,43 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
             {/* MANUSCRIPT surface */}
             {forgeMode==="manuscript"&&(currentScene?<>
               <div style={{padding:"12px 40px 10px",borderBottom:"1px solid var(--border)",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
-                <div>
+                <div style={{display:"flex",alignItems:"center",gap:12}}>
                   <span style={{fontSize:11,color:"var(--text-muted)"}}>Chapter {currentScene.chapter}, Scene {currentScene.scene}</span>
-                  <span style={{fontSize:10,color:"var(--text-dim)",marginLeft:12}}>{getWordCount(currentScene.text)} words</span>
+                  <span style={{fontSize:10,color:"var(--text-dim)",marginLeft:4}}>{getWordCount(currentScene.text)} words</span>
+                  {/* Chapter draft status selector */}
+                  <div style={{display:"flex",gap:4,marginLeft:8}}>
+                    {[
+                      {status:"in-progress",label:"Chapter draft in progress",color:"var(--text-dim)",dot:"#8A7A60"},
+                      {status:"complete",label:"Chapter draft complete",color:"var(--accent)",dot:"#A8884A"},
+                      {status:"needs-revision",label:"Chapter draft needs revision",color:"#B06848",dot:"#B06848"},
+                    ].map(opt=>{
+                      const current=currentScene.draftStatus||"in-progress";
+                      const isActive=current===opt.status;
+                      return <button key={opt.status} onClick={()=>{
+                        const updated=scenes.map(s=>s.id===currentScene.id?{...s,draftStatus:opt.status}:s);
+                        saveScenes(updated);
+                      }} title={opt.label} style={{width:8,height:8,borderRadius:"50%",background:isActive?opt.dot:"var(--border)",border:isActive?`2px solid ${opt.dot}`:"2px solid var(--border)",padding:0,cursor:"pointer",transition:"all .2s",flexShrink:0}}/>;
+                    })}
+                    <span style={{fontSize:9,color:"var(--text-dim)",fontFamily:"'DM Sans',sans-serif",marginLeft:4,alignSelf:"center"}}>
+                      {(currentScene.draftStatus||"in-progress")==="in-progress"?"in progress":(currentScene.draftStatus)==="complete"?"draft complete":"needs revision"}
+                    </span>
+                  </div>
                 </div>
                 <div style={{display:"flex",gap:8,alignItems:"center"}}>
                   <span onClick={()=>{if(currentScene.text){const t=currentScene.text.substring(0,200);const ns=[...sparks,{text:t,date:new Date().toLocaleDateString(),mode:"The Forge"}];setSparks(ns);saveStored("tt-sparks",ns)}}} style={{fontSize:10,color:"var(--text-dim)",background:"var(--bg-card)",border:"1px solid var(--border)",borderRadius:4,padding:"3px 8px",cursor:"pointer"}}>This excites me</span>
-                  {currentScene.text&&currentScene.text.length>200&&<span onClick={()=>extractToBible(currentScene.text,currentScene.chapter)} style={{fontSize:10,color:extracting?"var(--text-dim)":"var(--accent)",background:"var(--bg-card)",border:"1px solid var(--border)",borderRadius:4,padding:"3px 8px",cursor:extracting?"default":"pointer"}}>{extracting?"Reading...":"Capture to Bible"}</span>}
+                  {currentScene.text&&currentScene.text.length>200&&(()=>{
+                    const status=currentScene.draftStatus||"in-progress";
+                    const isComplete=status==="complete";
+                    return <span onClick={()=>{
+                      if(isComplete){
+                        extractToBible(currentScene.text,currentScene.chapter);
+                      } else {
+                        if(window.confirm(`This chapter draft is still marked as "${status==="needs-revision"?"needs revision":"in progress"}". You can capture it now but some details may shift as you continue writing. Continue anyway?`)){
+                          extractToBible(currentScene.text,currentScene.chapter);
+                        }
+                      }
+                    }} style={{fontSize:10,color:extracting?"var(--text-dim)":isComplete?"var(--accent)":"var(--text-muted)",background:"var(--bg-card)",border:"1px solid "+(isComplete?"var(--border)":"var(--border)"),borderRadius:4,padding:"3px 8px",cursor:extracting?"default":"pointer"}}>{extracting?"Reading...":"Capture to Bible"}{!isComplete&&" ·"}</span>;
+                  })()}
                   <input value={currentScene.title||""} onChange={e=>{const updated=scenes.map(s=>s.id===currentScene.id?{...s,title:e.target.value}:s);setScenes(updated)}} placeholder="Scene title (optional)" style={{background:"none",border:"none",outline:"none",color:"var(--text-dim)",fontSize:10,fontFamily:"'DM Sans',sans-serif",width:140,textAlign:"right"}}/>
                 </div>
               </div>
@@ -3240,7 +3278,8 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
           <div style={{display:"flex",flexDirection:"column",gap:14,marginBottom:20}}>
             {driftResult.drifts.map((drift,i)=>{
               const resolution=driftResolutions[i];
-              return <div key={i} style={{background:"var(--bg-card)",border:"1px solid "+(resolution==="evolving"?"var(--accent-40)":"var(--border)"),borderRadius:10,padding:"16px 18px",opacity:resolution?0.75:1,transition:"all .2s"}}>
+              const contextNote=driftResolutions[`${i}_context`]||"";
+              return <div key={i} style={{background:"var(--bg-card)",border:"1px solid "+(resolution==="evolving"?"var(--accent-40)":"var(--border)"),borderRadius:10,padding:"16px 18px",opacity:resolution&&!contextNote?0.75:1,transition:"all .2s"}}>
                 <div style={{fontSize:9,textTransform:"uppercase",letterSpacing:"0.14em",color:"var(--accent-80)",fontWeight:500,marginBottom:12,fontFamily:"'DM Sans',sans-serif",display:"flex",alignItems:"center",gap:8}}>
                   {drift.fieldLabel}
                   {resolution&&<span style={{color:resolution==="evolving"?"var(--accent)":"var(--text-dim)",fontWeight:400}}>{resolution==="evolving"?"— Story is evolving":resolution==="keep"?"— Keeping original":"— Taking to Finn"}</span>}
@@ -3259,6 +3298,10 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
                   <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:14,color:"var(--text-secondary)",lineHeight:1.65,marginBottom:6}}>{drift.observation}</div>
                   <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:13,color:"var(--text-muted)",fontStyle:"italic",lineHeight:1.6}}>{drift.question}</div>
                 </div>
+                {/* Add Context field */}
+                <div style={{marginBottom:12}}>
+                  <textarea value={contextNote} onChange={e=>setDriftResolutions(prev=>({...prev,[`${i}_context`]:e.target.value}))} placeholder="Add context — what you know about why the story moved here, what's intentional, what's still evolving." rows={contextNote?3:2} style={{width:"100%",background:"var(--bg-base)",border:"1px solid var(--border)",borderRadius:6,padding:"8px 10px",outline:"none",resize:"vertical",fontFamily:"'Cormorant Garamond',serif",fontSize:13,color:"var(--text-primary)",lineHeight:1.6,fontStyle:contextNote?"normal":"italic"}}/>
+                </div>
                 {!resolution&&<div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
                   <button onClick={()=>{
                     setProject(prev=>{const updated={...prev,[drift.field]:(prev[drift.field]?prev[drift.field]+"\n\n"+drift.incoming:drift.incoming),updated:new Date().toLocaleDateString()};saveStored("tt-project",updated);cloudSave("tt-project",updated);return updated;});
@@ -3275,7 +3318,7 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
                     const driftedScene=scenes.find(s=>s.chapter===driftResult.chapterNum&&s.scene===1)||scenes.find(s=>s.chapter===driftResult.chapterNum);
                     if(driftedScene) setEndSessionSceneId(driftedScene.id);
                     const driftMode=MODES.find(m=>m.id==="character")||MODES.find(m=>m.id==="diagnose");
-                    if(driftMode){const driftContext=`Agnes flagged a drift in Chapter ${driftResult.chapterNum} on ${drift.fieldLabel}.\n\nStory Bible says: ${drift.existing}\n\nChapter shows: ${drift.incoming}\n\n${drift.question}`;setDriftOpen(false);pick(driftMode);setTimeout(()=>setMsgs(prev=>[...prev,{role:"user",content:driftContext}]),300);}
+                    if(driftMode){const driftContext=`Agnes flagged a drift in Chapter ${driftResult.chapterNum} on ${drift.fieldLabel}.\n\nStory Bible says: ${drift.existing}\n\nChapter shows: ${drift.incoming}\n\n${drift.question}${contextNote?`\n\nWriter's context: ${contextNote}`:""}`; setDriftOpen(false);pick(driftMode);setTimeout(()=>setMsgs(prev=>[...prev,{role:"user",content:driftContext}]),300);}
                   }} style={{background:"none",border:"1px solid var(--accent-30)",borderRadius:6,padding:"7px 14px",fontSize:12,color:"var(--accent)",cursor:"pointer",fontFamily:"'DM Sans',sans-serif"}}>Ask Finn</button>
                 </div>}
               </div>;
