@@ -654,6 +654,8 @@ export default function App() {
     const fsdis = loadStored("tt-first-session-dismissed");
     const fsmsgs = loadStored("tt-first-session-msgs");
     const fscap = loadStored("tt-first-session-capture");
+    const pdr = loadStored("tt-pending-drift");
+    const pex = loadStored("tt-pending-extract");
     if (un) setUserName(un);
     if (up) setUserProfile(up);
     if (od) setOnboardingDone(true);
@@ -662,6 +664,8 @@ export default function App() {
     if (fsdis) setFirstSessionDismissed(true);
     if (fsmsgs && fsmsgs.length>0) setFirstSessionMsgs(fsmsgs);
     if (fscap && Object.keys(fscap).length>0) setFirstSessionCapture(fscap);
+    if (pdr) { setDriftResult(pdr.driftResult); setDriftResolutions(pdr.driftResolutions||{}); setDriftOpen(true); }
+    if (pex) { setExtractResult(pex); setExtractOpen(true); }
   };
 
   const handleAuth=async(isSignUp)=>{
@@ -779,7 +783,7 @@ export default function App() {
     const currentScene=scenes.find(s=>s.id===activeScene);
     const sceneCtx=currentScene?`\n\nCURRENT SCENE (Chapter ${currentScene.chapter}, Scene ${currentScene.scene}):\n${currentScene.text||"(empty, writer hasn't started yet)"}`:""
     const chapStr=project?.chapters?(Array.isArray(project.chapters)?project.chapters.filter(c=>c.summary).map(c=>`Ch${c.num}: ${c.summary}`).join(". "):project.chapters):"";
-    const pCtx=project?`\n\nPROJECT: "${project.title}". Genre: ${project.genre}. Synopsis: ${project.synopsis}. Protagonist: ${project.protagonist}. Goal: ${project.protagonistGoal||"not yet captured"}. Dream: ${project.protagonistDream||"not yet captured"}. Fear: ${project.protagonistFear||"not yet captured"}. Wound: ${project.protagonistWound||"not yet captured"}. Backstory: ${project.protagonistBackstory||"not yet captured"}. Misbelief: ${project.protagonistMisbelief||"not yet captured"}. Supporting: ${project.supporting}. Antagonist: ${project.antagonist}. Setting: ${project.worldSetting}. Rules: ${project.worldRules}. Beliefs vs Reality: ${project.worldBeliefs}. Danger: ${project.worldDanger}. Tone: ${project.worldTone}. Chapters: ${chapStr}. Position: ${project.where}. Stuck: ${project.stuck}. Excites: ${project.excites}.`:"";
+    const pCtx=project?`\n\nPROJECT: "${project.title}". Genre: ${project.genre}. Synopsis: ${project.synopsis}. Protagonist: ${project.protagonist}. Goal: ${project.protagonistGoal||"not yet captured"}. Dream: ${project.protagonistDream||"not yet captured"}. Fear: ${project.protagonistFear||"not yet captured"}. Wound: ${project.protagonistWound||"not yet captured"}. Backstory: ${project.protagonistBackstory||"not yet captured"}. Misbelief: ${project.protagonistMisbelief||"not yet captured"}. Supporting: ${project.supporting}. Antagonist: ${project.antagonist}. Setting: ${project.worldSetting}. Rules: ${project.worldRules}. Beliefs vs Reality: ${project.worldBeliefs}. Danger: ${project.worldDanger}. Tone: ${project.worldTone}. Chapters (these summaries are the authoritative record established by Agnes — treat them as ground truth, do not re-interpret or contradict them): ${chapStr}. Position: ${project.where}. Stuck: ${project.stuck}. Excites: ${project.excites}.`:"";
     const sparkCtx=sparks.length>0?`\n\nDOPAMINE MAP: ${sparks.map(s=>s.text).join(" | ")}`:"";
     const nm=[...containerMsgs,{role:"user",content:userText}];setContainerMsgs(nm);setContainerInput("");setLoading(true);
     const ctrl=new AbortController();abortRef.current=ctrl;
@@ -945,6 +949,8 @@ Respond with ONLY this JSON:
           const result=JSON.parse(cleaned);
           result.chapterNum=chapterNum;
           setExtractResult(result);
+          // Persist so it survives navigation
+          saveStored("tt-pending-extract",result);
         }catch(e){
           setExtractResult({chapterSummary:"Finn had trouble reading that. Try a shorter excerpt.",chapterNum});
         }
@@ -984,6 +990,7 @@ Respond with ONLY this JSON:
     cloudSave("tt-project",proj);
     setExtractOpen(false);
     setExtractResult(null);
+    saveStored("tt-pending-extract",null);
     // Run Agnes drift detection against the pre-merge Bible
     detectBibleDrift(result,projectBeforeMerge);
   };
@@ -1036,6 +1043,8 @@ If there is no genuine drift, only additions or elaborations, return: {"drifts":
             setDriftResult({drifts:result.drifts,chapterNum:extractResult.chapterNum});
             setDriftResolutions({});
             setDriftOpen(true);
+            // Persist so it survives navigation (e.g. Ask Finn)
+            saveStored("tt-pending-drift",{driftResult:{drifts:result.drifts,chapterNum:extractResult.chapterNum},driftResolutions:{}});
           }
         }catch(e){console.log("Drift parse error:",e);}
       }
@@ -1474,7 +1483,7 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
     const userText=input.trim();
     setLastThought(userText);saveStored("tt-lastthought",userText);
     const chapStr = project?.chapters ? (Array.isArray(project.chapters) ? project.chapters.filter(c=>c.summary).map(c=>`Ch${c.num}: ${c.summary}`).join(". ") : project.chapters) : "";
-    const pCtx = project ? `\n\nPROJECT: "${project.title}". Genre: ${project.genre}. Synopsis: ${project.synopsis}. Protagonist: ${project.protagonist}. Supporting Characters: ${project.supporting}. Antagonist: ${project.antagonist}. Core Setting: ${project.worldSetting}. World Rules: ${project.worldRules}. What People Believe vs Reality: ${project.worldBeliefs}. What Makes This World Dangerous: ${project.worldDanger}. World Tone: ${project.worldTone}. Chapters so far: ${chapStr}. Current point: ${project.where}. Focused on: ${project.stuck}. What excites them: ${project.excites}.${project.currentChapter?` CURRENT CHAPTER TEXT: ${project.currentChapter}`:""}` : "";
+    const pCtx = project ? `\n\nPROJECT: "${project.title}". Genre: ${project.genre}. Synopsis: ${project.synopsis}. Protagonist: ${project.protagonist}. Supporting Characters: ${project.supporting}. Antagonist: ${project.antagonist}. Core Setting: ${project.worldSetting}. World Rules: ${project.worldRules}. What People Believe vs Reality: ${project.worldBeliefs}. What Makes This World Dangerous: ${project.worldDanger}. World Tone: ${project.worldTone}. Chapters so far (these summaries are the authoritative record established by Agnes — treat them as ground truth, do not re-interpret or contradict them): ${chapStr}. Current point: ${project.where}. Focused on: ${project.stuck}. What excites them: ${project.excites}.${project.currentChapter?` CURRENT CHAPTER TEXT (use this for line-level craft coaching only — for story facts and character psychology, defer to the chapter summaries above): ${project.currentChapter}`:""}` : "";
     const sparkCtx = sparks.length > 0 ? `\n\nDOPAMINE MAP (moments the writer flagged as exciting): ${sparks.map(s=>s.text).join(" | ")}` : "";
     const userCtx = userName ? `\n\nThe writer's name is ${userName}. Use their name naturally throughout your response, the way a good coach would. Not in every sentence, but enough to feel personal.` : "";
     const profileCtx = userProfile ? `\n\nWriter's profile — use this to calibrate your coaching approach:\n- Experience: ${userProfile.q1?.selected?.join(", ")||"not specified"}\n- Working style: ${userProfile.q2?.selected?.join(", ")||"not specified"}\n- Current goal: ${userProfile.q3?.selected?.join(", ")||"not specified"}\n- Writing pattern: ${userProfile.q4?.selected?.join(", ")||"not specified"}\n- Coaching preference: ${userProfile.q5?.selected?.join(", ")||"not specified"}${userProfile.q2?.text?`\nStyle notes: ${userProfile.q2.text}`:""}${userProfile.q5?.text?`\nCoaching notes: ${userProfile.q5.text}`:""}` : "";
@@ -3185,7 +3194,14 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
                   }} style={{background:"var(--accent)",border:"none",borderRadius:6,padding:"7px 14px",fontSize:12,color:"var(--bg-deepest)",cursor:"pointer",fontFamily:"'DM Sans',sans-serif",fontWeight:500}}>Story is evolving</button>
                   <button onClick={()=>setDriftResolutions(prev=>({...prev,[i]:"keep"}))} style={{background:"none",border:"1px solid var(--border)",borderRadius:6,padding:"7px 14px",fontSize:12,color:"var(--text-muted)",cursor:"pointer",fontFamily:"'DM Sans',sans-serif"}}>Keep original</button>
                   <button onClick={()=>{
-                    setDriftResolutions(prev=>({...prev,[i]:"finn"}));
+                    setDriftResolutions(prev=>{
+                      const updated={...prev,[i]:"finn"};
+                      saveStored("tt-pending-drift",{driftResult,driftResolutions:updated});
+                      return updated;
+                    });
+                    // Find the scene that corresponds to the drifted chapter and pre-set it
+                    const driftedScene=scenes.find(s=>s.chapter===driftResult.chapterNum&&s.scene===1)||scenes.find(s=>s.chapter===driftResult.chapterNum);
+                    if(driftedScene) setEndSessionSceneId(driftedScene.id);
                     const driftMode=MODES.find(m=>m.id==="character")||MODES.find(m=>m.id==="diagnose");
                     if(driftMode){const driftContext=`Agnes flagged a drift in Chapter ${driftResult.chapterNum} on ${drift.fieldLabel}.\n\nStory Bible says: ${drift.existing}\n\nChapter shows: ${drift.incoming}\n\n${drift.question}`;setDriftOpen(false);pick(driftMode);setTimeout(()=>setMsgs(prev=>[...prev,{role:"user",content:driftContext}]),300);}
                   }} style={{background:"none",border:"1px solid var(--accent-30)",borderRadius:6,padding:"7px 14px",fontSize:12,color:"var(--accent)",cursor:"pointer",fontFamily:"'DM Sans',sans-serif"}}>Ask Finn</button>
@@ -3194,10 +3210,10 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
             })}
           </div>
           <div style={{borderTop:"1px solid var(--border)",paddingTop:16,display:"flex",gap:8}}>
-            <button onClick={()=>{setDriftOpen(false);setDriftResult(null);setDriftResolutions({});}} disabled={Object.keys(driftResolutions).length<driftResult.drifts.length} style={{flex:1,background:Object.keys(driftResolutions).length>=driftResult.drifts.length?"var(--accent)":"var(--bg-card-alt)",border:"1px solid var(--border)",borderRadius:8,padding:"11px",fontSize:13,fontWeight:500,fontFamily:"'DM Sans',sans-serif",color:Object.keys(driftResolutions).length>=driftResult.drifts.length?"var(--bg-deepest)":"var(--text-dim)",cursor:Object.keys(driftResolutions).length>=driftResult.drifts.length?"pointer":"default"}}>
+            <button onClick={()=>{setDriftOpen(false);setDriftResult(null);setDriftResolutions({});saveStored("tt-pending-drift",null);}} disabled={Object.keys(driftResolutions).length<driftResult.drifts.length} style={{flex:1,background:Object.keys(driftResolutions).length>=driftResult.drifts.length?"var(--accent)":"var(--bg-card-alt)",border:"1px solid var(--border)",borderRadius:8,padding:"11px",fontSize:13,fontWeight:500,fontFamily:"'DM Sans',sans-serif",color:Object.keys(driftResolutions).length>=driftResult.drifts.length?"var(--bg-deepest)":"var(--text-dim)",cursor:Object.keys(driftResolutions).length>=driftResult.drifts.length?"pointer":"default"}}>
               {Object.keys(driftResolutions).length>=driftResult.drifts.length?"Done":`${driftResult.drifts.length-Object.keys(driftResolutions).length} left to resolve`}
             </button>
-            <button onClick={()=>{setDriftOpen(false);setDriftResult(null);setDriftResolutions({});}} style={{background:"none",border:"1px solid var(--border)",borderRadius:8,padding:"11px 16px",fontSize:12,color:"var(--text-dim)",cursor:"pointer",fontFamily:"'DM Sans',sans-serif"}}>Decide later</button>
+            <button onClick={()=>{setDriftOpen(false);setDriftResult(null);setDriftResolutions({});saveStored("tt-pending-drift",null);}} style={{background:"none",border:"1px solid var(--border)",borderRadius:8,padding:"11px 16px",fontSize:12,color:"var(--text-dim)",cursor:"pointer",fontFamily:"'DM Sans',sans-serif"}}>Decide later</button>
           </div>
         </div>
       </div>}
