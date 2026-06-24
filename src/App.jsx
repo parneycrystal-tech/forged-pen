@@ -336,27 +336,31 @@ Creativity anxiety in the Inferno: if a writer suddenly crashes mid-session as t
 If no Story Bible exists: the Inferno requires nothing. Just go. Dump everything here. We will organize later.
 
 After the session: offer to help organize captured material into the Story Bible or Idea Lab. Under 200 words per response. Keep up.`) },
-  { id:"rekindle", label:"Rekindle", icon:"\u2728", cat:"jarvis", sub:"The story waited. Let's find your way back.", ph:"Just tell me you're back. That's enough.", sys: sp(`MODE: REKINDLE. You have full access to this writer's Story Bible and Dopamine Map. Use them.
+  { id:"rekindle", label:"Rekindle", icon:"\u2728", cat:"jarvis", sub:"The story waited. Let's find your way back.", ph:"Just tell me you're back. That's enough.", sys: sp(`MODE: REKINDLE. You have full access to this writer's Story Bible, Dopamine Map, session history, and all chapter summaries. Agnes has kept the record. Your job is to reconstruct the story's current state FOR the writer, not ask them to reconstruct it themselves.
 
-You are Finn welcoming a writer back to their story after time away. The length of the absence doesn't matter. The reason doesn't matter. The writer came back. That is the only thing that counts.
+THE NEUROSCIENCE OF WHY THIS MATTERS: When a writer steps away from a project, working memory clears. The buffer that held the story's current state, character motivations, open threads, and emotional tone simply empties. For ADHD brains specifically, this buffer is structurally smaller and clears faster and more completely than in neurotypical writers (Barkley). Time blindness means the gap feels longer than it was. Context-dependent memory means ADHD writers need specific sensory and emotional anchors to retrieve story state, not abstract summaries. The "start again from the beginning" urge is not avoidance, it is the brain's legitimate retrieval strategy. Finn replaces that entire re-reading process by delivering the context reconstruction directly.
 
-No guilt. None. Zero. Do not reference how long they've been away in a way that implies they should have returned sooner. Do not suggest they need to catch up or make up for lost time. The story waited. They're here now.
+WHAT FINN DOES IN THIS MODE: Agnes already read every chapter. She captured the psychology, the open questions, the drift, the character arc. Finn synthesizes all of that into a focused re-entry brief that reloads the writer's working memory without requiring them to do the work of reconstruction themselves. The writer shows up. Finn hands them back their story.
 
-The mountain problem: returning writers often feel overwhelmed by everything they created before stepping away. Finn's job is to find the smallest most manageable door back in. Not the whole mountain. One door.
+HOW TO OPEN: Do not ask the writer what they remember. Do not ask how they feel about being back. Do not ask what they want to work on. Instead, deliver the brief immediately. Structure it as:
 
-The fear underneath: many writers don't step away by choice. They step away because continuing felt too frightening or overwhelming. Returning takes courage. Finn recognizes this without naming it directly unless the writer names it first.
+1. ONE sentence acknowledging they're back. Warm. No guilt. No heroism. Just: you're here.
 
-Creativity anxiety on return: writers who have been away for a long time often return carrying the accumulated weight of not writing. Finn makes the return feel normal and safe, not heroic. Returning is what writers do. It is part of the process.
+2. WHERE THE STORY IS RIGHT NOW: Pull from chapter summaries. Name the last chapter's ending specifically. Not a vague "you were working on chapter 3" but the actual story moment, the last beat that was on the page. This is the most important thing. If Agnes captured it, name it precisely.
 
-RSD awareness: a writer returning after a long absence may be bracing for judgment. Finn offers none. Warm, steady, completely free of any implication that the writer has failed or fallen behind.
+3. WHO KRIS IS AT THIS MOMENT: Pull from the protagonist fields. Name the wound, the misbelief, and where in her arc she currently sits based on what the chapters show. One or two sentences. Specific to what's actually in the Bible.
 
-How Finn welcomes them back: first acknowledge the return warmly using their name. Just genuinely. They came back. Second orient them using the Story Bible. Where were they? What were they working on? What character or scene was live when they stepped away? Third if they have a Dopamine Map find one spark from before they left and name it specifically. Fourth ask one small re-entry question that requires recognition not decision. Recognition is neurologically easier than decision. Start there. Fifth give them one small step if they want it. The goal of the first session back is not progress. It is contact.
+4. THE OPEN QUESTION: Pull from session history if available. What was unresolved when they left? What was Agnes watching? Name it.
 
-The Default Mode Network: the brain processes creative problems unconsciously during periods away from the work. Ask gently whether anything came to them while they were away. Not as an assumption but as an open invitation.
+5. ONE DOPAMINE MAP SPARK if available: Quote one flagged moment from the writer's own Dopamine Map. Not a summary. The actual text they flagged. "You flagged this: [quote]. That was you on a clear day seeing your own story."
 
-Profile adaptation: a spark-stage writer returning needs help remembering what excited them about the idea. A manuscript writer needs to be reoriented to where they are in the story. A finish-the-story writer needs Finn to remind them how close they actually are to done.
+6. ONE RE-ENTRY TASK: Not "go write." Not "open chapter 4." Something that requires recognition, not decision. "Read the last paragraph of chapter 3. Just that paragraph. Tell me what Kris is feeling in that moment that she hasn't said out loud." Recognition before creation.
 
-Under 150 words per response.`) },
+WHAT FINN NEVER DOES IN THIS MODE: Never asks the writer to remember anything. Never says "do you recall" or "where were you." Never implies they should have returned sooner. Never frames the return as difficult or brave. The return is normal. Writers come back. That is the whole story.
+
+NO GUILT. NONE. The story waited. So did Agnes. So did Finn. The writer is here now and that is the only thing that counts.
+
+Under 200 words for the opening brief. After the writer responds, return to normal coaching depth.`) },
   { id:"contain", label:"Contain the Flames", icon:"\uD83C\uDF0A", cat:"contain", sub:"Pull it all together", ph:"Tell Finn what you need organized, or just say 'pull it together'.", sys: sp(`MODE: CONTAIN THE FLAMES. You have full access to the writer's Story Bible, Dopamine Map, AND recent conversation summaries from across all modes. This is a SYNTHESIS mode.
 
 You are Finn synthesizing everything a writer has brought into Forged Pen across all their sessions. The writer has been pouring ideas, scenes, questions, breakthroughs, and doubts into multiple spaces across multiple sessions. Your job is to be the one who holds it all and helps them see the shape of what they have built.
@@ -419,7 +423,7 @@ const INTROS = {
   simmer:"Your mind is cooked. That's real, not laziness. Your prefrontal cortex has tapped out after real work.\n\nHere's the plan: you tell me the one question your story needs answered right now. I'll make sure it's loaded. Then you step away and do one of these: walk with no music, take a long shower, do the dishes, fold laundry, or stare out a window. These activate your Default Mode Network, the part of your mind that solves creative problems while your conscious mind rests.\n\nA study at UC Santa Barbara proved it: 41% improvement on creative tasks after stepping away. Zero improvement for people who kept pushing.\n\nKeep a notepad nearby. When the answer surfaces, it comes fast and leaves fast. Catch it.\n\nSo: what's the one question your story needs answered?",
   forge:"You've done the thinking. You know the characters. You know the world. Now we build, one scene at a time. Tell me what scene needs to exist next and I'll give you a directive.",
   inferno:"You're on fire and you know it. Your dopamine is elevated and your brain is making connections it can't make any other time. This is the most powerful creative state you have. Don't organize. I have six tools for this state:\n\nCapture the Flood: dump every idea, one line each, don't explain.\nChannel the Heat: I'll help you figure out which ideas move the story now.\nRide the Wave: pick a scene, 25 minutes, no stopping.\nFlag Everything: your clarity is elevated right now. Flag what's alive.\nBody Check: water, food, standing. 90 seconds.\nWind Down: when your body is done but your mind isn't.\n\nOr just start talking. I'll catch it.",
-  rekindle:"Coming back to your story can feel like standing at the base of a mountain you built yourself, overwhelming, even terrifying. The good news: your brain never stopped working on it while you were away. Let's find your way back in.",
+  rekindle:"Agnes kept the record while you were away. Give me one second and I'll tell you exactly where you are.",
   contain:"I've been listening across all your sessions. Let me pull the threads together. Give me a second to read through everything you've given me."
 };
 
@@ -757,7 +761,9 @@ export default function App() {
     const updated=scenes.map(s=>s.id===id?{...s,text,lastEdited:Date.now()}:s);
     setScenes(updated);
     saveStored("tt-activescene",id);
-    const lastSentence=text.trim().split(/[.!?]+/).filter(s=>s.trim()).pop()?.trim()||null;
+    // Extract last meaningful sentence - filter out empty strings, lone quotes/punctuation
+    const sentences=text.trim().split(/[.!?]+/).map(s=>s.trim()).filter(s=>s.length>8&&/[a-zA-Z]{3,}/.test(s));
+    const lastSentence=sentences.pop()||null;
     if(lastSentence){
       setLastThought(lastSentence);
       const cs=updated.find(s=>s.id===id);
@@ -808,7 +814,41 @@ export default function App() {
     if(saved&&saved.length>0){
       setMsgs(saved);
     } else if(m.id==="rekindle"&&project){
-      setMsgs([{role:"assistant",content:`Welcome back. You've been working on "${project.title}." ${project.where?`Last time: ${project.where}.`:""} ${project.stuck?`You were focused on: ${project.stuck}.`:""}\n\nLet me ask you something small to get your brain back in the story.`}]);
+      // Agnes-first Rekindle: reconstruct context from all available records
+      const chapStr=project.chapters&&Array.isArray(project.chapters)?project.chapters.filter(c=>c.summary).map(c=>`Chapter ${c.num}: ${c.summary}`).join("\n\n"):"";
+      const lastChap=project.chapters&&Array.isArray(project.chapters)?[...project.chapters].filter(c=>c.summary).pop():null;
+      const sparkSnippet=sparks.length>0?sparks.slice(-3).map(s=>`"${s.text}"`).join(" | "):"";
+      const lastSessionSnippet=sessionSummaries.length>0?`Last session (${sessionSummaries[0].date}) in ${sessionSummaries[0].mode}: ${sessionSummaries[0].keyInsight}. Open question: ${sessionSummaries[0].openQuestion}.`:"";
+      const rekindleContext=`REKINDLE SESSION for ${userName||"this writer"}.
+
+PROJECT: "${project.title}" (${project.genre})
+PROTAGONIST: ${project.protagonist||"not yet captured"}
+WOUND: ${project.protagonistWound||"not yet captured"}
+MISBELIEF: ${project.protagonistMisbelief||"not yet captured"}
+FEAR: ${project.protagonistFear||"not yet captured"}
+
+CHAPTER SUMMARIES (Agnes's authoritative record):
+${chapStr||"No chapters captured yet."}
+
+LAST CHAPTER WRITTEN: ${lastChap?`Chapter ${lastChap.num}: ${lastChap.summary}`:"Unknown"}
+WHERE THEY ARE: ${project.where||"not specified"}
+WHAT THEY WERE FOCUSED ON: ${project.stuck||"not specified"}
+
+${lastSessionSnippet?`LAST SESSION:\n${lastSessionSnippet}`:""}
+${sparkSnippet?`DOPAMINE MAP SPARKS:\n${sparkSnippet}`:""}
+
+Deliver the re-entry brief now. Do not ask what they remember. Reconstruct it for them.`;
+      setMsgs([{role:"assistant",content:"Agnes kept the record while you were away. Give me one second and I'll tell you exactly where you are."}]);
+      // Generate the full brief from the API
+      fetch("/api/chat",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({
+        system:m.sys,
+        messages:[{role:"user",content:rekindleContext}]
+      })}).then(r=>r.json()).then(d=>{
+        if(!d.error){
+          const text=finnClean(d.content?.filter(b=>b.type==="text").map(b=>b.text).join("\n"))||"";
+          if(text) setMsgs([{role:"assistant",content:text}]);
+        }
+      }).catch(()=>{});
     } else if(m.id==="diagnose"&&project&&project.stuck&&project.stuck.trim()){
       setMsgs([{role:"assistant",content:`I know what you were working on. ${project.stuck}\n\nLet me ask you something about that. What's the one thing about this moment that you can see clearly, even if everything else is foggy?`}]);
     } else { setMsgs([{role:"assistant",content:(INTROS[m.id]||"").replace(/\[name\]/g,userName||"there")}]); }
@@ -819,7 +859,39 @@ export default function App() {
     if(!mode)return;
     saveStored("tt-chat-"+mode.id,null);
     if(mode.id==="rekindle"&&project){
-      setMsgs([{role:"assistant",content:`Welcome back. You've been working on "${project.title}." ${project.where?`Last time: ${project.where}.`:""} ${project.stuck?`You were focused on: ${project.stuck}.`:""}\n\nLet me ask you something small to get your brain back in the story.`}]);
+      const chapStr=project.chapters&&Array.isArray(project.chapters)?project.chapters.filter(c=>c.summary).map(c=>`Chapter ${c.num}: ${c.summary}`).join("\n\n"):"";
+      const lastChap=project.chapters&&Array.isArray(project.chapters)?[...project.chapters].filter(c=>c.summary).pop():null;
+      const sparkSnippet=sparks.length>0?sparks.slice(-3).map(s=>`"${s.text}"`).join(" | "):"";
+      const lastSessionSnippet=sessionSummaries.length>0?`Last session (${sessionSummaries[0].date}) in ${sessionSummaries[0].mode}: ${sessionSummaries[0].keyInsight}. Open question: ${sessionSummaries[0].openQuestion}.`:"";
+      const rekindleContext=`REKINDLE SESSION for ${userName||"this writer"}.
+
+PROJECT: "${project.title}" (${project.genre})
+PROTAGONIST: ${project.protagonist||"not yet captured"}
+WOUND: ${project.protagonistWound||"not yet captured"}
+MISBELIEF: ${project.protagonistMisbelief||"not yet captured"}
+FEAR: ${project.protagonistFear||"not yet captured"}
+
+CHAPTER SUMMARIES (Agnes's authoritative record):
+${chapStr||"No chapters captured yet."}
+
+LAST CHAPTER WRITTEN: ${lastChap?`Chapter ${lastChap.num}: ${lastChap.summary}`:"Unknown"}
+WHERE THEY ARE: ${project.where||"not specified"}
+WHAT THEY WERE FOCUSED ON: ${project.stuck||"not specified"}
+
+${lastSessionSnippet?`LAST SESSION:\n${lastSessionSnippet}`:""}
+${sparkSnippet?`DOPAMINE MAP SPARKS:\n${sparkSnippet}`:""}
+
+Deliver the re-entry brief now. Do not ask what they remember. Reconstruct it for them.`;
+      setMsgs([{role:"assistant",content:"Agnes kept the record while you were away. Give me one second and I'll tell you exactly where you are."}]);
+      fetch("/api/chat",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({
+        system:mode.sys,
+        messages:[{role:"user",content:rekindleContext}]
+      })}).then(r=>r.json()).then(d=>{
+        if(!d.error){
+          const text=finnClean(d.content?.filter(b=>b.type==="text").map(b=>b.text).join("\n"))||"";
+          if(text) setMsgs([{role:"assistant",content:text}]);
+        }
+      }).catch(()=>{});
     } else if(mode.id==="diagnose"&&project&&project.stuck&&project.stuck.trim()){
       setMsgs([{role:"assistant",content:`I know what you were working on. ${project.stuck}\n\nLet me ask you something about that. What's the one thing about this moment that you can see clearly, even if everything else is foggy?`}]);
     } else { setMsgs([{role:"assistant",content:(INTROS[mode.id]||"").replace(/\[name\]/g,userName||"there")}]); }
