@@ -557,6 +557,9 @@ export default function App() {
   const [containerInput, setContainerInput] = useState("");
   const [pulse, setPulse] = useState(null);
   const [sidebarCtx, setSidebarCtx] = useState(null);
+  const [nextBeat, setNextBeat] = useState(null);
+  const [nextBeatLoading, setNextBeatLoading] = useState(false);
+  const [nextBeatExpanded, setNextBeatExpanded] = useState(false);
   const [theme, setTheme] = useState("dark");
   const [finnPanelSize, setFinnPanelSize] = useState("medium");
   const [triageActive, setTriageActive] = useState(false);
@@ -644,6 +647,7 @@ export default function App() {
     const pl = loadStored("tt-pulse");
     const sb = loadStored("tt-sidebarctx");
     const th = loadStored("tt-theme");
+    const nb = loadStored("tt-nextbeat");
     const ilt = loadStored("tt-idealab-text");
     const ilb = loadStored("tt-idealab-buckets");
     const inft = loadStored("tt-inferno-text");
@@ -652,9 +656,13 @@ export default function App() {
     if (sess) setLastSession(sess);
     if (lt) setLastThought(lt);
     if (sc) setScenes(sc);
-    if (pl) setPulse(pl);
+    if (pl) {
+      // Only load pulse if it has real manuscript content
+      if (pl.description && pl.description.length > 8 && /[a-zA-Z]{3,}/.test(pl.description)) setPulse(pl);
+    }
     if (sb) setSidebarCtx(sb);
     if (th) setTheme(th);
+    if (nb) setNextBeat(nb);
     if (ilt) setIdeaLabText(ilt);
     if (ilb) setIdeaLabBuckets(ilb);
     if (inft) setInfernoText(inft);
@@ -961,7 +969,7 @@ Respond with ONLY this JSON:
       const updated={...project,
         protagonist:chars?((project.protagonist||"")+"\n\n"+chars).trim():project.protagonist,
         worldSetting:world?((project.worldSetting||"")+"\n\n"+world).trim():project.worldSetting,
-        updated:new Date().toLocaleDateString()
+        updated:Date.now()
       };
       setProject(updated);saveStored("tt-project",updated);
     }
@@ -1078,7 +1086,7 @@ Respond with ONLY this JSON:
     if(result.characterReveal&&result.characterReveal.trim()) updated.supporting=(updated.supporting?updated.supporting+"\n\n"+result.characterReveal:result.characterReveal);
     if(result.worldReveal&&result.worldReveal.trim()) updated.worldSetting=(updated.worldSetting?updated.worldSetting+"\n\n"+result.worldReveal:result.worldReveal);
     setPForm(updated);
-    const proj={...updated,updated:new Date().toLocaleDateString()};
+    const proj={...updated,updated:Date.now()};
     setProject(proj);
     saveStored("tt-project",proj);
     cloudSave("tt-project",proj);
@@ -1221,6 +1229,103 @@ If the fields above don't contain actual sensory description, return sensoryAnch
       generateDefaultSidebarCtx(project, ideaLabText, currentScene?.text||"");
     }
   },[project?.protagonist,project?.worldSetting,project?.protagonistFear,project?.protagonistMisbelief]);
+
+  // NEXT BEAT: Agnes reads Bible chapter summaries + current manuscript, cross-references both
+  const generateNextBeat=async()=>{
+    if(!project)return;
+    // Change detection: compare last content change against stored nextBeat timestamp
+    const lastBibleChange=typeof project.updated==="number"?project.updated:0;
+    const lastManuscriptChange=scenes.length>0?Math.max(...scenes.map(s=>s.lastEdited||0)):0;
+    const lastContentChange=Math.max(lastBibleChange,lastManuscriptChange);
+    const storedNB=loadStored("tt-nextbeat");
+    const nbAge=storedNB?.time?Date.now()-storedNB.time:Infinity;
+    const contentChanged=lastContentChange>(storedNB?.time||0);
+    // Only regenerate if content changed or cached result is older than 24 hours
+    if(storedNB?.beat&&!contentChanged&&nbAge<24*60*60*1000){
+      setNextBeat(storedNB);
+      return;
+    }
+    setNextBeatLoading(true);
+    try{
+      // Build context: Bible chapter summaries as authoritative, manuscript as current position
+      const chapStr=project.chapters&&Array.isArray(project.chapters)?
+        project.chapters.filter(c=>c.summary).map(c=>`Chapter ${c.num} (${scenes.find(s=>s.chapter===c.num)?.draftStatus==="complete"?"COMPLETE — authoritative":"IN PROGRESS — treat as partial"}): ${c.summary}`).join("\n\n"):"";
+      // Get most recent in-progress scene text
+      const activeScn=scenes.find(s=>s.id===activeScene)||[...scenes].sort((a,b)=>(b.lastEdited||0)-(a.lastEdited||0))[0];
+      const msText=activeScn?.text?activeScn.text.substring(0,1200):"";
+      const msChapter=activeScn?`Chapter ${activeScn.chapter}, Scene ${activeScn.scene} (${activeScn.draftStatus||"in-progress"})`:null;
+      const agnesPrompt=`You are Agnes. You are the record keeper. You are meticulous, direct, and slightly pointed. You cross-reference the Story Bible against the manuscript before saying anything. You never invent details not present in the sources.
+
+STORY BIBLE:
+Title: "${project.title||"Untitled"}"
+Genre: ${project.genre||"not specified"}
+Protagonist: ${project.protagonist||"not yet captured"}
+Wound: ${project.protagonistWound||"not yet captured"}
+Misbelief: ${project.protagonistMisbelief||"not yet captured"}
+Fear: ${project.protagonistFear||"not yet captured"}
+
+CHAPTER SUMMARIES (authoritative record for complete chapters):
+${chapStr||"No chapters captured yet."}
+
+CURRENT MANUSCRIPT POSITION:
+${msChapter?`${msChapter}:`:"No manuscript content yet."}
+${msText||""}
+
+YOUR TASK: Generate the Next Beat. This is not a coaching suggestion. It is a story beat — the specific living moment the story needs next, identified by reading both what has happened (Bible) and where the manuscript actually ends right now.
+
+Rules:
+- Cross-reference the Bible and the manuscript before generating. Never use one without the other.
+- Complete chapters: treat summaries as authoritative. Do not re-interpret.
+- In-progress chapters: read the raw text carefully, note where it ends, identify what the story is reaching toward.
+- Name the specific next story moment. Not "keep writing chapter 4" but the actual beat — what happens, to whom, and what it needs to accomplish emotionally.
+- If a character has capabilities in the Bible that create a gap with their current manuscript position (e.g. can escape but hasn't), identify that gap as the story's living nerve.
+- If the manuscript is empty or very thin, work from the Bible only and say so.
+- Never use em dashes. Use commas, colons, or periods instead.
+- Under 80 words. Direct. Specific. Address the story, not the writer.
+
+Also generate:
+- A one-line emotional goal for the next beat (5 words or less)
+- The chapter number this beat belongs to
+
+Respond ONLY with a JSON object. No markdown. No backticks. No explanation.
+{"beat":"the next story beat, specific and direct","emotionalGoal":"5 words or less","chapterNum":${activeScn?.chapter||1},"sourceNote":"brief note on what Agnes read to generate this — one sentence"}`;
+
+      const r=await fetch("/api/chat",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({
+        model:"claude-sonnet-4-6",
+        max_tokens:400,
+        messages:[{role:"user",content:agnesPrompt}]
+      })});
+      const d=await r.json();
+      if(!d.error){
+        const raw=d.content?.filter(b=>b.type==="text").map(b=>b.text).join("")||"";
+        const cleaned=raw.replace(/```json|```/g,"").trim();
+        try{
+          const parsed=JSON.parse(cleaned);
+          if(parsed.beat){
+            // Apply em dash cleanup
+            const clean=(str)=>str?str.replace(/—/g,",").replace(/\s,/g,","):str;
+            const nb={
+              beat:clean(parsed.beat),
+              emotionalGoal:clean(parsed.emotionalGoal)||"",
+              chapterNum:parsed.chapterNum||activeScn?.chapter||1,
+              sourceNote:clean(parsed.sourceNote)||"",
+              time:Date.now()
+            };
+            setNextBeat(nb);
+            saveStored("tt-nextbeat",nb);
+          }
+        }catch(e){console.log("Next Beat parse error:",e);}
+      }
+    }catch(e){console.log("Next Beat fetch error:",e);}
+    setNextBeatLoading(false);
+  };
+
+  // Trigger Next Beat generation when home screen loads with a project
+  useEffect(()=>{
+    if(screen==="home"&&project){
+      generateNextBeat();
+    }
+  },[screen,project?.updated]);
 
   const generateSidebarContext=async(sessionMsgs,sessionMode,sceneText,sessionModeId)=>{
     if(!project||sessionMsgs.length<2)return;
@@ -1671,7 +1776,7 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
     const prevStuck=project?.stuck||"";
     const newStuck=pForm.stuck||"";
     const focusedTimestamp=newStuck!==prevStuck&&newStuck.trim()?new Date().toLocaleDateString():project?.focusedTimestamp||"";
-    const p={...pForm,stuck:newStuck.substring(0,200),focusedTimestamp,updated:new Date().toLocaleDateString()};
+    const p={...pForm,stuck:newStuck.substring(0,200),focusedTimestamp,updated:Date.now()};
     setProject(p);saveStored("tt-project",p);
     const existingScenes=loadStored("tt-scenes");
     if((!existingScenes||existingScenes.length===0)&&pForm.chapters&&pForm.chapters.some(c=>c.summary)){
@@ -2116,7 +2221,28 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
           </div>;
         })()}
 
-        {/* The Forge — moved above Pulse */}
+        {/* NEXT BEAT — Agnes's story momentum read */}
+        {project&&<div className="card" style={{marginBottom:8,padding:"14px 16px",cursor:nextBeat?.beat?"pointer":"default"}} onClick={()=>{if(nextBeat?.beat)setNextBeatExpanded(x=>!x)}}>
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:6}}>
+            <div style={{fontSize:9,textTransform:"uppercase",letterSpacing:"0.18em",color:"var(--text-dim)",fontWeight:500,fontFamily:"'DM Sans',sans-serif"}}>Next Beat</div>
+            {nextBeat?.beat&&<div style={{fontSize:9,color:"var(--text-dim)",fontFamily:"'DM Sans',sans-serif"}}>Agnes {nextBeat.chapterNum?`Ch ${nextBeat.chapterNum}`:""}</div>}
+          </div>
+          {nextBeatLoading?<div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:14,color:"var(--text-dim)",fontStyle:"italic"}}>Agnes is reading...</div>
+          :nextBeat?.beat?<>
+            <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:15,color:"var(--text-primary)",lineHeight:1.7}}>{nextBeat.beat}</div>
+            {nextBeat.emotionalGoal&&<div style={{fontSize:11,color:"var(--text-muted)",marginTop:6,fontStyle:"italic"}}>Emotional goal: {nextBeat.emotionalGoal}</div>}
+            {nextBeatExpanded&&<>
+              {nextBeat.sourceNote&&<div style={{fontSize:11,color:"var(--text-dim)",marginTop:8,paddingTop:8,borderTop:"1px solid var(--border)",fontStyle:"italic",fontFamily:"'DM Sans',sans-serif"}}>{nextBeat.sourceNote}</div>}
+              <div onClick={e=>{e.stopPropagation();const sc=scenes.find(s=>s.chapter===nextBeat.chapterNum)||scenes[scenes.length-1];if(sc){setActiveScene(sc.id);saveStored("tt-activescene",sc.id);}initScenes();}} style={{marginTop:12,background:"var(--accent)",borderRadius:6,padding:"8px 16px",textAlign:"center",cursor:"pointer"}}>
+                <span style={{fontSize:12,fontWeight:500,color:"var(--bg-deepest)",fontFamily:"'DM Sans',sans-serif"}}>Go write it</span>
+              </div>
+              <div onClick={e=>{e.stopPropagation();setNextBeat(null);saveStored("tt-nextbeat",null);generateNextBeat();}} style={{textAlign:"center",marginTop:8,fontSize:11,color:"var(--text-dim)",cursor:"pointer",fontFamily:"'DM Sans',sans-serif"}}>Refresh</div>
+            </>}
+            {!nextBeatExpanded&&<div style={{fontSize:10,color:"var(--accent-60)",marginTop:8,fontFamily:"'DM Sans',sans-serif"}}>Tap to expand &#8594;</div>}
+          </>:<div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:14,color:"var(--text-dim)",fontStyle:"italic"}}>Agnes needs chapter content or a Story Bible to generate a Next Beat.</div>}
+        </div>}
+
+        {/* The Forge */}
         <div className="card" onClick={initScenes} style={{marginBottom:4,display:"flex",alignItems:"center",gap:14,padding:"14px 18px",border:"1px solid var(--accent-20)"}}>
           <svg width="18" height="18" viewBox="0 0 18 18" style={{flexShrink:0}}><path d="M9 1l1.5 4.5L9 16 7.5 5.5z" fill="none" stroke="var(--accent)" strokeWidth="0.9"/><rect x="7" y="15" width="4" height="1.5" rx="0.5" fill="var(--accent)" opacity="0.3"/></svg>
           <div style={{flex:1}}>
@@ -2273,42 +2399,6 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
         </div>}
         <div style={{height:1,background:"var(--border)",marginBottom:16}}/>
 
-        {(()=>{
-          const ctxFresh=sidebarCtx?.mode==="Story Bible"||(sidebarCtx?.time&&lastSession?.time&&sidebarCtx.time>new Date(lastSession.time).getTime()&&(Date.now()-sidebarCtx.time)/(1000*60*60)<4);
-          // Filter out system-message-style responses that reference "writer" in third person
-          const nextBeatClean=sidebarCtx?.nextBeat&&
-            !sidebarCtx.nextBeat.toLowerCase().includes("writer has not") &&
-            !sidebarCtx.nextBeat.toLowerCase().includes("not enough information") &&
-            !sidebarCtx.nextBeat.toLowerCase().includes("writer has not specified") &&
-            !sidebarCtx.nextBeat.toLowerCase().includes("no information") &&
-            !sidebarCtx.nextBeat.toLowerCase().includes("not specified") &&
-            sidebarCtx.nextBeat.trim() !== "INVITE"
-            ? sidebarCtx.nextBeat : null;
-
-          if(ctxFresh&&nextBeatClean) return <>
-            <div style={{marginBottom:16}}>
-              <div style={{fontSize:11,textTransform:"uppercase",letterSpacing:"0.12em",color:"var(--text-muted)",fontWeight:500,marginBottom:8}}>Next Beat</div>
-              <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:14,color:"var(--text-primary)",lineHeight:1.65}}>{nextBeatClean}</div>
-              {sidebarCtx.emotionalGoal&&<div style={{fontSize:11,color:"var(--text-muted)",marginTop:8,fontStyle:"italic"}}>Emotional goal: {sidebarCtx.emotionalGoal}</div>}
-            </div>
-            <div style={{height:1,background:"var(--border)",marginBottom:16}}/>
-          </>;
-          if(project.where&&project.where.trim()&&project.where.trim().length<80) return <>
-            <div style={{marginBottom:16}}>
-              <div style={{fontSize:11,textTransform:"uppercase",letterSpacing:"0.12em",color:"var(--text-muted)",fontWeight:500,marginBottom:8}}>Next Beat</div>
-              <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:14,color:"var(--text-primary)",lineHeight:1.65}}>{project.where.trim()}</div>
-            </div>
-            <div style={{height:1,background:"var(--border)",marginBottom:16}}/>
-          </>;
-          // Finn's invitation when there's nothing real to surface yet
-          return <>
-            <div style={{marginBottom:16}}>
-              <div style={{fontSize:11,textTransform:"uppercase",letterSpacing:"0.12em",color:"var(--text-muted)",fontWeight:500,marginBottom:8}}>Next Beat</div>
-              <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:14,color:"var(--text-dim)",lineHeight:1.65,fontStyle:"italic"}}>Tell me what you're working on and where you are in the story. I'll give you something to work with.</div>
-            </div>
-            <div style={{height:1,background:"var(--border)",marginBottom:16}}/>
-          </>;
-        })()}
 
         {sparks.length>0&&<>
           <div style={{marginBottom:16,cursor:"pointer"}} onClick={()=>setScreen("sparkmap")}>
@@ -2972,7 +3062,7 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
               {containerMsgs.map((m,i)=><div key={i} style={{background:m.role==="assistant"?"var(--bg-card)":"var(--bg-card-alt)",border:"1px solid "+(m.role==="assistant"?"var(--border)":"var(--border-mid)"),borderRadius:10,padding:"10px 12px",alignSelf:m.role==="user"?"flex-end":"flex-start",maxWidth:"95%"}}>
                 {m.role==="assistant"&&<div style={{fontSize:9,color:"var(--accent-80)",textTransform:"uppercase",letterSpacing:"0.1em",marginBottom:5}}>Finn</div>}
                 <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:15,color:"var(--text-primary)",lineHeight:1.7}}>{m.content.split("\n").map((l,j)=><p key={j} style={{marginBottom:l?8:3}}>{l}</p>)}</div>
-                {m.role==="assistant"&&i>0&&<span onClick={()=>{const ns=[...sparks,{text:m.content.substring(0,200),date:new Date().toLocaleDateString(),mode:"The Forge"}];setSparks(ns);saveStored("tt-sparks",ns)}} style={{fontSize:9,color:"var(--text-dim)",border:"1px solid var(--border)",borderRadius:4,padding:"2px 6px",marginTop:6,display:"inline-block",cursor:"pointer"}}>This excites me</span>}
+                {m.role==="assistant"&&<span onClick={()=>{const ns=[...sparks,{text:m.content.substring(0,200),date:new Date().toLocaleDateString(),mode:"The Forge"}];setSparks(ns);saveStored("tt-sparks",ns)}} style={{fontSize:9,color:"var(--text-dim)",border:"1px solid var(--border)",borderRadius:4,padding:"2px 6px",marginTop:6,display:"inline-block",cursor:"pointer"}}>This excites me</span>}
               </div>)}
               {loading&&<div style={{background:"var(--bg-card)",border:"1px solid var(--border)",borderRadius:10,padding:"10px 12px"}}><div style={{fontSize:9,color:"var(--accent-80)",marginBottom:5}}>Finn</div><span style={{fontSize:13,color:"var(--text-dim)",fontStyle:"italic"}}>Thinking...</span></div>}
               <div ref={cEndRef}/>
@@ -3165,7 +3255,7 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
                   <div onClick={()=>{
                     const updated={...pForm,...firstSessionCapture};
                     setPForm(updated);
-                    const proj={...updated,updated:new Date().toLocaleDateString()};
+                    const proj={...updated,updated:Date.now()};
                     setProject(proj);
                     saveStored("tt-project",proj);
                     cloudSave("tt-project",proj);
@@ -3356,7 +3446,7 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
                 </div>
                 {!resolution&&<div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
                   <button onClick={()=>{
-                    setProject(prev=>{const updated={...prev,[drift.field]:(prev[drift.field]?prev[drift.field]+"\n\n"+drift.incoming:drift.incoming),updated:new Date().toLocaleDateString()};saveStored("tt-project",updated);cloudSave("tt-project",updated);return updated;});
+                    setProject(prev=>{const updated={...prev,[drift.field]:(prev[drift.field]?prev[drift.field]+"\n\n"+drift.incoming:drift.incoming),updated:Date.now()};saveStored("tt-project",updated);cloudSave("tt-project",updated);return updated;});
                     setDriftResolutions(prev=>({...prev,[i]:"evolving"}));
                   }} style={{background:"var(--accent)",border:"none",borderRadius:6,padding:"7px 14px",fontSize:12,color:"var(--bg-deepest)",cursor:"pointer",fontFamily:"'DM Sans',sans-serif",fontWeight:500}}>Story is evolving</button>
                   <button onClick={()=>setDriftResolutions(prev=>({...prev,[i]:"keep"}))} style={{background:"none",border:"1px solid var(--border)",borderRadius:6,padding:"7px 14px",fontSize:12,color:"var(--text-muted)",cursor:"pointer",fontFamily:"'DM Sans',sans-serif"}}>Keep original</button>
