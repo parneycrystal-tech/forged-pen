@@ -703,15 +703,29 @@ export default function App() {
   // History API: push screen to browser history on every navigation
   useEffect(()=>{
     if(isPopStateRef.current){isPopStateRef.current=false;return;}
-    window.history.pushState({screen,subMenu},``,window.location.pathname);
+    window.history.pushState({screen,subMenu,historyScreen:false},``,window.location.pathname);
   },[screen]);
+
+  // Push history entry when Session History opens
+  useEffect(()=>{
+    if(historyScreen){
+      window.history.pushState({screen,subMenu,historyScreen:true},``,window.location.pathname);
+    }
+  },[historyScreen]);
 
   // History API: handle browser back button
   useEffect(()=>{
     const onPop=(e)=>{
       const s=e.state?.screen;
       if(!s)return;
+      // If we're leaving historyScreen, just close it and stay on current screen
+      if(e.state?.historyScreen===false&&historyScreen){
+        isPopStateRef.current=true;
+        setHistoryScreen(false);
+        return;
+      }
       isPopStateRef.current=true;
+      setHistoryScreen(false);
       setScreen(s);
       setSubMenu(e.state?.subMenu||null);
       if(s!=="chat"){setMode(null);setMsgs([]);setInput("");}
@@ -719,7 +733,7 @@ export default function App() {
     };
     window.addEventListener("popstate",onPop);
     return()=>window.removeEventListener("popstate",onPop);
-  },[]);
+  },[historyScreen]);
 
   // Scene management
   const loadScenes=()=>{const s=loadStored("tt-scenes");return s||[]};
@@ -3336,7 +3350,7 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
       {/* SESSION HISTORY SCREEN */}
       {historyScreen&&<div style={{position:"fixed",top:0,left:0,right:0,bottom:0,background:"var(--bg-base)",zIndex:200,overflowY:"auto",animation:"fu .3s ease-out"}}>
         <div style={{maxWidth:680,margin:"0 auto",padding:"24px 20px 40px"}}>
-          <div onClick={()=>setHistoryScreen(false)} style={{fontSize:12,color:"var(--text-dim)",cursor:"pointer",marginBottom:20}}>← Back</div>
+          <div onClick={()=>{setHistoryScreen(false);setScreen("home");}} style={{fontSize:12,color:"var(--text-dim)",cursor:"pointer",marginBottom:20}}>← Back</div>
           <div style={{fontSize:8,textTransform:"uppercase",letterSpacing:"0.25em",color:"#5A7A8A",fontWeight:500,marginBottom:8}}>Session History</div>
           <p style={{fontFamily:"'Cormorant Garamond',serif",fontSize:16,color:"var(--text-muted)",marginBottom:24,lineHeight:1.7}}>Every session here is proof you came back to your story. Every gap is just a gap, not a verdict.</p>
 
