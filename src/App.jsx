@@ -1252,7 +1252,24 @@ If the fields above don't contain actual sensory description, return sensoryAnch
         project.chapters.filter(c=>c.summary).map(c=>`Chapter ${c.num} (${scenes.find(s=>s.chapter===c.num)?.draftStatus==="complete"?"COMPLETE — authoritative":"IN PROGRESS — treat as partial"}): ${c.summary}`).join("\n\n"):"";
       // Get most recent in-progress scene text
       const activeScn=scenes.find(s=>s.id===activeScene)||[...scenes].sort((a,b)=>(b.lastEdited||0)-(a.lastEdited||0))[0];
-      const msText=activeScn?.text?activeScn.text.substring(0,1200):"";
+      const fullMsText=activeScn?.text||"";
+      const msLength=fullMsText.length;
+      // Agnes gets full text if short, or structured first+last sample if longer
+      // Chapter summary covers the middle; first+last gives her the arc endpoints
+      let msText="";
+      if(msLength===0){
+        msText="";
+      } else if(msLength<=3000){
+        msText=fullMsText;
+      } else if(msLength<=8000){
+        const first=fullMsText.substring(0,800);
+        const last=fullMsText.substring(msLength-800);
+        msText=`${first}\n\n[...chapter continues, approximately ${Math.round(msLength/5)} words total...]\n\n${last}`;
+      } else {
+        const first=fullMsText.substring(0,1000);
+        const last=fullMsText.substring(msLength-1000);
+        msText=`${first}\n\n[...chapter continues, approximately ${Math.round(msLength/5)} words total...]\n\n${last}`;
+      }
       const msChapter=activeScn?`Chapter ${activeScn.chapter}, Scene ${activeScn.scene} (${activeScn.draftStatus||"in-progress"})`:null;
       const agnesPrompt=`You are Agnes. You are the record keeper. You are meticulous, direct, and slightly pointed. You cross-reference the Story Bible against the manuscript before saying anything. You never invent details not present in the sources.
 
