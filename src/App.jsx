@@ -1231,7 +1231,7 @@ If the fields above don't contain actual sensory description, return sensoryAnch
   },[project?.protagonist,project?.worldSetting,project?.protagonistFear,project?.protagonistMisbelief]);
 
   // NEXT BEAT: Agnes reads Bible chapter summaries + current manuscript, cross-references both
-  const generateNextBeat=async()=>{
+  const generateNextBeat=async(forceRefresh=false)=>{
     if(!project)return;
     // Change detection: compare last content change against stored nextBeat timestamp
     const lastBibleChange=typeof project.updated==="number"?project.updated:0;
@@ -1240,8 +1240,8 @@ If the fields above don't contain actual sensory description, return sensoryAnch
     const storedNB=loadStored("tt-nextbeat");
     const nbAge=storedNB?.time?Date.now()-storedNB.time:Infinity;
     const contentChanged=lastContentChange>(storedNB?.time||0);
-    // Only regenerate if content changed or cached result is older than 24 hours
-    if(storedNB?.beat&&!contentChanged&&nbAge<24*60*60*1000){
+    // Only regenerate if forced, content changed, or cached result is older than 24 hours
+    if(!forceRefresh&&storedNB?.beat&&!contentChanged&&nbAge<24*60*60*1000){
       setNextBeat(storedNB);
       return;
     }
@@ -2253,7 +2253,7 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
               <div onClick={e=>{e.stopPropagation();const sc=scenes.find(s=>s.chapter===nextBeat.chapterNum)||scenes[scenes.length-1];if(sc){setActiveScene(sc.id);saveStored("tt-activescene",sc.id);}initScenes();}} style={{marginTop:12,background:"var(--accent)",borderRadius:6,padding:"8px 16px",textAlign:"center",cursor:"pointer"}}>
                 <span style={{fontSize:12,fontWeight:500,color:"var(--bg-deepest)",fontFamily:"'DM Sans',sans-serif"}}>Go write it</span>
               </div>
-              <div onClick={e=>{e.stopPropagation();setNextBeat(null);saveStored("tt-nextbeat",null);generateNextBeat();}} style={{textAlign:"center",marginTop:8,fontSize:11,color:"var(--text-dim)",cursor:"pointer",fontFamily:"'DM Sans',sans-serif"}}>Refresh</div>
+              <div onClick={e=>{e.stopPropagation();saveStored("tt-nextbeat",null);setNextBeat(null);setTimeout(()=>generateNextBeat(true),100);}} style={{textAlign:"center",marginTop:8,fontSize:11,color:"var(--text-dim)",cursor:"pointer",fontFamily:"'DM Sans',sans-serif"}}>Refresh</div>
             </>}
             {!nextBeatExpanded&&<div style={{fontSize:10,color:"var(--accent-60)",marginTop:8,fontFamily:"'DM Sans',sans-serif"}}>Tap to expand &#8594;</div>}
           </>:<div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:14,color:"var(--text-dim)",fontStyle:"italic"}}>Agnes needs chapter content or a Story Bible to generate a Next Beat.</div>}
