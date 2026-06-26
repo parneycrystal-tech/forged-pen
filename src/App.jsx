@@ -823,8 +823,8 @@ export default function App() {
       else{
         setContainerMsgs(p=>[...p,{role:"assistant",content:finnClean(d.content?.filter(b=>b.type==="text").map(b=>b.text).join("\n"))||"Connection hiccup."}]);
         const cs=scenes.find(s=>s.id===activeScene);
-        const newPulse={mode:"The Forge",modeId:"forge",scene:cs?`Ch${cs.chapter}, Scene ${cs.scene}`:"",sceneId:activeScene,title:cs?.title||"",description:containerInput.substring(0,120),time:Date.now()};
-        setPulse(newPulse);saveStored("tt-pulse",newPulse);
+        // Pulse is manuscript-only. Container Finn coaching does not set the pulse.
+        // The pulse is already set by updateSceneText when the writer types in the Forge.
       }
     }catch(e){if(e.name!=="AbortError")setContainerMsgs(p=>[...p,{role:"assistant",content:"Connection hiccup. Try again."}])}
     setLoading(false);abortRef.current=null;
@@ -1661,7 +1661,7 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
       } else {
         setMsgs(p=>[...p,{role:"assistant",content:finnClean(d.content?.filter(b=>b.type==="text").map(b=>b.text).join("\n"))||"Connection hiccup."}]);
         const newPulse={mode:mode.label,modeId:mode.id,scene:null,description:userText.substring(0,120),vividLine:null,time:Date.now()};
-        setPulse(newPulse);saveStored("tt-pulse",newPulse);
+        // Pulse is manuscript-only. Do not set from coaching sessions.
       }
     }catch(e){if(e.name!=="AbortError")setMsgs(p=>[...p,{role:"assistant",content:"Connection hiccup. Try again."}])}
     setLoading(false);abortRef.current=null;
@@ -2133,15 +2133,7 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
         </div>
         {project&&project.chapters&&Array.isArray(project.chapters)&&project.chapters.some(c=>c.summary)&&getTotalWords()<100&&<div onClick={(e)=>{e.stopPropagation();importChaptersToForge()}} style={{textAlign:"center",padding:"6px 0 12px"}}><span style={{fontSize:11,color:"var(--accent-80)",cursor:"pointer"}}>Import {project.chapters.filter(c=>c.summary).length} chapters from Story Bible into The Forge</span></div>}
 
-        {/* The Pulse */}
-        {pulse&&<div onClick={()=>{if(pulse.sceneId){setActiveScene(pulse.sceneId);saveStored("tt-activescene",pulse.sceneId);initScenes()}else if(pulse.modeId){const m=MODES.find(x=>x.id===pulse.modeId);if(m)pick(m)}}} style={{background:"var(--bg-card)",border:"1px solid var(--border)",borderRadius:8,padding:"12px 16px",marginBottom:12,cursor:"pointer"}}>
-          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:6}}>
-            <div style={{fontSize:9,textTransform:"uppercase",letterSpacing:"0.18em",color:"var(--accent-80)",fontWeight:500}}>The Pulse</div>
-            <div style={{fontSize:9,color:"var(--text-dim)"}}>{pulse.mode}{pulse.scene?` / ${pulse.scene.substring(0,40)}`:""}</div>
-          </div>
-          <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:14,color:"var(--text-secondary)",lineHeight:1.6}}>{pulse.description}</div>
-          {pulse.title&&<div style={{fontSize:10,color:"var(--text-dim)",marginTop:4}}>{pulse.title}</div>}
-        </div>}
+        {/* Last Pulse moved to right sidebar */}
 
         {/* Dopamine Map */}
         {sparks.length>0&&<div onClick={()=>setScreen("sparkmap")} className="card" style={{padding:"12px 16px",marginBottom:8,display:"flex",justifyContent:"space-between",alignItems:"center"}}>
@@ -2152,10 +2144,10 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
           <div style={{fontSize:11,color:"var(--accent)",marginLeft:12,animation:"wp 4s ease-in-out infinite"}}>{sparks.length} spark{sparks.length>1?"s":""}</div>
         </div>}
 
-        {/* Session History Card */}
+        {/* Coaching Session History Card */}
         {sessionSummaries.length>0&&<div onClick={()=>setHistoryScreen(true)} className="card" style={{padding:"12px 16px",marginBottom:16,display:"flex",justifyContent:"space-between",alignItems:"center"}}>
           <div style={{flex:1}}>
-            <div style={{fontSize:9,textTransform:"uppercase",letterSpacing:"0.18em",color:"#5A7A8A",fontWeight:500,marginBottom:5}}>Session History</div>
+            <div style={{fontSize:9,textTransform:"uppercase",letterSpacing:"0.18em",color:"#5A7A8A",fontWeight:500,marginBottom:5}}>Coaching Session History</div>
             <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:14,color:"var(--text-muted)"}}>
               <span style={{color:"var(--accent)",fontSize:12}}>{sessionSummaries[0].mode}</span>
               <span style={{color:"var(--text-dim)",fontSize:11,marginLeft:8}}>{sessionSummaries[0].date}</span>
@@ -2225,8 +2217,8 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
         </div>
 
         <div style={{marginBottom:16,padding:14,borderRadius:8,border:"1px dashed var(--border)"}}>
-          <div style={{fontSize:11,textTransform:"uppercase",letterSpacing:"0.12em",color:"var(--accent-80)",fontWeight:500,marginBottom:8,opacity:.7}}>The Pulse</div>
-          <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:13,color:"var(--text-dim)",fontStyle:"italic",lineHeight:1.6}}>This is where Finn surfaces the heartbeat of your story, an idea, a thread, a question worth returning to.</div>
+          <div style={{fontSize:11,textTransform:"uppercase",letterSpacing:"0.12em",color:"var(--accent-80)",fontWeight:500,marginBottom:8,opacity:.7}}>Last Pulse</div>
+          <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:13,color:"var(--text-dim)",fontStyle:"italic",lineHeight:1.6}}>The last sentence you wrote in The Forge will appear here as a thread back into your manuscript.</div>
         </div>
 
         <div style={{marginBottom:16,padding:14,borderRadius:8,border:"1px dashed var(--border)"}}>
@@ -2271,21 +2263,13 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
         </>:null}
 
         {pulse?<div style={{marginBottom:16,cursor:"pointer"}} onClick={()=>{if(pulse.sceneId){setActiveScene(pulse.sceneId);saveStored("tt-activescene",pulse.sceneId);initScenes()}else if(pulse.modeId){const m=MODES.find(x=>x.id===pulse.modeId);if(m)pick(m)}}}>
-          <div style={{fontSize:11,textTransform:"uppercase",letterSpacing:"0.12em",color:"var(--accent-80)",fontWeight:500,marginBottom:8}}>The Pulse</div>
-          <div style={{fontSize:11,color:"var(--text-muted)",marginBottom:6,letterSpacing:"0.03em"}}>{pulse.mode}{pulse.scene?` / ${pulse.scene.substring(0,40)}`:""}</div>
-          <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:14,color:"var(--text-primary)",lineHeight:1.65,marginBottom:8}}>{pulse.description}</div>
-          {(()=>{
-            const ctxFresh=sidebarCtx?.mode==="Story Bible"||(sidebarCtx?.time&&lastSession?.time&&sidebarCtx.time>new Date(lastSession.time).getTime()&&(Date.now()-sidebarCtx.time)/(1000*60*60)<4);
-            return ctxFresh&&sidebarCtx?.hook?<div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:13,color:"var(--accent)",lineHeight:1.65,fontStyle:"italic",marginBottom:8}}>"{sidebarCtx.hook}"</div>:null;
-          })()}
-          <div style={{fontSize:10,color:"var(--accent-60)",marginTop:4}}>Tap to return &#8594;</div>
+          <div style={{fontSize:11,textTransform:"uppercase",letterSpacing:"0.12em",color:"var(--accent-80)",fontWeight:500,marginBottom:8}}>Last Pulse</div>
+          {pulse.scene&&<div style={{fontSize:10,color:"var(--text-muted)",marginBottom:5,letterSpacing:"0.03em"}}>{pulse.scene.substring(0,40)}</div>}
+          <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:14,color:"var(--text-primary)",lineHeight:1.65,marginBottom:8,fontStyle:"italic"}}>"{pulse.description}"</div>
+          <div style={{fontSize:10,color:"var(--accent-60)"}}>Tap to return to The Forge &#8594;</div>
         </div>:<div style={{marginBottom:16}}>
-          <div style={{fontSize:11,textTransform:"uppercase",letterSpacing:"0.12em",color:"var(--accent-80)",fontWeight:500,marginBottom:8}}>The Pulse</div>
-          {sidebarCtx?.hook
-            ?<><div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:14,color:"var(--text-primary)",lineHeight:1.65,marginBottom:8,fontStyle:"italic"}}>"{sidebarCtx.hook}"</div>
-              <div style={{fontSize:10,color:"var(--accent-60)"}}>Open The Forge to begin &#8594;</div></>
-            :<div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:13,color:"var(--text-dim)",fontStyle:"italic"}}>Your story is waiting. Open a session to light it up.</div>
-          }
+          <div style={{fontSize:11,textTransform:"uppercase",letterSpacing:"0.12em",color:"var(--accent-80)",fontWeight:500,marginBottom:8}}>Last Pulse</div>
+          <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:13,color:"var(--text-dim)",fontStyle:"italic"}}>Your last manuscript sentence will appear here.</div>
         </div>}
         <div style={{height:1,background:"var(--border)",marginBottom:16}}/>
 
@@ -3351,7 +3335,7 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
       {historyScreen&&<div style={{position:"fixed",top:0,left:0,right:0,bottom:0,background:"var(--bg-base)",zIndex:200,overflowY:"auto",animation:"fu .3s ease-out"}}>
         <div style={{maxWidth:680,margin:"0 auto",padding:"24px 20px 40px"}}>
           <div onClick={()=>{setHistoryScreen(false);setScreen("home");}} style={{fontSize:12,color:"var(--text-dim)",cursor:"pointer",marginBottom:20}}>← Back</div>
-          <div style={{fontSize:8,textTransform:"uppercase",letterSpacing:"0.25em",color:"#5A7A8A",fontWeight:500,marginBottom:8}}>Session History</div>
+          <div style={{fontSize:8,textTransform:"uppercase",letterSpacing:"0.25em",color:"#5A7A8A",fontWeight:500,marginBottom:8}}>Coaching Session History</div>
           <p style={{fontFamily:"'Cormorant Garamond',serif",fontSize:16,color:"var(--text-muted)",marginBottom:24,lineHeight:1.7}}>Every session here is proof you came back to your story. Every gap is just a gap, not a verdict.</p>
 
           {sessionSummaries.length===0&&<p style={{fontFamily:"'Cormorant Garamond',serif",fontSize:15,color:"var(--text-dim)",fontStyle:"italic"}}>No sessions yet. End your first session to start your history.</p>}
