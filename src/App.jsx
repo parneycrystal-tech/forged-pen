@@ -1580,7 +1580,7 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
     const pCtx = project ? `\n\nPROJECT: "${project.title}". Genre: ${project.genre}. Synopsis: ${project.synopsis}. Protagonist: ${project.protagonist}. Supporting Characters: ${project.supporting}. Antagonist: ${project.antagonist}. Core Setting: ${project.worldSetting}. World Rules: ${project.worldRules}. What People Believe vs Reality: ${project.worldBeliefs}. What Makes This World Dangerous: ${project.worldDanger}. World Tone: ${project.worldTone}. Chapters so far (these summaries are the authoritative record established by Agnes — treat them as ground truth, do not re-interpret or contradict them): ${chapStr}. Current point: ${project.where}. Focused on: ${project.stuck}. What excites them: ${project.excites}.${project.currentChapter?` CURRENT CHAPTER TEXT (use this for line-level craft coaching only — for story facts and character psychology, defer to the chapter summaries above): ${project.currentChapter}`:""}` : "";
     const sparkCtx = sparks.length > 0 ? `\n\nDOPAMINE MAP (moments the writer flagged as exciting): ${sparks.map(s=>s.text).join(" | ")}` : "";
     const userCtx = userName ? `\n\nThe writer's name is ${userName}. Use their name naturally throughout your response, the way a good coach would. Not in every sentence, but enough to feel personal.` : "";
-    const profileCtx = userProfile ? `\n\nWriter's profile — use this to calibrate your coaching approach:\n- Experience: ${userProfile.q1?.selected?.join(", ")||"not specified"}\n- Working style: ${userProfile.q2?.selected?.join(", ")||"not specified"}\n- Current goal: ${userProfile.q3?.selected?.join(", ")||"not specified"}\n- Writing pattern: ${userProfile.q4?.selected?.join(", ")||"not specified"}\n- Coaching preference: ${userProfile.q5?.selected?.join(", ")||"not specified"}${userProfile.q2?.text?`\nStyle notes: ${userProfile.q2.text}`:""}${userProfile.q5?.text?`\nCoaching notes: ${userProfile.q5.text}`:""}` : "";
+    const profileCtx = userProfile ? `\n\nWriter's profile — use this to calibrate your coaching approach:\n- Experience: ${userProfile.q1?.selected?.join(", ")||"not specified"}\n- Working style: ${userProfile.q2?.selected?.join(", ")||"not specified"}\n- Current goal: ${userProfile.q3?.selected?.join(", ")||"not specified"}\n- Coaching preference: ${userProfile.q4?.selected?.join(", ")||"not specified"}${userProfile.q2?.text?`\nStyle notes: ${userProfile.q2.text}`:""}${userProfile.q4?.text?`\nCoaching notes: ${userProfile.q4.text}`:""}` : "";
     const sessionCtx = sessionSummaries.length>0 ? `\n\nRECENT SESSION HISTORY (read before responding, use naturally without announcing it):\n${sessionSummaries.slice(0,5).map((s,i)=>`Session ${i+1}${i===0?" (most recent)":""}: ${s.date} in ${s.mode}. Worked on: ${s.storyElement}. Key insight: ${s.keyInsight}. Still sitting with: ${s.openQuestion}. Writer seemed: ${s.writerState}.${s.rawTexture?` In their own words: "${s.rawTexture}"`:""}`).join("\n")}` : "";
 
     // PATTERN DETECTION
@@ -2379,18 +2379,10 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
         <div style={{display:"flex",gap:6,marginBottom:16,flexWrap:"wrap"}}><BibTab id="overview" label="Overview" active={bibTab==="overview"} onClick={setBibTab}/><BibTab id="characters" label="Characters" active={bibTab==="characters"} onClick={setBibTab}/><BibTab id="world" label="World" active={bibTab==="world"} onClick={setBibTab}/><BibTab id="chapters" label="Chapters" active={bibTab==="chapters"} onClick={setBibTab}/><BibTab id="current" label="Current Chapter" active={bibTab==="current"} onClick={setBibTab}/></div>
 
         {bibTab==="overview"&&<>
-          <FormField label="Project title" k="title" ph="My Novel" value={pForm.title} onChange={updateField}/>
-          <FormField label="Genre" k="genre" ph="Contemporary fiction, fantasy, memoir..." value={pForm.genre} onChange={updateField}/>
-          <FormField label="What is your story about?" k="synopsis" ph="One sentence is enough to start..." value={pForm.synopsis} onChange={updateField} multi/>
-
-          {!bibExpanded&&<div onClick={()=>setBibExpanded(true)} style={{background:"none",border:"1px dashed var(--border-mid)",borderRadius:8,padding:"10px 16px",color:"var(--text-dim)",fontSize:12,cursor:"pointer",textAlign:"left",marginBottom:14,fontFamily:"'DM Sans',sans-serif"}}>
-            <span style={{color:"var(--accent)",marginRight:8}}>+</span>Add more detail — characters, world, where you are, what you're focused on
-          </div>}
-
-          {bibExpanded&&<>
-            <FormField label="Where are you right now?" k="where" ph="Chapter 3, the confrontation scene" value={pForm.where} onChange={updateField}/>
-
-            <div style={{marginBottom:14}}>
+          {/* SESSION FOCUS — top of overview, most time-sensitive fields */}
+          <div style={{background:"var(--bg-card-alt)",border:"1px solid var(--border)",borderRadius:10,padding:"14px 16px",marginBottom:18}}>
+            <div style={{fontSize:9,textTransform:"uppercase",letterSpacing:"0.18em",color:"var(--accent-80)",fontWeight:500,marginBottom:12,fontFamily:"'DM Sans',sans-serif"}}>Session Focus</div>
+            <div style={{marginBottom:12}}>
               <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:5}}>
                 <label style={{fontSize:12,color:"var(--text-muted)",fontFamily:"'DM Sans',sans-serif"}}>What are you focused on right now?</label>
                 <div style={{display:"flex",alignItems:"center",gap:8}}>
@@ -2399,11 +2391,22 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
                   <span style={{fontSize:9,color:(pForm.stuck||"").length>180?"#B06848":"var(--text-dim)",fontFamily:"'DM Sans',sans-serif"}}>{(pForm.stuck||"").length} / 200</span>
                 </div>
               </div>
-              <input className="fi" maxLength={200} placeholder="One sentence. What thread is live right now?" value={pForm.stuck||""} onChange={e=>updateField("stuck",e.target.value)} style={{width:"100%"}}/>
+              <input className="fi" maxLength={200} placeholder="One sentence. What thread is live right now?" value={pForm.stuck||""} onChange={e=>updateField("stuck",e.target.value)} style={{width:"100%",background:"var(--bg-base)"}}/>
             </div>
+            <FormField label="Where are you right now?" k="where" ph="Chapter 3, the confrontation scene" value={pForm.where} onChange={updateField}/>
+          </div>
 
+          {/* STORY IDENTITY — stable fields below */}
+          <FormField label="Project title" k="title" ph="My Novel" value={pForm.title} onChange={updateField}/>
+          <FormField label="Genre" k="genre" ph="Contemporary fiction, fantasy, memoir..." value={pForm.genre} onChange={updateField}/>
+          <FormField label="What is your story about?" k="synopsis" ph="One sentence is enough to start..." value={pForm.synopsis} onChange={updateField} multi/>
+
+          {!bibExpanded&&<div onClick={()=>setBibExpanded(true)} style={{background:"none",border:"1px dashed var(--border-mid)",borderRadius:8,padding:"10px 16px",color:"var(--text-dim)",fontSize:12,cursor:"pointer",textAlign:"left",marginBottom:14,fontFamily:"'DM Sans',sans-serif"}}>
+            <span style={{color:"var(--accent)",marginRight:8}}>+</span>Add more detail — characters, world, what excites you
+          </div>}
+
+          {bibExpanded&&<>
             <FormField label="What excites you most about this project?" k="excites" ph="The slow burn, the world, the voice..." value={pForm.excites} onChange={updateField} multi/>
-
             <div onClick={()=>setBibExpanded(false)} style={{fontSize:11,color:"var(--text-dim)",cursor:"pointer",textAlign:"center",marginBottom:8,fontFamily:"'DM Sans',sans-serif"}}>Show less</div>
           </>}
         </>}
@@ -2458,17 +2461,22 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
           })()}
         </div>}
         {!bibleSearch&&bibViewTab==="overview"&&<div>
+          {/* Session Focus at top */}
+          {(project.stuck||project.where)&&<div style={{background:"var(--bg-card-alt)",border:"1px solid var(--border)",borderRadius:10,padding:"14px 16px",marginBottom:18}}>
+            <div style={{fontSize:9,textTransform:"uppercase",letterSpacing:"0.18em",color:"var(--accent-80)",fontWeight:500,marginBottom:12,fontFamily:"'DM Sans',sans-serif"}}>Session Focus</div>
+            {project.stuck&&<div style={{marginBottom:project.where?12:0}}>
+              <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:5}}>
+                <label style={{fontSize:12,color:"var(--text-muted)",fontFamily:"'DM Sans',sans-serif"}}>Focused on right now</label>
+                {project.focusedTimestamp&&<span style={{fontSize:9,color:"var(--text-dim)",fontFamily:"'DM Sans',sans-serif"}}>Updated {project.focusedTimestamp}</span>}
+              </div>
+              <div style={{background:"var(--bg-base)",border:"1px solid var(--border)",borderRadius:8,padding:"10px 14px",fontFamily:"'Cormorant Garamond',serif",fontSize:15,color:"var(--text-primary)",lineHeight:1.7}}>{project.stuck}</div>
+            </div>}
+            {project.where&&<ReadField label="Where you are right now" value={project.where}/>}
+          </div>}
+          {/* Story identity below */}
           <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:22,fontWeight:500,color:"var(--text-primary)",marginBottom:16}}>{project.title||"Untitled"}</div>
           <ReadField label="Genre" value={project.genre}/>
           <ReadField label="What this story is about" value={project.synopsis} multi/>
-          <ReadField label="Where you are right now" value={project.where}/>
-          {project.stuck&&<div style={{marginBottom:14}}>
-            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:5}}>
-              <label style={{fontSize:12,color:"var(--text-muted)",fontFamily:"'DM Sans',sans-serif"}}>Focused on right now</label>
-              {project.focusedTimestamp&&<span style={{fontSize:9,color:"var(--text-dim)",fontFamily:"'DM Sans',sans-serif"}}>Updated {project.focusedTimestamp}</span>}
-            </div>
-            <div style={{background:"var(--bg-card)",border:"1px solid var(--border)",borderRadius:8,padding:"10px 14px",fontFamily:"'Cormorant Garamond',serif",fontSize:15,color:"var(--text-primary)",lineHeight:1.7}}>{project.stuck}</div>
-          </div>}
           <ReadField label="What excites you most" value={project.excites} multi/>
         </div>}
         {!bibleSearch&&bibViewTab==="characters"&&<div>
@@ -3247,7 +3255,19 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
 
             {extractResult.openQuestion&&<div style={{marginBottom:16,padding:10,background:"var(--bg-card)",borderRadius:8,border:"1px solid var(--border)"}}>
               <div style={{fontSize:9,textTransform:"uppercase",letterSpacing:"0.12em",color:"var(--text-dim)",fontFamily:"'DM Sans',sans-serif",marginBottom:4}}>Open Question</div>
-              <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:13,color:"var(--text-muted)",lineHeight:1.7,fontStyle:"italic"}}>{extractResult.openQuestion}</div>
+              <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:13,color:"var(--text-muted)",lineHeight:1.7,fontStyle:"italic",marginBottom:10}}>{extractResult.openQuestion}</div>
+              {!project?.stuck&&<div style={{display:"flex",alignItems:"center",gap:8}}>
+                <div onClick={()=>{
+                  const updated={...project,stuck:extractResult.openQuestion,focusedTimestamp:new Date().toLocaleDateString()};
+                  setProject(updated);
+                  const pf={...pForm,stuck:extractResult.openQuestion};
+                  setPForm(pf);
+                  saveStored("tt-project",updated);
+                  cloudSave("tt-project",updated);
+                }} style={{fontSize:11,color:"var(--accent)",cursor:"pointer",border:"1px solid var(--accent-30)",borderRadius:5,padding:"4px 10px",fontFamily:"'DM Sans',sans-serif"}}>Set as Focused On</div>
+                <span style={{fontSize:10,color:"var(--text-dim)",fontFamily:"'DM Sans',sans-serif",fontStyle:"italic"}}>Agnes found this thread. Want to carry it forward?</span>
+              </div>}
+              {project?.stuck&&<div style={{fontSize:10,color:"var(--text-dim)",fontFamily:"'DM Sans',sans-serif",fontStyle:"italic"}}>You already have something focused on. Update it in the Story Bible if this thread is more current.</div>}
             </div>}
 
             <div style={{display:"flex",gap:8,marginTop:16}}>
