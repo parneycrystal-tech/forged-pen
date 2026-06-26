@@ -2207,7 +2207,7 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
       {screen==="home"&&!project&&<div className="right-sb" style={{position:"fixed",right:0,top:0,bottom:0,width:260,background:"var(--bg-dark)",borderLeft:"1px solid var(--border)",padding:"22px 18px",flexDirection:"column",overflowY:"auto"}}>
 
         <div style={{textAlign:"center",marginBottom:16,opacity:.6}}>
-          <div style={{fontSize:10,color:"var(--text-faint)",textTransform:"uppercase",letterSpacing:"0.15em"}}>Curious — Scene Atmosphere</div>
+          <div style={{fontSize:10,color:"var(--text-faint)",textTransform:"uppercase",letterSpacing:"0.15em"}}>Curious: Scene Atmosphere</div>
         </div>
         <div style={{height:1,background:"var(--border)",marginBottom:16}}/>
 
@@ -2402,7 +2402,7 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
           <FormField label="What is your story about?" k="synopsis" ph="One sentence is enough to start..." value={pForm.synopsis} onChange={updateField} multi/>
 
           {!bibExpanded&&<div onClick={()=>setBibExpanded(true)} style={{background:"none",border:"1px dashed var(--border-mid)",borderRadius:8,padding:"10px 16px",color:"var(--text-dim)",fontSize:12,cursor:"pointer",textAlign:"left",marginBottom:14,fontFamily:"'DM Sans',sans-serif"}}>
-            <span style={{color:"var(--accent)",marginRight:8}}>+</span>Add more detail — characters, world, what excites you
+            <span style={{color:"var(--accent)",marginRight:8}}>+</span>Add more detail: characters, world, what excites you
           </div>}
 
           {bibExpanded&&<>
@@ -2461,18 +2461,49 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
           })()}
         </div>}
         {!bibleSearch&&bibViewTab==="overview"&&<div>
-          {/* Session Focus at top */}
-          {(project.stuck||project.where)&&<div style={{background:"var(--bg-card-alt)",border:"1px solid var(--border)",borderRadius:10,padding:"14px 16px",marginBottom:18}}>
+          {/* Session Focus at top — inline editable, no Edit mode required */}
+          <div style={{background:"var(--bg-card-alt)",border:"1px solid var(--border)",borderRadius:10,padding:"14px 16px",marginBottom:18}}>
             <div style={{fontSize:9,textTransform:"uppercase",letterSpacing:"0.18em",color:"var(--accent-80)",fontWeight:500,marginBottom:12,fontFamily:"'DM Sans',sans-serif"}}>Session Focus</div>
-            {project.stuck&&<div style={{marginBottom:project.where?12:0}}>
+            <div style={{marginBottom:12}}>
               <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:5}}>
-                <label style={{fontSize:12,color:"var(--text-muted)",fontFamily:"'DM Sans',sans-serif"}}>Focused on right now</label>
-                {project.focusedTimestamp&&<span style={{fontSize:9,color:"var(--text-dim)",fontFamily:"'DM Sans',sans-serif"}}>Updated {project.focusedTimestamp}</span>}
+                <label style={{fontSize:12,color:"var(--text-muted)",fontFamily:"'DM Sans',sans-serif"}}>What are you focused on right now?</label>
+                <div style={{display:"flex",alignItems:"center",gap:8}}>
+                  {project.focusedTimestamp&&<span style={{fontSize:9,color:"var(--text-dim)",fontFamily:"'DM Sans',sans-serif"}}>Updated {project.focusedTimestamp}</span>}
+                  {project.stuck&&<span onClick={()=>{const updated={...project,stuck:"",focusedTimestamp:""};setProject(updated);saveStored("tt-project",updated);cloudSave("tt-project",updated);}} style={{fontSize:9,color:"var(--text-dim)",cursor:"pointer",border:"1px solid var(--border)",borderRadius:4,padding:"1px 7px",fontFamily:"'DM Sans',sans-serif"}}>Clear</span>}
+                </div>
               </div>
-              <div style={{background:"var(--bg-base)",border:"1px solid var(--border)",borderRadius:8,padding:"10px 14px",fontFamily:"'Cormorant Garamond',serif",fontSize:15,color:"var(--text-primary)",lineHeight:1.7}}>{project.stuck}</div>
-            </div>}
-            {project.where&&<ReadField label="Where you are right now" value={project.where}/>}
-          </div>}
+              <input
+                className="fi"
+                maxLength={200}
+                placeholder="One sentence. What thread is live right now?"
+                value={project.stuck||""}
+                onChange={e=>{
+                  const updated={...project,stuck:e.target.value,focusedTimestamp:new Date().toLocaleDateString()};
+                  setProject(updated);
+                  setPForm(prev=>({...prev,stuck:e.target.value}));
+                  saveStored("tt-project",updated);
+                  cloudSave("tt-project",updated);
+                }}
+                style={{width:"100%"}}
+              />
+            </div>
+            <div style={{marginBottom:0}}>
+              <label style={{fontSize:12,color:"var(--text-muted)",fontFamily:"'DM Sans',sans-serif",display:"block",marginBottom:5}}>Where are you right now?</label>
+              <input
+                className="fi"
+                placeholder="Chapter 3, the confrontation scene"
+                value={project.where||""}
+                onChange={e=>{
+                  const updated={...project,where:e.target.value};
+                  setProject(updated);
+                  setPForm(prev=>({...prev,where:e.target.value}));
+                  saveStored("tt-project",updated);
+                  cloudSave("tt-project",updated);
+                }}
+                style={{width:"100%"}}
+              />
+            </div>
+          </div>
           {/* Story identity below */}
           <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:22,fontWeight:500,color:"var(--text-primary)",marginBottom:16}}>{project.title||"Untitled"}</div>
           <ReadField label="Genre" value={project.genre}/>
@@ -2717,7 +2748,7 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
                   <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:12,color:"#C07848",fontStyle:"italic",lineHeight:1.6}}>Don't stop. Don't edit. Just burn.</div>
                 </div>
                 <div style={{display:"flex",flexDirection:"column",gap:4}}>
-                  {["Capture the flood","Channel the heat","Ride the wave — 25 min","Flag everything","Body check","Wind down"].map(tool=>(
+                  {["Capture the flood","Channel the heat","Ride the wave, 25 min","Flag everything","Body check","Wind down"].map(tool=>(
                     <div key={tool} onClick={()=>{
                       setFinnOpen(true);
                       const msg=`INFERNO TOOL: ${tool}`;
@@ -2769,7 +2800,7 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
 
               {/* Buckets */}
               <div style={{padding:"12px 40px 16px",borderTop:"1px solid var(--border)"}}>
-                <div style={{fontSize:9,color:"var(--text-dim)",textTransform:"uppercase",letterSpacing:"0.15em",marginBottom:10}}>Buckets — select text above to sort</div>
+                <div style={{fontSize:9,color:"var(--text-dim)",textTransform:"uppercase",letterSpacing:"0.15em",marginBottom:10}}>Buckets: select text above to sort</div>
                 <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
                   {[["characters","Characters","#5A7A8A"],["plot","Plot Moments","#5A6B3A"],["world","World / Setting","#907860"],["questions","Questions","#7A6EA0"],["fragments","Fragments","#8A7E6A"]].map(([key,label,color])=>(
                     <div key={key} style={{background:"var(--bg-card)",border:"1px solid var(--border)",borderRadius:8,padding:"10px 12px",minHeight:60}}>
@@ -2832,24 +2863,6 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
                 <div style={{display:"flex",alignItems:"center",gap:12}}>
                   <span style={{fontSize:11,color:"var(--text-muted)"}}>Chapter {currentScene.chapter}, Scene {currentScene.scene}</span>
                   <span style={{fontSize:10,color:"var(--text-dim)",marginLeft:4}}>{getWordCount(currentScene.text)} words</span>
-                  {/* Chapter draft status selector */}
-                  <div style={{display:"flex",gap:4,marginLeft:8}}>
-                    {[
-                      {status:"in-progress",label:"Chapter draft in progress",color:"var(--text-dim)",dot:"#8A7A60"},
-                      {status:"complete",label:"Chapter draft complete",color:"var(--accent)",dot:"#A8884A"},
-                      {status:"needs-revision",label:"Chapter draft needs revision",color:"#B06848",dot:"#B06848"},
-                    ].map(opt=>{
-                      const current=currentScene.draftStatus||"in-progress";
-                      const isActive=current===opt.status;
-                      return <button key={opt.status} onClick={()=>{
-                        const updated=scenes.map(s=>s.id===currentScene.id?{...s,draftStatus:opt.status}:s);
-                        saveScenes(updated);
-                      }} title={opt.label} style={{width:8,height:8,borderRadius:"50%",background:isActive?opt.dot:"var(--border)",border:isActive?`2px solid ${opt.dot}`:"2px solid var(--border)",padding:0,cursor:"pointer",transition:"all .2s",flexShrink:0}}/>;
-                    })}
-                    <span style={{fontSize:9,color:"var(--text-dim)",fontFamily:"'DM Sans',sans-serif",marginLeft:4,alignSelf:"center"}}>
-                      {(currentScene.draftStatus||"in-progress")==="in-progress"?"in progress":(currentScene.draftStatus)==="complete"?"draft complete":"needs revision"}
-                    </span>
-                  </div>
                 </div>
                 <div style={{display:"flex",gap:8,alignItems:"center"}}>
                   <span onClick={()=>{if(currentScene.text){const t=currentScene.text.substring(0,200);const ns=[...sparks,{text:t,date:new Date().toLocaleDateString(),mode:"The Forge"}];setSparks(ns);saveStored("tt-sparks",ns)}}} style={{fontSize:10,color:"var(--text-dim)",background:"var(--bg-card)",border:"1px solid var(--border)",borderRadius:4,padding:"3px 8px",cursor:"pointer"}}>This excites me</span>
@@ -2864,11 +2877,32 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
                           extractToBible(currentScene.text,currentScene.chapter);
                         }
                       }
-                    }} style={{fontSize:10,color:extracting?"var(--text-dim)":isComplete?"var(--accent)":"var(--text-muted)",background:"var(--bg-card)",border:"1px solid "+(isComplete?"var(--border)":"var(--border)"),borderRadius:4,padding:"3px 8px",cursor:extracting?"default":"pointer"}}>{extracting?"Reading...":"Capture to Bible"}{!isComplete&&" ·"}</span>;
+                    }} style={{fontSize:10,color:extracting?"var(--text-dim)":isComplete?"var(--accent)":"var(--text-muted)",background:"var(--bg-card)",border:"1px solid var(--border)",borderRadius:4,padding:"3px 8px",cursor:extracting?"default":"pointer"}}>{extracting?"Reading...":"Capture to Bible"}{!isComplete&&" ·"}</span>;
                   })()}
-                  <input value={currentScene.title||""} onChange={e=>{const updated=scenes.map(s=>s.id===currentScene.id?{...s,title:e.target.value}:s);setScenes(updated)}} placeholder="Scene title (optional)" style={{background:"none",border:"none",outline:"none",color:"var(--text-dim)",fontSize:10,fontFamily:"'DM Sans',sans-serif",width:140,textAlign:"right"}}/>
+                  <input value={currentScene.title||""} onChange={e=>{const updated=scenes.map(s=>s.id===currentScene.id?{...s,title:e.target.value}:s);saveScenes(updated);}} placeholder="Scene title (optional)" style={{background:"none",border:"none",outline:"none",color:"var(--text-dim)",fontSize:10,fontFamily:"'DM Sans',sans-serif",width:140,textAlign:"right"}}/>
                 </div>
               </div>
+
+              {/* CHAPTER DRAFT STATUS BAR — Option C */}
+              {(()=>{
+                const draftStatus=currentScene.draftStatus||"in-progress";
+                const agnesNote=draftStatus==="complete"?"Ready to capture to your Story Bible":draftStatus==="needs-revision"?"Agnes will hold off until you mark this complete":"Agnes reads this before updating your Story Bible";
+                const noteColor=draftStatus==="complete"?"var(--accent)":draftStatus==="needs-revision"?"#B06848":"var(--text-dim)";
+                return <div style={{padding:"6px 40px",borderBottom:"1px solid var(--border)",background:"var(--bg-card-alt)",display:"flex",alignItems:"center",gap:12,flexWrap:"wrap"}}>
+                  <span style={{fontSize:9,textTransform:"uppercase",letterSpacing:"0.14em",color:"var(--text-dim)",fontFamily:"'DM Sans',sans-serif",whiteSpace:"nowrap"}}>Chapter draft</span>
+                  <div style={{display:"flex",gap:5}}>
+                    {[
+                      {status:"in-progress",label:"In progress",activeColor:"#8A7A60",activeBg:"rgba(138,122,96,0.18)"},
+                      {status:"complete",label:"Complete",activeColor:"var(--accent)",activeBg:"var(--accent-15)"},
+                      {status:"needs-revision",label:"Needs revision",activeColor:"#B06848",activeBg:"rgba(176,104,72,0.12)"},
+                    ].map(opt=>{
+                      const isActive=draftStatus===opt.status;
+                      return <button key={opt.status} onClick={()=>{const updated=scenes.map(s=>s.id===currentScene.id?{...s,draftStatus:opt.status}:s);saveScenes(updated);}} style={{fontSize:10,fontFamily:"'DM Sans',sans-serif",padding:"3px 10px",borderRadius:20,cursor:"pointer",border:`1px solid ${isActive?opt.activeColor:"var(--border)"}`,background:isActive?opt.activeBg:"transparent",color:isActive?opt.activeColor:"var(--text-dim)",transition:"all .15s",whiteSpace:"nowrap"}}>{opt.label}</button>;
+                    })}
+                  </div>
+                  <span style={{fontSize:9,color:noteColor,fontFamily:"'DM Sans',sans-serif",fontStyle:"italic",marginLeft:"auto"}}>{agnesNote}</span>
+                </div>;
+              })()}
               {currentScene.notes&&<div style={{padding:"10px 40px",background:"var(--bg-card-alt)",borderBottom:"1px solid var(--border)"}}>
                 <div style={{fontSize:9,color:"var(--accent-70)",letterSpacing:"0.12em",textTransform:"uppercase",marginBottom:4}}>CHAPTER REFERENCE</div>
                 <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:13,color:"var(--text-muted)",lineHeight:1.6,maxWidth:640}}>{currentScene.notes}</div>
@@ -3318,7 +3352,7 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
                 </div>
                 {/* Add Context field */}
                 <div style={{marginBottom:12}}>
-                  <textarea value={contextNote} onChange={e=>setDriftResolutions(prev=>({...prev,[`${i}_context`]:e.target.value}))} placeholder="Add context — what you know about why the story moved here, what's intentional, what's still evolving." rows={contextNote?3:2} style={{width:"100%",background:"var(--bg-base)",border:"1px solid var(--border)",borderRadius:6,padding:"8px 10px",outline:"none",resize:"vertical",fontFamily:"'Cormorant Garamond',serif",fontSize:13,color:"var(--text-primary)",lineHeight:1.6,fontStyle:contextNote?"normal":"italic"}}/>
+                  <textarea value={contextNote} onChange={e=>setDriftResolutions(prev=>({...prev,[`${i}_context`]:e.target.value}))} placeholder="Add context: what you know about why the story moved here, what's intentional, what's still evolving." rows={contextNote?3:2} style={{width:"100%",background:"var(--bg-base)",border:"1px solid var(--border)",borderRadius:6,padding:"8px 10px",outline:"none",resize:"vertical",fontFamily:"'Cormorant Garamond',serif",fontSize:13,color:"var(--text-primary)",lineHeight:1.6,fontStyle:contextNote?"normal":"italic"}}/>
                 </div>
                 {!resolution&&<div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
                   <button onClick={()=>{
