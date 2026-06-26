@@ -557,9 +557,8 @@ export default function App() {
   const [containerInput, setContainerInput] = useState("");
   const [pulse, setPulse] = useState(null);
   const [sidebarCtx, setSidebarCtx] = useState(null);
-  const [nextBeat, setNextBeat] = useState(null);
-  const [nextBeatLoading, setNextBeatLoading] = useState(false);
-  const [nextBeatExpanded, setNextBeatExpanded] = useState(false);
+  const [agnesBrief, setAgnesBrief] = useState(null);
+  const [agnesBriefLoading, setAgnesBriefLoading] = useState(false);
   const [theme, setTheme] = useState("dark");
   const [finnPanelSize, setFinnPanelSize] = useState("medium");
   const [triageActive, setTriageActive] = useState(false);
@@ -647,7 +646,7 @@ export default function App() {
     const pl = loadStored("tt-pulse");
     const sb = loadStored("tt-sidebarctx");
     const th = loadStored("tt-theme");
-    const nb = loadStored("tt-nextbeat");
+    const nb = loadStored("tt-agnesbrief");
     const ilt = loadStored("tt-idealab-text");
     const ilb = loadStored("tt-idealab-buckets");
     const inft = loadStored("tt-inferno-text");
@@ -665,7 +664,7 @@ export default function App() {
     }
     if (sb) setSidebarCtx(sb);
     if (th) setTheme(th);
-    if (nb) setNextBeat(nb);
+    if (nb) setAgnesBrief(nb);
     if (ilt) setIdeaLabText(ilt);
     if (ilb) setIdeaLabBuckets(ilb);
     if (inft) setInfernoText(inft);
@@ -1233,48 +1232,47 @@ If the fields above don't contain actual sensory description, return sensoryAnch
     }
   },[project?.protagonist,project?.worldSetting,project?.protagonistFear,project?.protagonistMisbelief]);
 
-  // NEXT BEAT: Agnes reads Bible chapter summaries + current manuscript, cross-references both
-  const generateNextBeat=async(forceRefresh=false)=>{
+  // AGNES BRIEF: One unified call that feeds both Finn's Read and story position
+  const generateAgnesBrief=async(forceRefresh=false)=>{
     if(!project)return;
-    // Change detection: compare last content change against stored nextBeat timestamp
+    // Change detection
     const lastBibleChange=typeof project.updated==="number"?project.updated:0;
     const lastManuscriptChange=scenes.length>0?Math.max(...scenes.map(s=>s.lastEdited||0)):0;
     const lastContentChange=Math.max(lastBibleChange,lastManuscriptChange);
-    const storedNB=loadStored("tt-nextbeat");
-    const nbAge=storedNB?.time?Date.now()-storedNB.time:Infinity;
-    const contentChanged=lastContentChange>(storedNB?.time||0);
-    // Only regenerate if forced, content changed, or cached result is older than 24 hours
-    if(!forceRefresh&&storedNB?.beat&&!contentChanged&&nbAge<24*60*60*1000){
-      setNextBeat(storedNB);
+    const stored=loadStored("tt-agnesbrief");
+    const age=stored?.time?Date.now()-stored.time:Infinity;
+    const contentChanged=lastContentChange>(stored?.time||0);
+    if(!forceRefresh&&stored?.finnRead&&!contentChanged&&age<24*60*60*1000){
+      setAgnesBrief(stored);
       return;
     }
-    setNextBeatLoading(true);
+    setAgnesBriefLoading(true);
     try{
-      // Build context: Bible chapter summaries as authoritative, manuscript as current position
+      // Build chapter context weighted by draft status
       const chapStr=project.chapters&&Array.isArray(project.chapters)?
-        project.chapters.filter(c=>c.summary).map(c=>`Chapter ${c.num} (${scenes.find(s=>s.chapter===c.num)?.draftStatus==="complete"?"COMPLETE — authoritative":"IN PROGRESS — treat as partial"}): ${c.summary}`).join("\n\n"):"";
-      // Get most recent in-progress scene text
+        project.chapters.filter(c=>c.summary).map(c=>{
+          const scn=scenes.find(s=>s.chapter===c.num);
+          const status=scn?.draftStatus||"in-progress";
+          return `Chapter ${c.num} (${status==="complete"?"COMPLETE, treat as authoritative":"IN PROGRESS, treat as partial"}): ${c.summary}`;
+        }).join("\n\n"):"";
+      // Get most recently edited scene, send first+last of manuscript
       const activeScn=scenes.find(s=>s.id===activeScene)||[...scenes].sort((a,b)=>(b.lastEdited||0)-(a.lastEdited||0))[0];
-      const fullMsText=activeScn?.text||"";
-      const msLength=fullMsText.length;
-      // Agnes gets full text if short, or structured first+last sample if longer
-      // Chapter summary covers the middle; first+last gives her the arc endpoints
+      const fullMs=activeScn?.text||"";
+      const msLen=fullMs.length;
       let msText="";
-      if(msLength===0){
-        msText="";
-      } else if(msLength<=3000){
-        msText=fullMsText;
-      } else if(msLength<=8000){
-        const first=fullMsText.substring(0,800);
-        const last=fullMsText.substring(msLength-800);
-        msText=`${first}\n\n[...chapter continues, approximately ${Math.round(msLength/5)} words total...]\n\n${last}`;
+      if(msLen<=3000) msText=fullMs;
+      else if(msLen<=8000){
+        msText=`${fullMs.substring(0,800)}\n\n[...approximately ${Math.round(msLen/5)} words continue...]\n\n${fullMs.substring(msLen-800)}`;
       } else {
-        const first=fullMsText.substring(0,1000);
-        const last=fullMsText.substring(msLength-1000);
-        msText=`${first}\n\n[...chapter continues, approximately ${Math.round(msLength/5)} words total...]\n\n${last}`;
+        msText=`${fullMs.substring(0,1000)}\n\n[...approximately ${Math.round(msLen/5)} words continue...]\n\n${fullMs.substring(msLen-1000)}`;
       }
-      const msChapter=activeScn?`Chapter ${activeScn.chapter}, Scene ${activeScn.scene} (${activeScn.draftStatus||"in-progress"})`:null;
-      const agnesPrompt=`You are Agnes. You are the record keeper. You are meticulous, direct, and slightly pointed. You cross-reference the Story Bible against the manuscript before saying anything. You never invent details not present in the sources.
+      // Session history for open craft question
+      const lastSessionNote=sessionSummaries.length>0?`Last session: ${sessionSummaries[0].date} in ${sessionSummaries[0].mode}. Key insight: ${sessionSummaries[0].keyInsight}. Open question: ${sessionSummaries[0].openQuestion}.`:"";
+      // Time away
+      const away=getTimeAway();
+      const isLongAway=away&&(away.includes("day")||(away.includes("hour")&&parseInt(away)>=12));
+
+      const prompt=`You are Agnes. Meticulous. Direct. Slightly pointed. You have read everything. You never invent details not present in the sources. You cross-reference the Bible and the manuscript before saying anything.
 
 STORY BIBLE:
 Title: "${project.title||"Untitled"}"
@@ -1283,37 +1281,44 @@ Protagonist: ${project.protagonist||"not yet captured"}
 Wound: ${project.protagonistWound||"not yet captured"}
 Misbelief: ${project.protagonistMisbelief||"not yet captured"}
 Fear: ${project.protagonistFear||"not yet captured"}
+Focused on: ${project.stuck||"not specified"}
+Where they are: ${project.where||"not specified"}
 
-CHAPTER SUMMARIES (authoritative record for complete chapters):
+CHAPTER SUMMARIES:
 ${chapStr||"No chapters captured yet."}
 
-CURRENT MANUSCRIPT POSITION:
-${msChapter?`${msChapter}:`:"No manuscript content yet."}
-${msText||""}
+CURRENT MANUSCRIPT (Chapter ${activeScn?.chapter||"?"}, Scene ${activeScn?.scene||"?"}, ${activeScn?.draftStatus||"in-progress"}):
+${msText||"No manuscript content yet."}
 
-YOUR TASK: Generate the Next Beat. This is not a coaching suggestion. It is a story beat — the specific living moment the story needs next, identified by reading both what has happened (Bible) and where the manuscript actually ends right now.
+${lastSessionNote?`SESSION HISTORY:\n${lastSessionNote}`:""}
+
+TIME AWAY: ${away||"unknown"}
+
+YOUR TASK: Generate a structured brief that feeds Finn's Read on the home screen. Finn will read this brief and speak directly to the writer in his own voice. You are writing for Finn, not for the writer.
+
+The brief must contain:
+1. finnRead: What Finn should say to the writer. 2-3 sentences maximum. Specific to this story, this moment, this writer. Must name a specific story element (character, scene, moment) not a generic observation. Must end with either a clear direction or a question that makes the writer want to open the manuscript immediately. Never "what do you want to work on today." Never generic. If the writer has been away a long time, acknowledge it in ONE word or phrase ("It's been a while") then move immediately to the story. Never count the days in the main read.
+2. nextStoryBeat: The specific story moment the manuscript needs next. One sentence. Pure story, not coaching. What happens, to whom, what it accomplishes emotionally.
+3. emotionalGoal: The emotional effect the next scene should achieve. 5 words or less.
+4. routeTo: The best mode or action to route "Let's go" to. One of: "forge", "rekindle", "diagnose", "character", "scene", "plot", "voice", "micro", "smoke", "instinct", "contain". If the writer has been away long, use "rekindle". If the manuscript is empty, use "forge". Otherwise route to the most useful mode given what you see.
+5. routeLabel: What the "Let's go" button should say. Specific and action-oriented. Not just "Let's go." Examples: "Write that scene", "Open Chapter 4", "Work on Kris", "Go to The Forge".
+6. agnesNote: One sentence Agnes would say about what she read to generate this. Direct. Slightly pointed. No flattery.
+7. thinBible: true if the protagonist fields are mostly empty and Agnes is working from chapter text only, false otherwise.
 
 Rules:
-- Cross-reference the Bible and the manuscript before generating. Never use one without the other.
-- Complete chapters: treat summaries as authoritative. Do not re-interpret.
-- In-progress chapters: read the raw text carefully, note where it ends, identify what the story is reaching toward.
-- Name the specific next story moment. Not "keep writing chapter 4" but the actual beat — what happens, to whom, and what it needs to accomplish emotionally.
-- If a character has capabilities in the Bible that create a gap with their current manuscript position (e.g. can escape but hasn't), identify that gap as the story's living nerve.
-- If the manuscript is empty or very thin, work from the Bible only and say so.
 - Never use em dashes. Use commas, colons, or periods instead.
-- Under 80 words. Direct. Specific. Address the story, not the writer.
-
-Also generate:
-- A one-line emotional goal for the next beat (5 words or less)
-- The chapter number this beat belongs to
+- Never invent story details not present in the sources.
+- If the Bible is thin, acknowledge it honestly in the finnRead rather than faking a rich response.
+- If there is no content at all, finnRead should invite the writer to share their story.
+- Keep finnRead under 60 words.
 
 Respond ONLY with a JSON object. No markdown. No backticks. No explanation.
-{"beat":"the next story beat, specific and direct","emotionalGoal":"5 words or less","chapterNum":${activeScn?.chapter||1},"sourceNote":"brief note on what Agnes read to generate this — one sentence"}`;
+{"finnRead":"","nextStoryBeat":"","emotionalGoal":"","routeTo":"forge","routeLabel":"Let's go","agnesNote":"","thinBible":false}`;
 
       const r=await fetch("/api/chat",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({
         model:"claude-sonnet-4-6",
-        max_tokens:400,
-        messages:[{role:"user",content:agnesPrompt}]
+        max_tokens:600,
+        messages:[{role:"user",content:prompt}]
       })});
       const d=await r.json();
       if(!d.error){
@@ -1321,29 +1326,33 @@ Respond ONLY with a JSON object. No markdown. No backticks. No explanation.
         const cleaned=raw.replace(/```json|```/g,"").trim();
         try{
           const parsed=JSON.parse(cleaned);
-          if(parsed.beat){
-            // Apply em dash cleanup
-            const clean=(str)=>str?str.replace(/—/g,",").replace(/\s,/g,","):str;
-            const nb={
-              beat:clean(parsed.beat),
+          if(parsed.finnRead){
+            const clean=(s)=>s?s.replace(/—/g,",").replace(/\s,/g,","):s;
+            const brief={
+              finnRead:clean(parsed.finnRead),
+              nextStoryBeat:clean(parsed.nextStoryBeat)||"",
               emotionalGoal:clean(parsed.emotionalGoal)||"",
-              chapterNum:parsed.chapterNum||activeScn?.chapter||1,
-              sourceNote:clean(parsed.sourceNote)||"",
+              routeTo:parsed.routeTo||"forge",
+              routeLabel:clean(parsed.routeLabel)||"Let's go",
+              agnesNote:clean(parsed.agnesNote)||"",
+              thinBible:parsed.thinBible||false,
+              chapterNum:activeScn?.chapter||null,
+              sceneId:activeScn?.id||null,
               time:Date.now()
             };
-            setNextBeat(nb);
-            saveStored("tt-nextbeat",nb);
+            setAgnesBrief(brief);
+            saveStored("tt-agnesbrief",brief);
           }
-        }catch(e){console.log("Next Beat parse error:",e);}
+        }catch(e){console.log("Agnes brief parse error:",e);}
       }
-    }catch(e){console.log("Next Beat fetch error:",e);}
-    setNextBeatLoading(false);
+    }catch(e){console.log("Agnes brief fetch error:",e);}
+    setAgnesBriefLoading(false);
   };
 
-  // Trigger Next Beat generation when home screen loads with a project
+  // Trigger Agnes brief generation when home screen loads with a project
   useEffect(()=>{
     if(screen==="home"&&project){
-      generateNextBeat();
+      generateAgnesBrief();
     }
   },[screen,project?.updated]);
 
@@ -1627,10 +1636,25 @@ Respond with ONLY this JSON:
 
   const getSmartRoute=()=>{
     if(!project) return {msg:"Set up your Story Bible and let Finn learn your project.",action:null,label:"Set Up Story Bible"};
+    // If Agnes has generated a brief, use it — this is the primary path
+    if(agnesBrief?.finnRead&&!agnesBriefLoading){
+      const routeMode=MODES.find(m=>m.id===agnesBrief.routeTo);
+      return {
+        msg:agnesBrief.finnRead,
+        action:agnesBrief.routeTo||"forge",
+        label:agnesBrief.routeLabel||"Let's go",
+        agnesNote:agnesBrief.agnesNote||"",
+        nextStoryBeat:agnesBrief.nextStoryBeat||"",
+        emotionalGoal:agnesBrief.emotionalGoal||"",
+        sceneId:agnesBrief.sceneId||null
+      };
+    }
+    // Loading state
+    if(agnesBriefLoading) return {msg:"Agnes is reading your story...",action:null,label:""};
+    // Fallbacks when Agnes hasn't generated yet
     const away=getTimeAway();
     const isLong=away&&(away.includes("day")||(away.includes("hour")&&parseInt(away)>=12));
-    if(isLong) return {msg:`It's been ${away}. "${project.title}" is still here. So is everything you built. Want me to remind you what's strong about this story?`,action:"rekindle",label:"Let's go"};
-    // Only use session-generated sidebarCtx if it was produced AFTER the last session started
+    if(isLong) return {msg:`It's been a while. "${project.title}" is still here. So is everything you built.`,action:"rekindle",label:"Let's go"};
     if(sidebarCtx?.nextBeat&&sidebarCtx?.mode!=="Story Bible"&&sidebarCtx?.time&&lastSession?.time){
       const lastSessionTime=new Date(lastSession.time).getTime();
       const sidebarIsFromThisSession=sidebarCtx.time>lastSessionTime;
@@ -1644,7 +1668,7 @@ Respond with ONLY this JSON:
     if(project.stuck&&project.stuck.trim()){
       const preview=project.stuck.trim();
       const truncated=preview.length>90?preview.substring(0,90).trimEnd()+"...":preview;
-      return {msg:`You were working on: ${truncated} Want to pick that up?`,action:"diagnose",label:"Let's go",clearable:true};
+      return {msg:`You were focused on: ${truncated} Ready to pick that up?`,action:"diagnose",label:"Let's go",clearable:true};
     }
     if(project.where&&project.where.trim()) return {msg:`You're at ${project.where}. Ready to keep building?`,action:"forge",label:"Let's go"};
     return {msg:"What do you want to work on today?",action:"forge",label:"Let's go"};
@@ -2227,40 +2251,29 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
               {/* Normal Finn's Read */}
               <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:17,color:"var(--text-primary)",lineHeight:1.7,marginBottom:18}}>{route.msg}</div>
               {route.action?<>
-                <div className="sb" onClick={()=>pick(MODES.find(m=>m.id===route.action))} style={{background:"var(--accent)",border:"none",borderRadius:8,padding:"11px 24px",textAlign:"center",cursor:"pointer",marginBottom:10}}>
+                <div className="sb" onClick={()=>{
+                  if(route.sceneId){setActiveScene(route.sceneId);saveStored("tt-activescene",route.sceneId);initScenes();}
+                  else{const m=MODES.find(m=>m.id===route.action);if(m)pick(m);else initScenes();}
+                }} style={{background:"var(--accent)",border:"none",borderRadius:8,padding:"11px 24px",textAlign:"center",cursor:"pointer",marginBottom:10}}>
                   <span style={{fontSize:12,fontWeight:500,color:"var(--bg-deepest)",letterSpacing:"0.03em"}}>{route.label}</span>
                 </div>
                 <div style={{textAlign:"center",display:"flex",justifyContent:"center",gap:20}}>
                   <span onClick={()=>setTriageActive(true)} style={{fontSize:11,color:"var(--text-dim)",cursor:"pointer"}}>I need something different today</span>
                   {route.clearable&&<span onClick={clearStuck} style={{fontSize:11,color:"var(--text-dim)",cursor:"pointer",borderLeft:"1px solid var(--border)",paddingLeft:20}}>Resolved</span>}
                 </div>
+                {/* Agnes note and next story beat */}
+                {(route.nextStoryBeat||route.agnesNote)&&<div style={{marginTop:14,paddingTop:12,borderTop:"1px solid var(--border)"}}>
+                  {route.nextStoryBeat&&<div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:13,color:"var(--text-muted)",lineHeight:1.65,marginBottom:6,fontStyle:"italic"}}>{route.nextStoryBeat}</div>}
+                  {route.emotionalGoal&&<div style={{fontSize:10,color:"var(--text-dim)",fontFamily:"'DM Sans',sans-serif",marginBottom:8}}>Emotional goal: {route.emotionalGoal}</div>}
+                  {route.agnesNote&&<div style={{fontSize:10,color:"var(--text-dim)",fontFamily:"'DM Sans',sans-serif",fontStyle:"italic",lineHeight:1.5}}>A: {route.agnesNote}</div>}
+                  <div onClick={()=>{saveStored("tt-agnesbrief",null);setAgnesBrief(null);setTimeout(()=>generateAgnesBrief(true),100);}} style={{fontSize:10,color:"var(--text-dim)",cursor:"pointer",marginTop:8,fontFamily:"'DM Sans',sans-serif"}}>Refresh Finn's Read</div>
+                </div>}
               </>:<div className="sb" onClick={()=>setScreen("setup")} style={{background:"var(--accent)",border:"none",borderRadius:8,padding:"11px 24px",textAlign:"center",cursor:"pointer"}}>
                 <span style={{fontSize:12,fontWeight:500,color:"var(--bg-deepest)",letterSpacing:"0.03em"}}>{route.label}</span>
               </div>}
             </>}
           </div>;
         })()}
-
-        {/* NEXT BEAT — Agnes's story momentum read */}
-        {project&&<div className="card" style={{marginBottom:8,padding:"14px 16px",cursor:nextBeat?.beat?"pointer":"default"}} onClick={()=>{if(nextBeat?.beat)setNextBeatExpanded(x=>!x)}}>
-          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:6}}>
-            <div style={{fontSize:9,textTransform:"uppercase",letterSpacing:"0.18em",color:"var(--text-dim)",fontWeight:500,fontFamily:"'DM Sans',sans-serif"}}>Next Beat</div>
-            {nextBeat?.beat&&<div style={{fontSize:9,color:"var(--text-dim)",fontFamily:"'DM Sans',sans-serif"}}>Agnes {nextBeat.chapterNum?`Ch ${nextBeat.chapterNum}`:""}</div>}
-          </div>
-          {nextBeatLoading?<div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:14,color:"var(--text-dim)",fontStyle:"italic"}}>Agnes is reading...</div>
-          :nextBeat?.beat?<>
-            <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:15,color:"var(--text-primary)",lineHeight:1.7}}>{nextBeat.beat}</div>
-            {nextBeat.emotionalGoal&&<div style={{fontSize:11,color:"var(--text-muted)",marginTop:6,fontStyle:"italic"}}>Emotional goal: {nextBeat.emotionalGoal}</div>}
-            {nextBeatExpanded&&<>
-              {nextBeat.sourceNote&&<div style={{fontSize:11,color:"var(--text-dim)",marginTop:8,paddingTop:8,borderTop:"1px solid var(--border)",fontStyle:"italic",fontFamily:"'DM Sans',sans-serif"}}>{nextBeat.sourceNote}</div>}
-              <div onClick={e=>{e.stopPropagation();const sc=scenes.find(s=>s.chapter===nextBeat.chapterNum)||scenes[scenes.length-1];if(sc){setActiveScene(sc.id);saveStored("tt-activescene",sc.id);}initScenes();}} style={{marginTop:12,background:"var(--accent)",borderRadius:6,padding:"8px 16px",textAlign:"center",cursor:"pointer"}}>
-                <span style={{fontSize:12,fontWeight:500,color:"var(--bg-deepest)",fontFamily:"'DM Sans',sans-serif"}}>Go write it</span>
-              </div>
-              <div onClick={e=>{e.stopPropagation();saveStored("tt-nextbeat",null);setNextBeat(null);setTimeout(()=>generateNextBeat(true),100);}} style={{textAlign:"center",marginTop:8,fontSize:11,color:"var(--text-dim)",cursor:"pointer",fontFamily:"'DM Sans',sans-serif"}}>Refresh</div>
-            </>}
-            {!nextBeatExpanded&&<div style={{fontSize:10,color:"var(--accent-60)",marginTop:8,fontFamily:"'DM Sans',sans-serif"}}>Tap to expand &#8594;</div>}
-          </>:<div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:14,color:"var(--text-dim)",fontStyle:"italic"}}>Agnes needs chapter content or a Story Bible to generate a Next Beat.</div>}
-        </div>}
 
         {/* The Forge */}
         <div className="card" onClick={initScenes} style={{marginBottom:4,display:"flex",alignItems:"center",gap:14,padding:"14px 18px",border:"1px solid var(--accent-20)"}}>
