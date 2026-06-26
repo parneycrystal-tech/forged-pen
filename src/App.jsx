@@ -657,8 +657,11 @@ export default function App() {
     if (lt) setLastThought(lt);
     if (sc) setScenes(sc);
     if (pl) {
-      // Only load pulse if it has real manuscript content
-      if (pl.description && pl.description.length > 8 && /[a-zA-Z]{3,}/.test(pl.description)) setPulse(pl);
+      // Only load pulse if it has real manuscript content AND came from The Forge
+      // Reject any pulse that originated from a coaching session
+      const isForge=pl.modeId==="forge"||pl.mode==="The Forge"||pl.sceneId;
+      if (isForge && pl.description && pl.description.length > 8 && /[a-zA-Z]{3,}/.test(pl.description)) setPulse(pl);
+      else saveStored("tt-pulse",null); // clear the bad value so it doesn't persist
     }
     if (sb) setSidebarCtx(sb);
     if (th) setTheme(th);
