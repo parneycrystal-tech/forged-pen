@@ -3487,10 +3487,44 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
                 </div>
                 {!resolution&&<div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
                   <button onClick={()=>{
-                    setProject(prev=>{const updated={...prev,[drift.field]:(prev[drift.field]?prev[drift.field]+"\n\n"+drift.incoming:drift.incoming),updated:Date.now()};saveStored("tt-project",updated);cloudSave("tt-project",updated);return updated;});
+                    // Update the Bible field with the incoming content
+                    setProject(prev=>{
+                      const updated={...prev,[drift.field]:(prev[drift.field]?prev[drift.field]+"\n\n"+drift.incoming:drift.incoming),updated:Date.now()};
+                      // If writer added context, append it as a writer's note to the same field
+                      if(contextNote&&contextNote.trim()){
+                        updated[drift.field]=updated[drift.field]+"\n\n[Writer's note on "+new Date().toLocaleDateString()+"]: "+contextNote.trim();
+                      }
+                      saveStored("tt-project",updated);
+                      cloudSave("tt-project",updated);
+                      return updated;
+                    });
+                    setPForm(prev=>{
+                      const updated={...prev,[drift.field]:(prev[drift.field]?prev[drift.field]+"\n\n"+drift.incoming:drift.incoming)};
+                      if(contextNote&&contextNote.trim()){
+                        updated[drift.field]=updated[drift.field]+"\n\n[Writer's note on "+new Date().toLocaleDateString()+"]: "+contextNote.trim();
+                      }
+                      return updated;
+                    });
                     setDriftResolutions(prev=>({...prev,[i]:"evolving"}));
                   }} style={{background:"var(--accent)",border:"none",borderRadius:6,padding:"7px 14px",fontSize:12,color:"var(--bg-deepest)",cursor:"pointer",fontFamily:"'DM Sans',sans-serif",fontWeight:500}}>Story is evolving</button>
-                  <button onClick={()=>setDriftResolutions(prev=>({...prev,[i]:"keep"}))} style={{background:"none",border:"1px solid var(--border)",borderRadius:6,padding:"7px 14px",fontSize:12,color:"var(--text-muted)",cursor:"pointer",fontFamily:"'DM Sans',sans-serif"}}>Keep original</button>
+                  <button onClick={()=>{
+                    // Keep original but save the writer's reasoning so Agnes doesn't flag this again
+                    if(contextNote&&contextNote.trim()){
+                      setProject(prev=>{
+                        // Append the writer's decision note to the field so it's on record
+                        const decisionNote="\n\n[Writer kept original on "+new Date().toLocaleDateString()+" re: Chapter "+driftResult.chapterNum+" drift]: "+contextNote.trim();
+                        const updated={...prev,[drift.field]:(prev[drift.field]||"")+decisionNote,updated:Date.now()};
+                        saveStored("tt-project",updated);
+                        cloudSave("tt-project",updated);
+                        return updated;
+                      });
+                      setPForm(prev=>{
+                        const decisionNote="\n\n[Writer kept original on "+new Date().toLocaleDateString()+" re: Chapter "+driftResult.chapterNum+" drift]: "+contextNote.trim();
+                        return {...prev,[drift.field]:(prev[drift.field]||"")+decisionNote};
+                      });
+                    }
+                    setDriftResolutions(prev=>({...prev,[i]:"keep"}));
+                  }} style={{background:"none",border:"1px solid var(--border)",borderRadius:6,padding:"7px 14px",fontSize:12,color:"var(--text-muted)",cursor:"pointer",fontFamily:"'DM Sans',sans-serif"}}>Keep original</button>
                   <button onClick={()=>{
                     setDriftResolutions(prev=>{
                       const updated={...prev,[i]:"finn"};
