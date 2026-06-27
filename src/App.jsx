@@ -686,7 +686,7 @@ export default function App() {
     if (fsdis) setFirstSessionDismissed(true);
     if (fsmsgs && fsmsgs.length>0) setFirstSessionMsgs(fsmsgs);
     if (fscap && Object.keys(fscap).length>0) setFirstSessionCapture(fscap);
-    if (pdr) { setDriftResult(pdr.driftResult); setDriftResolutions(pdr.driftResolutions||{}); setDriftOpen(true); }
+    if (pdr) { setDriftResult(pdr.driftResult); setDriftResolutions(pdr.driftResolutions||{}); /* do NOT auto-open — home screen indicator handles this */ }
     if (pex) { setExtractResult(pex); setExtractOpen(true); }
   };
 
@@ -2330,6 +2330,27 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
           <div style={{fontSize:11,color:"#5A7A8A",marginLeft:12}}>{sessionSummaries.length} session{sessionSummaries.length>1?"s":""}</div>
         </div>}
 
+        {/* Agnes Drift Indicator — shows when there are unresolved drift points waiting */}
+        {driftResult&&driftResult.drifts&&driftResult.drifts.length>0&&(()=>{
+          const resolved=Object.keys(driftResolutions).filter(k=>!k.includes("_context")).length;
+          const total=driftResult.drifts.length;
+          const remaining=total-resolved;
+          if(remaining<=0)return null;
+          return <div onClick={()=>setDriftOpen(true)} className="card" style={{marginBottom:8,padding:"12px 16px",cursor:"pointer",border:"1px solid var(--accent-30)",background:"var(--bg-card-alt)"}}>
+            <div style={{display:"flex",alignItems:"center",gap:10}}>
+              <div style={{width:6,height:6,borderRadius:"50%",background:"var(--accent)",flexShrink:0,animation:"wp 2s ease-in-out infinite"}}/>
+              <div style={{flex:1}}>
+                <div style={{fontSize:9,textTransform:"uppercase",letterSpacing:"0.18em",color:"var(--accent-80)",fontWeight:500,marginBottom:3,fontFamily:"'DM Sans',sans-serif"}}>Agnes</div>
+                <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:14,color:"var(--text-primary)"}}>
+                  {remaining} point{remaining>1?"s":""} from Chapter {driftResult.chapterNum} waiting for your review
+                </div>
+                <div style={{fontSize:10,color:"var(--text-dim)",marginTop:3,fontFamily:"'DM Sans',sans-serif",fontStyle:"italic"}}>Tap to review when you're ready. No rush.</div>
+              </div>
+              <span style={{color:"var(--text-dim)",fontSize:14}}>&#8594;</span>
+            </div>
+          </div>;
+        })()}
+
         {/* Card Grid Row 1 */}
         <div id="fp-grid" style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:8,marginBottom:8}}>
           <div className="card" onClick={()=>project?setScreen("project"):setScreen("setup")}>
@@ -3542,10 +3563,14 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
             })}
           </div>
           <div style={{borderTop:"1px solid var(--border)",paddingTop:16,display:"flex",gap:8}}>
-            <button onClick={()=>{setDriftOpen(false);setDriftResult(null);setDriftResolutions({});saveStored("tt-pending-drift",null);}} disabled={Object.keys(driftResolutions).length<driftResult.drifts.length} style={{flex:1,background:Object.keys(driftResolutions).length>=driftResult.drifts.length?"var(--accent)":"var(--bg-card-alt)",border:"1px solid var(--border)",borderRadius:8,padding:"11px",fontSize:13,fontWeight:500,fontFamily:"'DM Sans',sans-serif",color:Object.keys(driftResolutions).length>=driftResult.drifts.length?"var(--bg-deepest)":"var(--text-dim)",cursor:Object.keys(driftResolutions).length>=driftResult.drifts.length?"pointer":"default"}}>
-              {Object.keys(driftResolutions).length>=driftResult.drifts.length?"Done":`${driftResult.drifts.length-Object.keys(driftResolutions).length} left to resolve`}
+            <button onClick={()=>{setDriftOpen(false);setDriftResult(null);setDriftResolutions({});saveStored("tt-pending-drift",null);}} disabled={Object.keys(driftResolutions).filter(k=>!k.includes("_context")).length<driftResult.drifts.length} style={{flex:1,background:Object.keys(driftResolutions).filter(k=>!k.includes("_context")).length>=driftResult.drifts.length?"var(--accent)":"var(--bg-card-alt)",border:"1px solid var(--border)",borderRadius:8,padding:"11px",fontSize:13,fontWeight:500,fontFamily:"'DM Sans',sans-serif",color:Object.keys(driftResolutions).filter(k=>!k.includes("_context")).length>=driftResult.drifts.length?"var(--bg-deepest)":"var(--text-dim)",cursor:Object.keys(driftResolutions).filter(k=>!k.includes("_context")).length>=driftResult.drifts.length?"pointer":"default"}}>
+              {Object.keys(driftResolutions).filter(k=>!k.includes("_context")).length>=driftResult.drifts.length?"Done":`${driftResult.drifts.length-Object.keys(driftResolutions).filter(k=>!k.includes("_context")).length} left to resolve`}
             </button>
-            <button onClick={()=>{setDriftOpen(false);setDriftResult(null);setDriftResolutions({});saveStored("tt-pending-drift",null);}} style={{background:"none",border:"1px solid var(--border)",borderRadius:8,padding:"11px 16px",fontSize:12,color:"var(--text-dim)",cursor:"pointer",fontFamily:"'DM Sans',sans-serif"}}>Decide later</button>
+            <button onClick={()=>{
+              // Save current resolutions and close — home screen indicator will show remaining items
+              saveStored("tt-pending-drift",{driftResult,driftResolutions});
+              setDriftOpen(false);
+            }} style={{background:"none",border:"1px solid var(--border)",borderRadius:8,padding:"11px 16px",fontSize:12,color:"var(--text-dim)",cursor:"pointer",fontFamily:"'DM Sans',sans-serif"}}>Decide later</button>
           </div>
         </div>
       </div>}
