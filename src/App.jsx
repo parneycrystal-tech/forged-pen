@@ -1003,6 +1003,15 @@ Respond with ONLY this JSON:
     setExtractOpen(true);
     setExtractResult(null);
 
+    // Get draft status of the current scene for Agnes context
+    const currentScn=scenes.find(s=>s.chapter===chapterNum)||scenes.find(s=>s.id===activeScene);
+    const draftStatus=currentScn?.draftStatus||"in-progress";
+    const draftNote=draftStatus==="complete"
+      ?"This chapter is marked complete. Treat everything extracted as authoritative."
+      :draftStatus==="needs-revision"
+      ?"This chapter is marked as needing revision. Flag anything that may change."
+      :"This chapter is still in progress. Extract what is clearly established so far, note that details may shift as writing continues.";
+
     const existingBible=`Title: ${project?.title||"untitled"}
 Genre: ${project?.genre||""}
 Synopsis so far: ${project?.synopsis||"none"}
@@ -1025,6 +1034,8 @@ Tone: ${project?.worldTone||"none"}`;
 
 EXISTING STORY BIBLE (for context, do not repeat what's already captured well):
 ${existingBible}
+
+CHAPTER DRAFT STATUS: ${draftNote}
 
 CHAPTER ${chapterNum||"??"} TEXT:
 ${sceneText.substring(0,2500)}
@@ -2993,14 +3004,8 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
                     const status=currentScene.draftStatus||"in-progress";
                     const isComplete=status==="complete";
                     return <span onClick={()=>{
-                      if(isComplete){
-                        extractToBible(currentScene.text,currentScene.chapter);
-                      } else {
-                        if(window.confirm(`This chapter draft is still marked as "${status==="needs-revision"?"needs revision":"in progress"}". You can capture it now but some details may shift as you continue writing. Continue anyway?`)){
-                          extractToBible(currentScene.text,currentScene.chapter);
-                        }
-                      }
-                    }} style={{fontSize:10,color:extracting?"var(--text-dim)":isComplete?"var(--accent)":"var(--text-muted)",background:"var(--bg-card)",border:"1px solid var(--border)",borderRadius:4,padding:"3px 8px",cursor:extracting?"default":"pointer"}}>{extracting?"Reading...":"Capture to Bible"}{!isComplete&&" ·"}</span>;
+                      extractToBible(currentScene.text,currentScene.chapter);
+                    }} style={{fontSize:10,color:extracting?"var(--text-dim)":isComplete?"var(--accent)":"var(--text-muted)",background:"var(--bg-card)",border:"1px solid var(--border)",borderRadius:4,padding:"3px 8px",cursor:extracting?"default":"pointer"}}>{extracting?"Reading...":"Capture to Bible"}</span>;
                   })()}
                   <input value={currentScene.title||""} onChange={e=>{const updated=scenes.map(s=>s.id===currentScene.id?{...s,title:e.target.value}:s);saveScenes(updated);}} placeholder="Scene title (optional)" style={{background:"none",border:"none",outline:"none",color:"var(--text-dim)",fontSize:10,fontFamily:"'DM Sans',sans-serif",width:140,textAlign:"right"}}/>
                 </div>
