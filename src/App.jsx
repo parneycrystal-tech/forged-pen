@@ -1083,13 +1083,16 @@ Respond with ONLY this JSON:
     // Capture the pre-merge Bible so Agnes can compare what WAS there vs what the chapter shows
     const projectBeforeMerge={...project};
     const updated={...pForm};
-    // Update chapter summary
+    // Update chapter summary — always read from project.chapters (live source) not pForm.chapters
     if(result.chapterSummary){
-      const chapters=[...updated.chapters];
-      const idx=chapters.findIndex(c=>c.num===result.chapterNum);
-      if(idx>=0){chapters[idx]={...chapters[idx],summary:result.chapterSummary};}
-      else{chapters.push({num:result.chapterNum||chapters.length+1,summary:result.chapterSummary});}
-      updated.chapters=chapters;
+      // Use project.chapters as the authoritative source to avoid losing previously captured chapters
+      const existingChapters=Array.isArray(project.chapters)?[...project.chapters]:[{num:1,summary:""}];
+      const idx=existingChapters.findIndex(c=>c.num===result.chapterNum);
+      if(idx>=0){existingChapters[idx]={...existingChapters[idx],summary:result.chapterSummary};}
+      else{existingChapters.push({num:result.chapterNum||existingChapters.length+1,summary:result.chapterSummary});}
+      // Sort chapters numerically so they stay in order
+      existingChapters.sort((a,b)=>a.num-b.num);
+      updated.chapters=existingChapters;
     }
     // Merge new details into existing fields (append rather than replace)
     if(result.protagonistReveal&&result.protagonistReveal.trim()) updated.protagonist=(updated.protagonist?updated.protagonist+"\n\n"+result.protagonistReveal:result.protagonistReveal);
