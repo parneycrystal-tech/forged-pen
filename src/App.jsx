@@ -556,6 +556,7 @@ export default function App() {
   const [containerMsgs, setContainerMsgs] = useState([]);
   const [containerInput, setContainerInput] = useState("");
   const [pulse, setPulse] = useState(null);
+  const [openBreaks, setOpenBreaks] = useState({});
   const [sidebarCtx, setSidebarCtx] = useState(null);
   const [agnesBrief, setAgnesBrief] = useState(null);
   const [agnesBriefLoading, setAgnesBriefLoading] = useState(false);
@@ -2812,13 +2813,11 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
                   const chapters=[...new Set(scenes.map(s=>s.chapter))].sort((a,b)=>a-b);
                   return <>
                     {chapters.map(ch=>{
-                      // Use first scene per chapter as the chapter document
                       const chScenes=scenes.filter(s=>s.chapter===ch).sort((a,b)=>a.scene-b.scene);
                       const primaryScene=chScenes[0];
                       if(!primaryScene)return null;
                       const unresolvedMD=(primaryScene.modeData||[]).filter(m=>!m.resolved).length;
                       const isActive=primaryScene.id===activeScene||chScenes.some(s=>s.id===activeScene);
-                      // Agnes scene break estimate from double line breaks and scene signals
                       const estimateSceneBreaks=(text)=>{
                         if(!text||text.length<200)return 0;
                         const breaks=(text.match(/\n\s*\n/g)||[]).length;
@@ -2826,7 +2825,7 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
                         return Math.max(0,Math.round((breaks+timeSignals)/2));
                       };
                       const sceneBreaks=estimateSceneBreaks(primaryScene.text);
-                      const [sceneBreakOpen,setSceneBreakOpen]=React.useState(false);
+                      const sceneBreakOpen=!!openBreaks[ch];
                       return <div key={ch} style={{marginBottom:8}}>
                         <div onClick={()=>{setActiveScene(primaryScene.id);saveStored("tt-activescene",primaryScene.id)}} style={{padding:"7px 10px",borderRadius:6,cursor:"pointer",fontSize:11,color:isActive?"var(--text-primary)":"var(--text-dim)",background:isActive?"var(--accent-0a)":"transparent",borderLeft:isActive?"2px solid var(--accent-60)":"2px solid transparent",transition:"all .2s",display:"flex",alignItems:"center",justifyContent:"space-between"}}>
                           <div style={{flex:1,minWidth:0}}>
@@ -2838,18 +2837,17 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
                             <div style={{fontSize:9,color:"var(--text-dim)"}}>{getWordCount(primaryScene.text).toLocaleString()} words</div>
                           </div>
                         </div>
-                        {/* Agnes scene break estimate — collapsible, subtle */}
                         {sceneBreaks>0&&<div style={{paddingLeft:14}}>
-                          <div onClick={()=>setSceneBreakOpen(x=>!x)} style={{fontSize:9,color:"var(--text-dim)",cursor:"pointer",padding:"2px 0",display:"flex",alignItems:"center",gap:4,fontFamily:"'DM Sans',sans-serif"}}>
+                          <div onClick={()=>setOpenBreaks(prev=>({...prev,[ch]:!prev[ch]}))} style={{fontSize:9,color:"var(--text-dim)",cursor:"pointer",padding:"2px 0",display:"flex",alignItems:"center",gap:4,fontFamily:"'DM Sans',sans-serif"}}>
                             <span style={{opacity:0.6}}>~{sceneBreaks} scene{sceneBreaks!==1?"s":""}</span>
                             <span style={{opacity:0.4,fontSize:8}}>{sceneBreakOpen?"▲":"▾"}</span>
                           </div>
                           {sceneBreakOpen&&primaryScene.text&&<div style={{paddingLeft:6,borderLeft:"1px solid var(--border)",marginTop:3}}>
-                            {(primaryScene.text.split(/\n\s*\n/).filter(p=>p.trim().length>20).slice(0,sceneBreaks+1).map((p,i)=>(
+                            {primaryScene.text.split(/\n\s*\n/).filter(p=>p.trim().length>20).slice(0,sceneBreaks+1).map((p,i)=>(
                               <div key={i} style={{fontSize:9,color:"var(--text-dim)",padding:"2px 0",fontStyle:"italic",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>
                                 {i+1}. {p.trim().substring(0,45)}...
                               </div>
-                            )))}
+                            ))}
                           </div>}
                         </div>}
                       </div>;
