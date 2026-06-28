@@ -1877,7 +1877,18 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
     const prevStuck=project?.stuck||"";
     const newStuck=pForm.stuck||"";
     const focusedTimestamp=newStuck!==prevStuck&&newStuck.trim()?new Date().toLocaleDateString():project?.focusedTimestamp||"";
-    const p={...pForm,stuck:newStuck.substring(0,200),focusedTimestamp,updated:Date.now()};
+    // CRITICAL: preserve existing project.chapters (Agnes-captured summaries) — do not overwrite with pForm.chapters
+    // pForm.chapters only reflects what's visible in the Chapters tab edit form, which may be incomplete
+    const existingChapters=project?.chapters||[];
+    const pFormChapters=pForm.chapters||[];
+    // Merge: keep existing summaries, only update chapters that have new content in pForm
+    const mergedChapters=existingChapters.length>0
+      ? existingChapters.map(ec=>{
+          const pfc=pFormChapters.find(c=>c.num===ec.num);
+          return pfc&&pfc.summary&&pfc.summary!==ec.summary?{...ec,summary:pfc.summary}:ec;
+        })
+      : pFormChapters;
+    const p={...pForm,chapters:mergedChapters,stuck:newStuck.substring(0,200),focusedTimestamp,updated:Date.now()};
     setProject(p);saveStored("tt-project",p);
     const existingScenes=loadStored("tt-scenes");
     if((!existingScenes||existingScenes.length===0)&&pForm.chapters&&pForm.chapters.some(c=>c.summary)){
