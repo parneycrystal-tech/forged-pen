@@ -848,8 +848,14 @@ export default function App() {
       setMsgs(saved);
     } else if(m.id==="rekindle"&&project){
       // Agnes-first Rekindle: reconstruct context from all available records
-      const chapStr=project.chapters&&Array.isArray(project.chapters)?project.chapters.filter(c=>c.summary).map(c=>`Chapter ${c.num}: ${c.summary}`).join("\n\n"):"";
-      const lastChap=project.chapters&&Array.isArray(project.chapters)?[...project.chapters].filter(c=>c.summary).pop():null;
+      // Sort chapters by number so Agnes gets the highest-numbered chapter, not array order
+      const sortedChaps=project.chapters&&Array.isArray(project.chapters)?[...project.chapters].filter(c=>c.summary).sort((a,b)=>a.num-b.num):[];
+      const chapStr=sortedChaps.map(c=>`Chapter ${c.num}: ${c.summary}`).join("\n\n");
+      const lastChap=sortedChaps.length>0?sortedChaps[sortedChaps.length-1]:null;
+      // Also get most recently edited manuscript content for re-entry grounding
+      const mostRecentScene=scenes.length>0?[...scenes].sort((a,b)=>(b.lastEdited||0)-(a.lastEdited||0))[0]:null;
+      const msLength=mostRecentScene?.text?.length||0;
+      const msEndText=msLength>600?mostRecentScene.text.substring(msLength-600):mostRecentScene?.text||"";
       const sparkSnippet=sparks.length>0?sparks.slice(-3).map(s=>`"${s.text}"`).join(" | "):"";
       const lastSessionSnippet=sessionSummaries.length>0?`Last session (${sessionSummaries[0].date}) in ${sessionSummaries[0].mode}: ${sessionSummaries[0].keyInsight}. Open question: ${sessionSummaries[0].openQuestion}.`:"";
       const rekindleContext=`REKINDLE SESSION for ${userName||"this writer"}.
@@ -860,17 +866,22 @@ WOUND: ${project.protagonistWound||"not yet captured"}
 MISBELIEF: ${project.protagonistMisbelief||"not yet captured"}
 FEAR: ${project.protagonistFear||"not yet captured"}
 
-CHAPTER SUMMARIES (Agnes's authoritative record):
+CHAPTER SUMMARIES (Agnes's authoritative record, sorted oldest to newest):
 ${chapStr||"No chapters captured yet."}
 
-LAST CHAPTER WRITTEN: ${lastChap?`Chapter ${lastChap.num}: ${lastChap.summary}`:"Unknown"}
+MOST RECENT CHAPTER IN BIBLE: ${lastChap?`Chapter ${lastChap.num}: ${lastChap.summary}`:"Unknown"}
+
+CURRENT MANUSCRIPT POSITION (most recently edited — where writing actually stopped):
+${mostRecentScene?`Chapter ${mostRecentScene.chapter} (${mostRecentScene.draftStatus||"in progress"}), last written:`:"No manuscript content yet."}
+${msEndText}
+
 WHERE THEY ARE: ${project.where||"not specified"}
 WHAT THEY WERE FOCUSED ON: ${project.stuck||"not specified"}
 
 ${lastSessionSnippet?`LAST SESSION:\n${lastSessionSnippet}`:""}
 ${sparkSnippet?`DOPAMINE MAP SPARKS:\n${sparkSnippet}`:""}
 
-Deliver the re-entry brief now. Do not ask what they remember. Reconstruct it for them.`;
+The writer has been away. Reconstruct where they are RIGHT NOW based on the most recent chapter and manuscript position, not Chapter 1. Orient them to where the story currently lives. Deliver the re-entry brief now. Do not ask what they remember.`;
       setMsgs([{role:"assistant",content:"Agnes kept the record while you were away. Give me one second and I'll tell you exactly where you are."}]);
       // Generate the full brief from the API
       fetch("/api/chat",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({
@@ -892,8 +903,12 @@ Deliver the re-entry brief now. Do not ask what they remember. Reconstruct it fo
     if(!mode)return;
     saveStored("tt-chat-"+mode.id,null);
     if(mode.id==="rekindle"&&project){
-      const chapStr=project.chapters&&Array.isArray(project.chapters)?project.chapters.filter(c=>c.summary).map(c=>`Chapter ${c.num}: ${c.summary}`).join("\n\n"):"";
-      const lastChap=project.chapters&&Array.isArray(project.chapters)?[...project.chapters].filter(c=>c.summary).pop():null;
+      const sortedChaps=project.chapters&&Array.isArray(project.chapters)?[...project.chapters].filter(c=>c.summary).sort((a,b)=>a.num-b.num):[];
+      const chapStr=sortedChaps.map(c=>`Chapter ${c.num}: ${c.summary}`).join("\n\n");
+      const lastChap=sortedChaps.length>0?sortedChaps[sortedChaps.length-1]:null;
+      const mostRecentScene=scenes.length>0?[...scenes].sort((a,b)=>(b.lastEdited||0)-(a.lastEdited||0))[0]:null;
+      const msLength=mostRecentScene?.text?.length||0;
+      const msEndText=msLength>600?mostRecentScene.text.substring(msLength-600):mostRecentScene?.text||"";
       const sparkSnippet=sparks.length>0?sparks.slice(-3).map(s=>`"${s.text}"`).join(" | "):"";
       const lastSessionSnippet=sessionSummaries.length>0?`Last session (${sessionSummaries[0].date}) in ${sessionSummaries[0].mode}: ${sessionSummaries[0].keyInsight}. Open question: ${sessionSummaries[0].openQuestion}.`:"";
       const rekindleContext=`REKINDLE SESSION for ${userName||"this writer"}.
@@ -904,17 +919,22 @@ WOUND: ${project.protagonistWound||"not yet captured"}
 MISBELIEF: ${project.protagonistMisbelief||"not yet captured"}
 FEAR: ${project.protagonistFear||"not yet captured"}
 
-CHAPTER SUMMARIES (Agnes's authoritative record):
+CHAPTER SUMMARIES (Agnes's authoritative record, sorted oldest to newest):
 ${chapStr||"No chapters captured yet."}
 
-LAST CHAPTER WRITTEN: ${lastChap?`Chapter ${lastChap.num}: ${lastChap.summary}`:"Unknown"}
+MOST RECENT CHAPTER IN BIBLE: ${lastChap?`Chapter ${lastChap.num}: ${lastChap.summary}`:"Unknown"}
+
+CURRENT MANUSCRIPT POSITION (most recently edited — where writing actually stopped):
+${mostRecentScene?`Chapter ${mostRecentScene.chapter} (${mostRecentScene.draftStatus||"in progress"}), last written:`:"No manuscript content yet."}
+${msEndText}
+
 WHERE THEY ARE: ${project.where||"not specified"}
 WHAT THEY WERE FOCUSED ON: ${project.stuck||"not specified"}
 
 ${lastSessionSnippet?`LAST SESSION:\n${lastSessionSnippet}`:""}
 ${sparkSnippet?`DOPAMINE MAP SPARKS:\n${sparkSnippet}`:""}
 
-Deliver the re-entry brief now. Do not ask what they remember. Reconstruct it for them.`;
+The writer has been away. Reconstruct where they are RIGHT NOW based on the most recent chapter and manuscript position, not Chapter 1. Orient them to where the story currently lives. Deliver the re-entry brief now. Do not ask what they remember.`;
       setMsgs([{role:"assistant",content:"Agnes kept the record while you were away. Give me one second and I'll tell you exactly where you are."}]);
       fetch("/api/chat",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({
         system:mode.sys,
@@ -985,7 +1005,7 @@ Respond with ONLY this JSON:
         title:p.substring(0,50),
         text:"",
         notes:p,
-        sceneNotes:"From Idea Lab — needs development",
+        sceneNotes:"From Idea Lab, needs development",
         modeData:[],status:"drafting",lastEdited:Date.now()
       }));
       const updated=[...scenes,...newScenes];
@@ -1231,19 +1251,34 @@ If the fields above don't contain actual sensory description, return sensoryAnch
     }catch(e){console.log("Default sidebar fetch error:",e);}
   };
 
-  // Populate sidebar from Story Bible when no session context exists yet
+  // Populate sidebar atmosphere from manuscript on home screen load
+  // Uses same change-detection logic as Next Beat — only regenerates if content changed or cache is older than 24hrs
   useEffect(()=>{
-    if(screen==="home"&&project&&!sidebarCtx){
-      const currentScene=scenes.find(s=>s.id===activeScene)||scenes[scenes.length-1];
-      generateDefaultSidebarCtx(project, ideaLabText, currentScene?.text||"");
+    if(screen==="home"&&project&&scenes.length>0){
+      const lastManuscriptChange=Math.max(...scenes.map(s=>s.lastEdited||0));
+      const lastBibleChange=typeof project.updated==="number"?project.updated:0;
+      const lastContentChange=Math.max(lastManuscriptChange,lastBibleChange);
+      const cacheAge=sidebarCtx?.time?Date.now()-sidebarCtx.time:Infinity;
+      const contentChanged=lastContentChange>(sidebarCtx?.time||0);
+      // Regenerate if: no cache, content changed since last generation, or cache older than 24hrs
+      if(!sidebarCtx||contentChanged||cacheAge>24*60*60*1000){
+        // Use most recently edited scene for atmosphere grounding
+        const mostRecent=[...scenes].sort((a,b)=>(b.lastEdited||0)-(a.lastEdited||0))[0];
+        const msLength=mostRecent?.text?.length||0;
+        // Send end of most recent chapter for sensory grounding (where writer left off)
+        const sceneContent=msLength>800?mostRecent.text.substring(msLength-800):mostRecent?.text||"";
+        generateDefaultSidebarCtx(project, ideaLabText, sceneContent);
+      }
     }
   },[screen,project]);
 
   // Refresh sidebar when writer adds significant new Story Bible content
   useEffect(()=>{
     if(project&&(project.protagonist||project.worldSetting||project.synopsis)){
-      const currentScene=scenes.find(s=>s.id===activeScene)||scenes[scenes.length-1];
-      generateDefaultSidebarCtx(project, ideaLabText, currentScene?.text||"");
+      const mostRecent=[...scenes].sort((a,b)=>(b.lastEdited||0)-(a.lastEdited||0))[0];
+      const msLength=mostRecent?.text?.length||0;
+      const sceneContent=msLength>800?mostRecent.text.substring(msLength-800):mostRecent?.text||"";
+      generateDefaultSidebarCtx(project, ideaLabText, sceneContent);
     }
   },[project?.protagonist,project?.worldSetting,project?.protagonistFear,project?.protagonistMisbelief]);
 
@@ -3270,7 +3305,7 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
             <div style={{fontSize:11,color:"var(--text-muted)",marginBottom:12}}>Bring this into The Forge as Mode Data?</div>
             {scenes.length>0&&<select value={endSessionSceneId||""} onChange={e=>setEndSessionSceneId(e.target.value)} style={{width:"100%",background:"var(--bg-card-alt)",border:"1px solid var(--border)",borderRadius:8,padding:"8px 12px",color:"var(--text-primary)",fontFamily:"'DM Sans',sans-serif",fontSize:13,marginBottom:12,outline:"none"}}>
               <option value="">Select a scene...</option>
-              {scenes.map(s=><option key={s.id} value={s.id}>Ch{s.chapter}, Scene {s.scene}{s.title?` — ${s.title}`:""}</option>)}
+              {scenes.map(s=><option key={s.id} value={s.id}>Ch{s.chapter}{s.title?`: ${s.title}`:""}</option>)}
             </select>}
             <div style={{display:"flex",gap:10}}>
               <div onClick={endSessionSceneId&&!endSessionCommitting?commitModeData:undefined} style={{flex:1,background:endSessionSceneId?"var(--accent)":"var(--bg-card-alt)",border:"1px solid "+(endSessionSceneId?"var(--accent)":"var(--border)"),borderRadius:8,padding:"11px",textAlign:"center",cursor:endSessionSceneId?"pointer":"default",opacity:endSessionCommitting?.6:1}}>
