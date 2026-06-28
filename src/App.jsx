@@ -799,7 +799,7 @@ export default function App() {
     if(lastSentence){
       setLastThought(lastSentence);
       const cs=updated.find(s=>s.id===id);
-      const newPulse={mode:"The Forge",modeId:"forge",scene:cs?`Ch${cs.chapter}, Scene ${cs.scene}`:"",sceneId:id,title:cs?.title||"",description:lastSentence.substring(0,120),time:Date.now()};
+      const newPulse={mode:"The Forge",modeId:"forge",scene:cs?`Ch${cs.chapter}`:"",sceneId:id,title:cs?.title||"",description:lastSentence.substring(0,120),time:Date.now()};
       setPulse(newPulse);saveStored("tt-pulse",newPulse);
     }
   };
@@ -2296,9 +2296,9 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
             <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:14,fontWeight:600,color:"var(--accent)"}}>The Forge</div>
             <div style={{fontSize:10,color:"var(--text-dim)",marginTop:2}}>
               {getTotalWords()>0
-                ? `Manuscript: ${getTotalWords().toLocaleString()} word${getTotalWords()!==1?"s":""} across ${scenes.length} scene${scenes.length!==1?"s":""}. Continue writing.`
+                ? `Manuscript: ${getTotalWords().toLocaleString()} word${getTotalWords()!==1?"s":""} across ${[...new Set(scenes.map(s=>s.chapter))].length} chapter${[...new Set(scenes.map(s=>s.chapter))].length!==1?"s":""}. Continue writing.`
                 : scenes.length>0
-                  ? `Manuscript: ${scenes.length} scene${scenes.length!==1?"s":""} ready. Start writing.`
+                  ? `Manuscript: ${[...new Set(scenes.map(s=>s.chapter))].length} chapter${[...new Set(scenes.map(s=>s.chapter))].length!==1?"s":""} ready. Start writing.`
                   : "Open your writing space."}
             </div>
           </div>
@@ -2480,7 +2480,7 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
         <div style={{marginBottom:16}}>
           <div style={{display:"flex",justifyContent:"space-between"}}>
             <div><div style={{fontSize:20,color:"var(--text-primary)",fontWeight:500}}>{getTotalWords().toLocaleString()}</div><div style={{fontSize:10,color:"var(--text-dim)",marginTop:2}}>words</div></div>
-            <div style={{textAlign:"right"}}><div style={{fontSize:20,color:"var(--text-primary)",fontWeight:500}}>{scenes.length}</div><div style={{fontSize:10,color:"var(--text-dim)",marginTop:2}}>scenes</div></div>
+            <div style={{textAlign:"right"}}><div style={{fontSize:20,color:"var(--text-primary)",fontWeight:500}}>{[...new Set(scenes.map(s=>s.chapter))].length}</div><div style={{fontSize:10,color:"var(--text-dim)",marginTop:2}}>chapters</div></div>
           </div>
         </div>
         <div style={{height:1,background:"var(--border)",marginBottom:16}}/>
@@ -2808,21 +2808,55 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
               </div>
               <div style={{fontSize:9,textTransform:"uppercase",letterSpacing:"0.18em",color:"var(--text-dim)",fontWeight:500,marginBottom:8}}>Chapters</div>
               <div style={{flex:1,overflowY:"auto"}}>
-                {chapters.map(ch=>{
-                  const chScenes=scenes.filter(s=>s.chapter===ch).sort((a,b)=>a.scene-b.scene);
-                  return <div key={ch} style={{marginBottom:10}}>
-                    <div style={{fontSize:11,color:"var(--text-muted)",fontWeight:500,padding:"4px 0",marginBottom:2}}>Chapter {ch}</div>
-                    {chScenes.map(s=>{
-                      const unresolvedMD=(s.modeData||[]).filter(m=>!m.resolved).length;
-                      return <div key={s.id} onClick={()=>{setActiveScene(s.id);saveStored("tt-activescene",s.id)}} style={{padding:"6px 12px 6px 18px",borderRadius:5,cursor:"pointer",fontSize:11,color:s.id===activeScene?"var(--text-primary)":"var(--text-dim)",background:s.id===activeScene?"var(--accent-0a)":"transparent",borderLeft:s.id===activeScene?"2px solid var(--accent-60)":"2px solid transparent",transition:"all .2s",display:"flex",alignItems:"center",justifyContent:"space-between"}}>
-                        <span>{s.title||`Scene ${s.scene}`}<span style={{fontSize:9,color:"var(--text-dim)",marginLeft:6}}>{getWordCount(s.text)}</span></span>
-                        {unresolvedMD>0&&<span style={{fontSize:9,background:"var(--accent-40)",color:"var(--accent)",borderRadius:10,padding:"1px 5px",flexShrink:0}}>{unresolvedMD}</span>}
+                {(()=>{
+                  const chapters=[...new Set(scenes.map(s=>s.chapter))].sort((a,b)=>a-b);
+                  return <>
+                    {chapters.map(ch=>{
+                      // Use first scene per chapter as the chapter document
+                      const chScenes=scenes.filter(s=>s.chapter===ch).sort((a,b)=>a.scene-b.scene);
+                      const primaryScene=chScenes[0];
+                      if(!primaryScene)return null;
+                      const unresolvedMD=(primaryScene.modeData||[]).filter(m=>!m.resolved).length;
+                      const isActive=primaryScene.id===activeScene||chScenes.some(s=>s.id===activeScene);
+                      // Agnes scene break estimate from double line breaks and scene signals
+                      const estimateSceneBreaks=(text)=>{
+                        if(!text||text.length<200)return 0;
+                        const breaks=(text.match(/\n\s*\n/g)||[]).length;
+                        const timeSignals=(text.match(/\b(the next|that night|the following|hours later|days later|meanwhile|later that|the morning|that evening|that afternoon)\b/gi)||[]).length;
+                        return Math.max(0,Math.round((breaks+timeSignals)/2));
+                      };
+                      const sceneBreaks=estimateSceneBreaks(primaryScene.text);
+                      const [sceneBreakOpen,setSceneBreakOpen]=React.useState(false);
+                      return <div key={ch} style={{marginBottom:8}}>
+                        <div onClick={()=>{setActiveScene(primaryScene.id);saveStored("tt-activescene",primaryScene.id)}} style={{padding:"7px 10px",borderRadius:6,cursor:"pointer",fontSize:11,color:isActive?"var(--text-primary)":"var(--text-dim)",background:isActive?"var(--accent-0a)":"transparent",borderLeft:isActive?"2px solid var(--accent-60)":"2px solid transparent",transition:"all .2s",display:"flex",alignItems:"center",justifyContent:"space-between"}}>
+                          <div style={{flex:1,minWidth:0}}>
+                            <div style={{display:"flex",alignItems:"center",gap:6,marginBottom:2}}>
+                              <span style={{fontSize:11,fontWeight:500,color:isActive?"var(--accent)":"var(--text-muted)"}}>Chapter {ch}</span>
+                              {unresolvedMD>0&&<span style={{fontSize:9,background:"var(--accent-40)",color:"var(--accent)",borderRadius:10,padding:"1px 5px",flexShrink:0}}>{unresolvedMD}</span>}
+                            </div>
+                            {primaryScene.title&&<div style={{fontSize:9,color:"var(--text-dim)",fontStyle:"italic",marginBottom:2,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{primaryScene.title}</div>}
+                            <div style={{fontSize:9,color:"var(--text-dim)"}}>{getWordCount(primaryScene.text).toLocaleString()} words</div>
+                          </div>
+                        </div>
+                        {/* Agnes scene break estimate — collapsible, subtle */}
+                        {sceneBreaks>0&&<div style={{paddingLeft:14}}>
+                          <div onClick={()=>setSceneBreakOpen(x=>!x)} style={{fontSize:9,color:"var(--text-dim)",cursor:"pointer",padding:"2px 0",display:"flex",alignItems:"center",gap:4,fontFamily:"'DM Sans',sans-serif"}}>
+                            <span style={{opacity:0.6}}>~{sceneBreaks} scene{sceneBreaks!==1?"s":""}</span>
+                            <span style={{opacity:0.4,fontSize:8}}>{sceneBreakOpen?"▲":"▾"}</span>
+                          </div>
+                          {sceneBreakOpen&&primaryScene.text&&<div style={{paddingLeft:6,borderLeft:"1px solid var(--border)",marginTop:3}}>
+                            {(primaryScene.text.split(/\n\s*\n/).filter(p=>p.trim().length>20).slice(0,sceneBreaks+1).map((p,i)=>(
+                              <div key={i} style={{fontSize:9,color:"var(--text-dim)",padding:"2px 0",fontStyle:"italic",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>
+                                {i+1}. {p.trim().substring(0,45)}...
+                              </div>
+                            )))}
+                          </div>}
+                        </div>}
                       </div>;
                     })}
-                    <div onClick={()=>addScene(ch)} style={{padding:"4px 12px 4px 18px",fontSize:10,color:"var(--text-dim)",cursor:"pointer",fontStyle:"italic"}}>+ scene</div>
-                  </div>;
-                })}
-                <div onClick={addChapterWithScene} style={{fontSize:10,color:"var(--text-dim)",cursor:"pointer",fontStyle:"italic",padding:"4px 0"}}>+ chapter</div>
+                    <div onClick={addChapterWithScene} style={{fontSize:10,color:"var(--text-dim)",cursor:"pointer",fontStyle:"italic",padding:"6px 0",marginTop:4}}>+ chapter</div>
+                  </>;
+                })()}
               </div>
               <div style={{borderTop:"1px solid var(--border)",paddingTop:10,marginTop:"auto"}}>
                 <div style={{fontSize:9,color:"var(--text-dim)"}}>{getTotalWords()} words total</div>
@@ -3019,7 +3053,7 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
             {forgeMode==="manuscript"&&(currentScene?<>
               <div style={{padding:"12px 40px 10px",borderBottom:"1px solid var(--border)",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
                 <div style={{display:"flex",alignItems:"center",gap:12}}>
-                  <span style={{fontSize:11,color:"var(--text-muted)"}}>Chapter {currentScene.chapter}, Scene {currentScene.scene}</span>
+                  <span style={{fontSize:11,color:"var(--text-muted)"}}>Chapter {currentScene.chapter}</span>
                   <span style={{fontSize:10,color:"var(--text-dim)",marginLeft:4}}>{getWordCount(currentScene.text)} words</span>
                 </div>
                 <div style={{display:"flex",gap:8,alignItems:"center"}}>
@@ -3101,11 +3135,11 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
               <div style={{padding:"10px 40px 14px",borderTop:"1px solid var(--border)",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
                 <div style={{fontSize:10,color:"var(--text-dim)"}}>Auto-saved</div>
                 <div style={{display:"flex",gap:10}}>
-                  <span onClick={()=>{setFinnOpen(!finnOpen);if(!finnOpen&&containerMsgs.length===0){setContainerMsgs([{role:"assistant",content:`I'm reading Chapter ${currentScene.chapter}, Scene ${currentScene.scene}. ${getWordCount(currentScene.text)>0?"I can see what you're writing. Ask me anything about this scene, or tell me what you need.":"Empty page. Tell me what this scene needs to accomplish and I'll help you find the first line."}`}])}}} style={{fontSize:12,color:finnOpen?"var(--accent)":"var(--accent-90)",background:"var(--bg-card-alt)",border:"1px solid var(--border)",borderRadius:8,padding:"7px 16px",cursor:"pointer",fontWeight:500}}>{finnOpen?"Close Finn":"Ask Finn"}</span>
+                  <span onClick={()=>{setFinnOpen(!finnOpen);if(!finnOpen&&containerMsgs.length===0){setContainerMsgs([{role:"assistant",content:`I'm reading Chapter ${currentScene.chapter}. ${getWordCount(currentScene.text)>0?"I can see what you're writing. Ask me anything, or tell me what you need.":"Empty page. Tell me what this chapter needs to accomplish and I'll help you find the first line."}`}])}}} style={{fontSize:12,color:finnOpen?"var(--accent)":"var(--accent-90)",background:"var(--bg-card-alt)",border:"1px solid var(--border)",borderRadius:8,padding:"7px 16px",cursor:"pointer",fontWeight:500}}>{finnOpen?"Close Finn":"Ask Finn"}</span>
                   <span onClick={goHome} style={{fontSize:12,color:"var(--text-muted)",cursor:"pointer",padding:"7px 12px",background:"var(--bg-card-alt)",border:"1px solid var(--border)",borderRadius:8}}>Home</span>
                 </div>
               </div>
-            </>:<div style={{flex:1,display:"flex",alignItems:"center",justifyContent:"center"}}><p style={{color:"var(--text-dim)"}}>Select a scene or create one.</p></div>)}
+            </>:<div style={{flex:1,display:"flex",alignItems:"center",justifyContent:"center"}}><p style={{color:"var(--text-dim)"}}>Select a chapter or create one.</p></div>)}
           </div>
 
           {/* Right: Finn Panel */}
