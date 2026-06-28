@@ -848,14 +848,18 @@ export default function App() {
       setMsgs(saved);
     } else if(m.id==="rekindle"&&project){
       // Agnes-first Rekindle: reconstruct context from all available records
-      // Sort chapters by number so Agnes gets the highest-numbered chapter, not array order
       const sortedChaps=project.chapters&&Array.isArray(project.chapters)?[...project.chapters].filter(c=>c.summary).sort((a,b)=>a.num-b.num):[];
       const chapStr=sortedChaps.map(c=>`Chapter ${c.num}: ${c.summary}`).join("\n\n");
       const lastChap=sortedChaps.length>0?sortedChaps[sortedChaps.length-1]:null;
-      // Also get most recently edited manuscript content for re-entry grounding
-      const mostRecentScene=scenes.length>0?[...scenes].sort((a,b)=>(b.lastEdited||0)-(a.lastEdited||0))[0]:null;
-      const msLength=mostRecentScene?.text?.length||0;
-      const msEndText=msLength>600?mostRecentScene.text.substring(msLength-600):mostRecentScene?.text||"";
+      // Position anchor: highest chapter NUMBER with content, not most recently opened
+      // Opening an old chapter to review it shouldn't trick Agnes into thinking that's where the story is
+      const chapterNums=[...new Set(scenes.map(s=>s.chapter))].sort((a,b)=>a-b);
+      const highestChapterNum=chapterNums[chapterNums.length-1]||1;
+      const highestChapterText=scenes.filter(s=>s.chapter===highestChapterNum).map(s=>s.text||"").join("\n\n");
+      const hcLength=highestChapterText.length;
+      const msEndText=hcLength>600?highestChapterText.substring(hcLength-600):highestChapterText;
+      // Session Focus is the authoritative override — writer knows their own story structure
+      const sessionFocusOverride=(project.stuck||project.where)?`SESSION FOCUS (writer's own words — treat as authoritative override):\n${project.stuck?`Focused on: ${project.stuck}\n`:""}${project.where?`Where they are: ${project.where}`:""}`:""
       const sparkSnippet=sparks.length>0?sparks.slice(-3).map(s=>`"${s.text}"`).join(" | "):"";
       const lastSessionSnippet=sessionSummaries.length>0?`Last session (${sessionSummaries[0].date}) in ${sessionSummaries[0].mode}: ${sessionSummaries[0].keyInsight}. Open question: ${sessionSummaries[0].openQuestion}.`:"";
       const rekindleContext=`REKINDLE SESSION for ${userName||"this writer"}.
@@ -866,22 +870,22 @@ WOUND: ${project.protagonistWound||"not yet captured"}
 MISBELIEF: ${project.protagonistMisbelief||"not yet captured"}
 FEAR: ${project.protagonistFear||"not yet captured"}
 
-CHAPTER SUMMARIES (Agnes's authoritative record, sorted oldest to newest):
+${sessionFocusOverride}
+
+CHAPTER SUMMARIES IN BIBLE (oldest to newest):
 ${chapStr||"No chapters captured yet."}
 
 MOST RECENT CHAPTER IN BIBLE: ${lastChap?`Chapter ${lastChap.num}: ${lastChap.summary}`:"Unknown"}
 
-CURRENT MANUSCRIPT POSITION (most recently edited — where writing actually stopped):
-${mostRecentScene?`Chapter ${mostRecentScene.chapter} (${mostRecentScene.draftStatus||"in progress"}), last written:`:"No manuscript content yet."}
-${msEndText}
+CURRENT MANUSCRIPT POSITION (highest chapter number with content = Chapter ${highestChapterNum}):
+${msEndText||"No content yet."}
 
-WHERE THEY ARE: ${project.where||"not specified"}
-WHAT THEY WERE FOCUSED ON: ${project.stuck||"not specified"}
+IMPORTANT: This story may have multiple POV threads, flashbacks, or nonlinear structure. Do not assume the highest chapter number is the present-day timeline position. If Session Focus is provided above, use it as the authoritative anchor. If not, orient to the highest chapter and note if the timeline is unclear.
 
 ${lastSessionSnippet?`LAST SESSION:\n${lastSessionSnippet}`:""}
 ${sparkSnippet?`DOPAMINE MAP SPARKS:\n${sparkSnippet}`:""}
 
-The writer has been away. Reconstruct where they are RIGHT NOW based on the most recent chapter and manuscript position, not Chapter 1. Orient them to where the story currently lives. Deliver the re-entry brief now. Do not ask what they remember.`;
+The writer has been away. Reconstruct where they are RIGHT NOW. Orient to the furthest point in the story, not Chapter 1. Deliver the re-entry brief now. Do not ask what they remember.`;
       setMsgs([{role:"assistant",content:"Agnes kept the record while you were away. Give me one second and I'll tell you exactly where you are."}]);
       // Generate the full brief from the API
       fetch("/api/chat",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({
@@ -906,9 +910,12 @@ The writer has been away. Reconstruct where they are RIGHT NOW based on the most
       const sortedChaps=project.chapters&&Array.isArray(project.chapters)?[...project.chapters].filter(c=>c.summary).sort((a,b)=>a.num-b.num):[];
       const chapStr=sortedChaps.map(c=>`Chapter ${c.num}: ${c.summary}`).join("\n\n");
       const lastChap=sortedChaps.length>0?sortedChaps[sortedChaps.length-1]:null;
-      const mostRecentScene=scenes.length>0?[...scenes].sort((a,b)=>(b.lastEdited||0)-(a.lastEdited||0))[0]:null;
-      const msLength=mostRecentScene?.text?.length||0;
-      const msEndText=msLength>600?mostRecentScene.text.substring(msLength-600):mostRecentScene?.text||"";
+      const chapterNums=[...new Set(scenes.map(s=>s.chapter))].sort((a,b)=>a-b);
+      const highestChapterNum=chapterNums[chapterNums.length-1]||1;
+      const highestChapterText=scenes.filter(s=>s.chapter===highestChapterNum).map(s=>s.text||"").join("\n\n");
+      const hcLength=highestChapterText.length;
+      const msEndText=hcLength>600?highestChapterText.substring(hcLength-600):highestChapterText;
+      const sessionFocusOverride=(project.stuck||project.where)?`SESSION FOCUS (writer's own words — treat as authoritative override):\n${project.stuck?`Focused on: ${project.stuck}\n`:""}${project.where?`Where they are: ${project.where}`:""}`:""
       const sparkSnippet=sparks.length>0?sparks.slice(-3).map(s=>`"${s.text}"`).join(" | "):"";
       const lastSessionSnippet=sessionSummaries.length>0?`Last session (${sessionSummaries[0].date}) in ${sessionSummaries[0].mode}: ${sessionSummaries[0].keyInsight}. Open question: ${sessionSummaries[0].openQuestion}.`:"";
       const rekindleContext=`REKINDLE SESSION for ${userName||"this writer"}.
@@ -919,22 +926,22 @@ WOUND: ${project.protagonistWound||"not yet captured"}
 MISBELIEF: ${project.protagonistMisbelief||"not yet captured"}
 FEAR: ${project.protagonistFear||"not yet captured"}
 
-CHAPTER SUMMARIES (Agnes's authoritative record, sorted oldest to newest):
+${sessionFocusOverride}
+
+CHAPTER SUMMARIES IN BIBLE (oldest to newest):
 ${chapStr||"No chapters captured yet."}
 
 MOST RECENT CHAPTER IN BIBLE: ${lastChap?`Chapter ${lastChap.num}: ${lastChap.summary}`:"Unknown"}
 
-CURRENT MANUSCRIPT POSITION (most recently edited — where writing actually stopped):
-${mostRecentScene?`Chapter ${mostRecentScene.chapter} (${mostRecentScene.draftStatus||"in progress"}), last written:`:"No manuscript content yet."}
-${msEndText}
+CURRENT MANUSCRIPT POSITION (highest chapter number with content = Chapter ${highestChapterNum}):
+${msEndText||"No content yet."}
 
-WHERE THEY ARE: ${project.where||"not specified"}
-WHAT THEY WERE FOCUSED ON: ${project.stuck||"not specified"}
+IMPORTANT: This story may have multiple POV threads, flashbacks, or nonlinear structure. Do not assume the highest chapter number is the present-day timeline position. If Session Focus is provided above, use it as the authoritative anchor. If not, orient to the highest chapter and note if the timeline is unclear.
 
 ${lastSessionSnippet?`LAST SESSION:\n${lastSessionSnippet}`:""}
 ${sparkSnippet?`DOPAMINE MAP SPARKS:\n${sparkSnippet}`:""}
 
-The writer has been away. Reconstruct where they are RIGHT NOW based on the most recent chapter and manuscript position, not Chapter 1. Orient them to where the story currently lives. Deliver the re-entry brief now. Do not ask what they remember.`;
+The writer has been away. Reconstruct where they are RIGHT NOW. Orient to the furthest point in the story, not Chapter 1. Deliver the re-entry brief now. Do not ask what they remember.`;
       setMsgs([{role:"assistant",content:"Agnes kept the record while you were away. Give me one second and I'll tell you exactly where you are."}]);
       fetch("/api/chat",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({
         system:mode.sys,
