@@ -3571,7 +3571,7 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
               return <div key={i} style={{background:"var(--bg-card)",border:"1px solid "+(resolution==="evolving"?"var(--accent-40)":"var(--border)"),borderRadius:10,padding:"16px 18px",opacity:resolution&&!contextNote?0.75:1,transition:"all .2s"}}>
                 <div style={{fontSize:9,textTransform:"uppercase",letterSpacing:"0.14em",color:"var(--accent-80)",fontWeight:500,marginBottom:12,fontFamily:"'DM Sans',sans-serif",display:"flex",alignItems:"center",gap:8}}>
                   {drift.fieldLabel}
-                  {resolution&&<span style={{color:resolution==="evolving"?"var(--accent)":"var(--text-dim)",fontWeight:400}}>{resolution==="evolving"?"— Story is evolving":resolution==="keep"?"— Keeping original":"— Taking to Finn"}</span>}
+                  {resolution&&<span style={{color:resolution==="evolving"?"var(--accent)":resolution==="intentional"?"var(--text-muted)":resolution==="keep"?"var(--text-dim)":"var(--text-dim)",fontWeight:400}}>{resolution==="evolving"?"— Story is evolving":resolution==="intentional"?"— Intentional":resolution==="keep"?"— Keeping original":"— Taking to Finn"}</span>}
                 </div>
                 <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:12}}>
                   <div style={{background:"var(--bg-base)",borderRadius:8,padding:"10px 12px"}}>
@@ -3591,6 +3591,15 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
                 <div style={{marginBottom:12}}>
                   <textarea value={contextNote} onChange={e=>setDriftResolutions(prev=>({...prev,[`${i}_context`]:e.target.value}))} placeholder="Add context: what you know about why the story moved here, what's intentional, what's still evolving." rows={contextNote?3:2} style={{width:"100%",background:"var(--bg-base)",border:"1px solid var(--border)",borderRadius:6,padding:"8px 10px",outline:"none",resize:"vertical",fontFamily:"'Cormorant Garamond',serif",fontSize:13,color:"var(--text-primary)",lineHeight:1.6,fontStyle:contextNote?"normal":"italic"}}/>
                 </div>
+                {/* Finn acknowledgment when context is added and resolved */}
+                {resolution&&contextNote&&resolution!=="finn"&&<div style={{marginTop:8,padding:"8px 12px",background:"var(--bg-card-alt)",borderRadius:6,borderLeft:"2px solid var(--accent)"}}>
+                  <div style={{fontSize:9,color:"var(--accent)",fontFamily:"'DM Sans',sans-serif",fontWeight:600,letterSpacing:"0.1em",textTransform:"uppercase",marginBottom:4}}>Finn</div>
+                  <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:13,color:"var(--text-primary)",lineHeight:1.65,fontStyle:"italic"}}>
+                    {resolution==="evolving"
+                      ?"Noted. The story is moving and Agnes will follow it. That context you added is the right instinct to record."
+                      :"Noted. Keeping the original. Agnes has your reasoning on file."}
+                  </div>
+                </div>}
                 {!resolution&&<div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
                   <button onClick={()=>{
                     // Update the Bible field with the incoming content
@@ -3613,6 +3622,10 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
                     });
                     setDriftResolutions(prev=>({...prev,[i]:"evolving"}));
                   }} style={{background:"var(--accent)",border:"none",borderRadius:6,padding:"7px 14px",fontSize:12,color:"var(--bg-deepest)",cursor:"pointer",fontFamily:"'DM Sans',sans-serif",fontWeight:500}}>Story is evolving</button>
+                  <button onClick={()=>{
+                    // Intentional — dismiss without updating Bible, no questions asked
+                    setDriftResolutions(prev=>({...prev,[i]:"intentional"}));
+                  }} style={{background:"none",border:"1px solid var(--border)",borderRadius:6,padding:"7px 14px",fontSize:12,color:"var(--text-muted)",cursor:"pointer",fontFamily:"'DM Sans',sans-serif"}}>This is intentional</button>
                   <button onClick={()=>{
                     // Keep original but save the writer's reasoning so Agnes doesn't flag this again
                     if(contextNote&&contextNote.trim()){
@@ -3644,6 +3657,8 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
                     if(driftMode){const driftContext=`Agnes flagged a drift in Chapter ${driftResult.chapterNum} on ${drift.fieldLabel}.\n\nStory Bible says: ${drift.existing}\n\nChapter shows: ${drift.incoming}\n\n${drift.question}${contextNote?`\n\nWriter's context: ${contextNote}`:""}`; setDriftOpen(false);pick(driftMode);setTimeout(()=>setMsgs(prev=>[...prev,{role:"user",content:driftContext}]),300);}
                   }} style={{background:"none",border:"1px solid var(--accent-30)",borderRadius:6,padding:"7px 14px",fontSize:12,color:"var(--accent)",cursor:"pointer",fontFamily:"'DM Sans',sans-serif"}}>Ask Finn</button>
                 </div>}
+                {/* Update resolution label to include intentional */}
+                {resolution==="intentional"&&<div style={{fontSize:11,color:"var(--text-dim)",fontFamily:"'DM Sans',sans-serif",fontStyle:"italic",marginTop:6}}>Marked as intentional. Agnes has the note.</div>}
               </div>;
             })}
           </div>
