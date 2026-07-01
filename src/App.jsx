@@ -581,6 +581,7 @@ export default function App() {
   const [driftOpen, setDriftOpen] = useState(false);
   const [driftLoading, setDriftLoading] = useState(false);
   const [driftResolutions, setDriftResolutions] = useState({});
+  const [driftFinnResponses, setDriftFinnResponses] = useState({});
   const [forgeMode, setForgeMode] = useState("manuscript");
   const [ideaLabText, setIdeaLabText] = useState("");
   const [ideaLabBuckets, setIdeaLabBuckets] = useState({characters:[],plot:[],world:[],questions:[],fragments:[]});
@@ -1707,7 +1708,7 @@ Respond with ONLY this JSON:
       };
     }
     // Loading state
-    if(agnesBriefLoading) return {msg:"Agnes is reading your story...",action:null,label:""};
+    if(agnesBriefLoading) return {msg:"Finn is reading your story...",action:null,label:""};
     // Fallbacks when Agnes hasn't generated yet
     const away=getTimeAway();
     const isLong=away&&(away.includes("day")||(away.includes("hour")&&parseInt(away)>=12));
@@ -2203,7 +2204,7 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
                       <div style={{width:3,height:20,background:"#B8A870",borderRadius:2,flexShrink:0}}/>
                       <p style={{fontFamily:"'Cormorant Garamond',serif",fontSize:13,color:"#7A6A50",margin:0}}>{sparks.length} spark{sparks.length>1?"s":""} saved on the Dopamine Map</p>
                     </div>}
-                    <p style={{fontFamily:"'Cormorant Garamond',serif",fontSize:15,fontStyle:"italic",color:"#3A3428",marginTop:20,marginBottom:0,textAlign:"center"}}>{isLongAway?"No guilt. The project waited. So did I.":"Your story is waiting."}</p>
+                    <p style={{fontFamily:"'Cormorant Garamond',serif",fontSize:15,fontStyle:"italic",color:"#3A3428",marginTop:20,marginBottom:0,textAlign:"center"}}>Your story is right where you left it.</p>
                   </>;
                 })()}
               </div>}
@@ -3591,14 +3592,28 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
                 <div style={{marginBottom:12}}>
                   <textarea value={contextNote} onChange={e=>setDriftResolutions(prev=>({...prev,[`${i}_context`]:e.target.value}))} placeholder="Add context: what you know about why the story moved here, what's intentional, what's still evolving." rows={contextNote?3:2} style={{width:"100%",background:"var(--bg-base)",border:"1px solid var(--border)",borderRadius:6,padding:"8px 10px",outline:"none",resize:"vertical",fontFamily:"'Cormorant Garamond',serif",fontSize:13,color:"var(--text-primary)",lineHeight:1.6,fontStyle:contextNote?"normal":"italic"}}/>
                 </div>
-                {/* Finn acknowledgment when context is added and resolved */}
+                {/* Finn responds specifically to context note after resolution */}
                 {resolution&&contextNote&&resolution!=="finn"&&<div style={{marginTop:8,padding:"8px 12px",background:"var(--bg-card-alt)",borderRadius:6,borderLeft:"2px solid var(--accent)"}}>
                   <div style={{fontSize:9,color:"var(--accent)",fontFamily:"'DM Sans',sans-serif",fontWeight:600,letterSpacing:"0.1em",textTransform:"uppercase",marginBottom:4}}>Finn</div>
-                  <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:13,color:"var(--text-primary)",lineHeight:1.65,fontStyle:"italic"}}>
-                    {resolution==="evolving"
-                      ?"Noted. The story is moving and Agnes will follow it. That context you added is the right instinct to record."
-                      :"Noted. Keeping the original. Agnes has your reasoning on file."}
-                  </div>
+                  {driftFinnResponses[i]
+                    ?<div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:13,color:"var(--text-primary)",lineHeight:1.65,fontStyle:"italic"}}>{driftFinnResponses[i]}</div>
+                    :<div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:13,color:"var(--text-dim)",lineHeight:1.65,fontStyle:"italic"}}>{(()=>{
+                      // Fire API call to get Finn's specific response to the context
+                      if(!driftFinnResponses[`${i}_loading`]){
+                        setDriftFinnResponses(prev=>({...prev,[`${i}_loading`]:true}));
+                        const prompt=`The writer added context about a Story Bible drift Agnes flagged.\n\nField: ${drift.fieldLabel}\nBible says: ${drift.existing}\nChapter shows: ${drift.incoming}\nWriter's context: "${contextNote}"\nResolution: ${resolution==="evolving"?"Story is evolving":"Keeping original"}\n\nRespond in one or two sentences in Finn's voice. Read what the writer actually wrote and respond to the specific content — what they said about their character or story choice. Don't be generic. Don't say "noted." Don't say "great." Find the one thing in their context worth pointing at. Be direct, warm underneath, dry wit if it fits. No em dashes.`;
+                        fetch("/api/chat",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({
+                          system:FINN,
+                          messages:[{role:"user",content:prompt}]
+                        })}).then(r=>r.json()).then(d=>{
+                          if(!d.error){
+                            const txt=finnClean(d.content?.filter(b=>b.type==="text").map(b=>b.text).join("")||"");
+                            if(txt) setDriftFinnResponses(prev=>({...prev,[i]:txt,[`${i}_loading`]:false}));
+                          }
+                        }).catch(()=>setDriftFinnResponses(prev=>({...prev,[`${i}_loading`]:false})));
+                      }
+                      return "Finn is reading your note...";
+                    })()}</div>}
                 </div>}
                 {!resolution&&<div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
                   <button onClick={()=>{
