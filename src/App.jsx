@@ -887,7 +887,7 @@ ${lastSessionSnippet?`LAST SESSION:\n${lastSessionSnippet}`:""}
 ${sparkSnippet?`DOPAMINE MAP SPARKS:\n${sparkSnippet}`:""}
 
 The writer has been away. Reconstruct where they are RIGHT NOW. Orient to the furthest point in the story, not Chapter 1. Deliver the re-entry brief now. Do not ask what they remember.`;
-      setMsgs([{role:"assistant",content:"Agnes kept the record while you were away. Give me one second and I'll tell you exactly where you are."}]);
+      setMsgs([{role:"assistant",content:agnesBrief?.rekindleAnchor||"Agnes kept the record while you were away. Give me one second and I'll tell you exactly where you are."}]);
       // Generate the full brief from the API
       fetch("/api/chat",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({
         system:m.sys,
@@ -943,7 +943,7 @@ ${lastSessionSnippet?`LAST SESSION:\n${lastSessionSnippet}`:""}
 ${sparkSnippet?`DOPAMINE MAP SPARKS:\n${sparkSnippet}`:""}
 
 The writer has been away. Reconstruct where they are RIGHT NOW. Orient to the furthest point in the story, not Chapter 1. Deliver the re-entry brief now. Do not ask what they remember.`;
-      setMsgs([{role:"assistant",content:"Agnes kept the record while you were away. Give me one second and I'll tell you exactly where you are."}]);
+      setMsgs([{role:"assistant",content:agnesBrief?.rekindleAnchor||"Agnes kept the record while you were away. Give me one second and I'll tell you exactly where you are."}]);
       fetch("/api/chat",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({
         system:mode.sys,
         messages:[{role:"user",content:rekindleContext}]
@@ -1306,29 +1306,39 @@ If the fields above don't contain actual sensory description, return sensoryAnch
     }
     setAgnesBriefLoading(true);
     try{
-      // Build chapter context weighted by draft status
-      const chapStr=project.chapters&&Array.isArray(project.chapters)?
-        project.chapters.filter(c=>c.summary).map(c=>{
-          const scn=scenes.find(s=>s.chapter===c.num);
-          const status=scn?.draftStatus||"in-progress";
-          return `Chapter ${c.num} (${status==="complete"?"COMPLETE, treat as authoritative":"IN PROGRESS, treat as partial"}): ${c.summary}`;
-        }).join("\n\n"):"";
-      // Get most recently edited scene, send first+last of manuscript
-      const activeScn=scenes.find(s=>s.id===activeScene)||[...scenes].sort((a,b)=>(b.lastEdited||0)-(a.lastEdited||0))[0];
-      const fullMs=activeScn?.text||"";
-      const msLen=fullMs.length;
+      // Build chapter context — sorted by number, weighted by draft status
+      const sortedChaps=project.chapters&&Array.isArray(project.chapters)
+        ?[...project.chapters].filter(c=>c.summary).sort((a,b)=>a.num-b.num)
+        :[];
+      const chapStr=sortedChaps.map(c=>{
+        const scn=scenes.find(s=>s.chapter===c.num);
+        const status=scn?.draftStatus||"in-progress";
+        return `Chapter ${c.num} (${status==="complete"?"COMPLETE, treat as authoritative":"IN PROGRESS, treat as partial"}): ${c.summary}`;
+      }).join("\n\n");
+      const lastBibleChap=sortedChaps.length>0?sortedChaps[sortedChaps.length-1]:null;
+
+      // POSITION ANCHOR: highest chapter number with content, not most recently touched
+      // Opening an old chapter to review it shouldn't trick Agnes into thinking that's where the story is
+      const chapterNums=[...new Set(scenes.map(s=>s.chapter))].sort((a,b)=>a-b);
+      const highestChNum=chapterNums[chapterNums.length-1]||1;
+      const highestChScenes=scenes.filter(s=>s.chapter===highestChNum);
+      const highestChText=highestChScenes.map(s=>s.text||"").join("\n\n");
+      const msLen=highestChText.length;
       let msText="";
-      if(msLen<=3000) msText=fullMs;
+      if(msLen<=3000) msText=highestChText;
       else if(msLen<=8000){
-        msText=`${fullMs.substring(0,800)}\n\n[...approximately ${Math.round(msLen/5)} words continue...]\n\n${fullMs.substring(msLen-800)}`;
+        msText=`${highestChText.substring(0,800)}\n\n[...approximately ${Math.round(msLen/5)} words continue...]\n\n${highestChText.substring(msLen-800)}`;
       } else {
-        msText=`${fullMs.substring(0,1000)}\n\n[...approximately ${Math.round(msLen/5)} words continue...]\n\n${fullMs.substring(msLen-1000)}`;
+        msText=`${highestChText.substring(0,1000)}\n\n[...approximately ${Math.round(msLen/5)} words continue...]\n\n${highestChText.substring(msLen-1000)}`;
       }
+      const highestChDraftStatus=highestChScenes[0]?.draftStatus||"in-progress";
+
       // Session history for open craft question
       const lastSessionNote=sessionSummaries.length>0?`Last session: ${sessionSummaries[0].date} in ${sessionSummaries[0].mode}. Key insight: ${sessionSummaries[0].keyInsight}. Open question: ${sessionSummaries[0].openQuestion}.`:"";
+      // Session Focus override — writer's own words about where they are
+      const sessionFocusNote=(project.stuck||project.where)?`SESSION FOCUS (writer's own words — treat as authoritative if conflicts with chapter position):\n${project.stuck?`Focused on: ${project.stuck}\n`:""}${project.where?`Where they are: ${project.where}`:""}`:""
       // Time away
       const away=getTimeAway();
-      const isLongAway=away&&(away.includes("day")||(away.includes("hour")&&parseInt(away)>=12));
 
       const prompt=`You are Agnes. Meticulous. Direct. Slightly pointed. You have read everything. You never invent details not present in the sources. You cross-reference the Bible and the manuscript before saying anything.
 
@@ -1339,14 +1349,18 @@ Protagonist: ${project.protagonist||"not yet captured"}
 Wound: ${project.protagonistWound||"not yet captured"}
 Misbelief: ${project.protagonistMisbelief||"not yet captured"}
 Fear: ${project.protagonistFear||"not yet captured"}
-Focused on: ${project.stuck||"not specified"}
-Where they are: ${project.where||"not specified"}
 
-CHAPTER SUMMARIES:
+${sessionFocusNote}
+
+CHAPTER SUMMARIES (sorted oldest to newest, authoritative record):
 ${chapStr||"No chapters captured yet."}
 
-CURRENT MANUSCRIPT (Chapter ${activeScn?.chapter||"?"}, Scene ${activeScn?.scene||"?"}, ${activeScn?.draftStatus||"in-progress"}):
+MOST RECENT CHAPTER IN BIBLE: ${lastBibleChap?`Chapter ${lastBibleChap.num}: ${lastBibleChap.summary}`:"None yet."}
+
+CURRENT MANUSCRIPT POSITION (highest chapter number with content = Chapter ${highestChNum}, ${highestChDraftStatus}):
 ${msText||"No manuscript content yet."}
+
+NOTE: This story may have multiple POV threads or nonlinear structure. If Session Focus is provided above, use it as the authoritative position anchor. Otherwise orient to the highest chapter.
 
 ${lastSessionNote?`SESSION HISTORY:\n${lastSessionNote}`:""}
 
@@ -1355,23 +1369,33 @@ TIME AWAY: ${away||"unknown"}
 YOUR TASK: Generate a structured brief that feeds Finn's Read on the home screen. Finn will read this brief and speak directly to the writer in his own voice. You are writing for Finn, not for the writer.
 
 The brief must contain:
-1. finnRead: What Finn should say to the writer. 2-3 sentences maximum. Specific to this story, this moment, this writer. Must name a specific story element (character, scene, moment) not a generic observation. Must end with either a clear direction or a question that makes the writer want to open the manuscript immediately. Never "what do you want to work on today." Never generic. If the writer has been away a long time, acknowledge it in ONE word or phrase ("It's been a while") then move immediately to the story. Never count the days in the main read.
-2. nextStoryBeat: The specific story moment the manuscript needs next. One sentence. Pure story, not coaching. What happens, to whom, what it accomplishes emotionally.
-3. emotionalGoal: The emotional effect the next scene should achieve. 5 words or less.
-4. routeTo: The best mode or action to route "Let's go" to. One of: "forge", "rekindle", "diagnose", "character", "scene", "plot", "voice", "micro", "smoke", "instinct", "contain". If the writer has been away long, use "rekindle". If the manuscript is empty, use "forge". Otherwise route to the most useful mode given what you see.
-5. routeLabel: What the "Let's go" button should say. Specific and action-oriented. Not just "Let's go." Examples: "Write that scene", "Open Chapter 4", "Work on Kris", "Go to The Forge".
-6. agnesNote: One sentence Agnes would say about what she read to generate this. Direct. Slightly pointed. No flattery.
-7. thinBible: true if the protagonist fields are mostly empty and Agnes is working from chapter text only, false otherwise.
+
+1. finnRead: What Finn should say to the writer. 2-3 sentences maximum. Specific to this story, this moment. Must name a specific story element (character, scene, moment) from the actual content. Must end with a direction or question that makes the writer want to open the manuscript immediately. Never "what do you want to work on today." Never generic.
+
+2. rekindleAnchor: A story-specific opening line for if the writer uses Rekindle. Three beats: (a) where the protagonist physically is right now based on the highest chapter, (b) what just happened and what the character is doing psychologically with it, (c) Finn's dry forward pull. Example structure: "You're back. [Character] is [physical position], and [what just happened / what character is doing with it]. [Dry forward pull that creates urgency without guilt]." Must use the writer's name if known. Must be specific to THIS story, never generic.
+
+3. nextStoryBeat: The specific story moment the manuscript needs next. One sentence. Pure story, not coaching. What happens, to whom, what it accomplishes emotionally.
+
+4. emotionalGoal: The emotional effect the next scene should achieve. 5 words or less.
+
+5. routeTo: The best mode to route "Let's go" to. One of: "forge", "rekindle", "diagnose", "character", "scene", "plot", "voice", "micro", "smoke", "instinct", "contain". If writer has been away long, use "rekindle". If manuscript is empty, use "forge". Otherwise route to most useful mode.
+
+6. routeLabel: What the "Let's go" button should say. Specific and action-oriented. Not just "Let's go." Examples: "Write the threshold scene", "Open Chapter 14", "Work on Evangeline", "Write Emma's answer".
+
+7. agnesNote: One sentence Agnes would say about what she read to generate this brief. Direct. Slightly pointed. References what she actually read. Example: "The manuscript cuts at the highest-voltage line it has and then stops. That is not a resting place." No flattery.
+
+8. thinBible: true if protagonist fields are mostly empty and Agnes is working from chapter text only, false otherwise.
 
 Rules:
 - Never use em dashes. Use commas, colons, or periods instead.
 - Never invent story details not present in the sources.
-- If the Bible is thin, acknowledge it honestly in the finnRead rather than faking a rich response.
+- If the Bible is thin, acknowledge it honestly in finnRead rather than faking a rich response.
 - If there is no content at all, finnRead should invite the writer to share their story.
 - Keep finnRead under 60 words.
+- rekindleAnchor should be 40-60 words, specific, dry, forward-pulling.
 
 Respond ONLY with a JSON object. No markdown. No backticks. No explanation.
-{"finnRead":"","nextStoryBeat":"","emotionalGoal":"","routeTo":"forge","routeLabel":"Let's go","agnesNote":"","thinBible":false}`;
+{"finnRead":"","rekindleAnchor":"","nextStoryBeat":"","emotionalGoal":"","routeTo":"forge","routeLabel":"Let's go","agnesNote":"","thinBible":false}`;
 
       const r=await fetch("/api/chat",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({
         model:"claude-sonnet-4-6",
@@ -1388,14 +1412,15 @@ Respond ONLY with a JSON object. No markdown. No backticks. No explanation.
             const clean=(s)=>s?s.replace(/—/g,",").replace(/\s,/g,","):s;
             const brief={
               finnRead:clean(parsed.finnRead),
+              rekindleAnchor:clean(parsed.rekindleAnchor)||"",
               nextStoryBeat:clean(parsed.nextStoryBeat)||"",
               emotionalGoal:clean(parsed.emotionalGoal)||"",
               routeTo:parsed.routeTo||"forge",
               routeLabel:clean(parsed.routeLabel)||"Let's go",
               agnesNote:clean(parsed.agnesNote)||"",
               thinBible:parsed.thinBible||false,
-              chapterNum:activeScn?.chapter||null,
-              sceneId:activeScn?.id||null,
+              chapterNum:highestChNum||null,
+              sceneId:highestChScenes[0]?.id||null,
               time:Date.now()
             };
             setAgnesBrief(brief);
@@ -2333,7 +2358,7 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
                 {(route.nextStoryBeat||route.agnesNote)&&<div style={{marginTop:14,paddingTop:12,borderTop:"1px solid var(--border)"}}>
                   {route.nextStoryBeat&&<div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:13,color:"var(--text-muted)",lineHeight:1.65,marginBottom:6,fontStyle:"italic"}}>{route.nextStoryBeat}</div>}
                   {route.emotionalGoal&&<div style={{fontSize:10,color:"var(--text-dim)",fontFamily:"'DM Sans',sans-serif",marginBottom:8}}>Emotional goal: {route.emotionalGoal}</div>}
-                  {route.agnesNote&&<div style={{fontSize:10,color:"var(--text-dim)",fontFamily:"'DM Sans',sans-serif",fontStyle:"italic",lineHeight:1.5}}>A: {route.agnesNote}</div>}
+                  {route.agnesNote&&<div style={{fontSize:10,color:"var(--text-dim)",fontFamily:"'DM Sans',sans-serif",fontStyle:"italic",lineHeight:1.5}}><span style={{color:"var(--accent-60)",fontWeight:500,fontStyle:"normal"}}>A:</span> {route.agnesNote}</div>}
                   <div onClick={()=>{saveStored("tt-agnesbrief",null);setAgnesBrief(null);setTimeout(()=>generateAgnesBrief(true),100);}} style={{fontSize:10,color:"var(--text-dim)",cursor:"pointer",marginTop:8,fontFamily:"'DM Sans',sans-serif"}}>Refresh Finn's Read</div>
                 </div>}
               </>:<div className="sb" onClick={()=>setScreen("setup")} style={{background:"var(--accent)",border:"none",borderRadius:8,padding:"11px 24px",textAlign:"center",cursor:"pointer"}}>
@@ -3589,7 +3614,8 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
                 </div>
                 {/* Add Context field */}
                 <div style={{marginBottom:12}}>
-                  <textarea value={contextNote} onChange={e=>setDriftResolutions(prev=>({...prev,[`${i}_context`]:e.target.value}))} placeholder="Add context: what you know about why the story moved here, what's intentional, what's still evolving." rows={contextNote?3:2} style={{width:"100%",background:"var(--bg-base)",border:"1px solid var(--border)",borderRadius:6,padding:"8px 10px",outline:"none",resize:"vertical",fontFamily:"'Cormorant Garamond',serif",fontSize:13,color:"var(--text-primary)",lineHeight:1.6,fontStyle:contextNote?"normal":"italic"}}/>
+                  <div style={{fontSize:9,color:"var(--text-dim)",fontFamily:"'DM Sans',sans-serif",marginBottom:5,fontStyle:"italic"}}>Add context for Agnes — saved when you resolve below</div>
+                  <textarea value={contextNote} onChange={e=>setDriftResolutions(prev=>({...prev,[`${i}_context`]:e.target.value}))} placeholder="What you know about why the story moved here, what's intentional, what's still evolving." rows={contextNote?3:2} style={{width:"100%",background:"var(--bg-base)",border:"1px solid var(--border)",borderRadius:6,padding:"8px 10px",outline:"none",resize:"vertical",fontFamily:"'Cormorant Garamond',serif",fontSize:13,color:"var(--text-primary)",lineHeight:1.6,fontStyle:contextNote?"normal":"italic"}}/>
                 </div>
                 {/* Finn responds specifically to context note after resolution */}
                 {resolution&&contextNote&&resolution!=="finn"&&<div style={{marginTop:8,padding:"8px 12px",background:"var(--bg-card-alt)",borderRadius:6,borderLeft:"2px solid var(--accent)"}}>
