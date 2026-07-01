@@ -2204,7 +2204,6 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
                       <div style={{width:3,height:20,background:"#B8A870",borderRadius:2,flexShrink:0}}/>
                       <p style={{fontFamily:"'Cormorant Garamond',serif",fontSize:13,color:"#7A6A50",margin:0}}>{sparks.length} spark{sparks.length>1?"s":""} saved on the Dopamine Map</p>
                     </div>}
-                    <p style={{fontFamily:"'Cormorant Garamond',serif",fontSize:15,fontStyle:"italic",color:"#3A3428",marginTop:20,marginBottom:0,textAlign:"center"}}>Your story is right where you left it.</p>
                   </>;
                 })()}
               </div>}
