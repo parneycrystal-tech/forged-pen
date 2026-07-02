@@ -1350,17 +1350,19 @@ Respond ONLY with a JSON object. No markdown. No backticks.
         const cleaned=raw.replace(/```json|```/g,"").trim();
         try{
           const parsed=JSON.parse(cleaned);
-          const updatedEmbers=embers.map(e=>e.id===ember.id?{
-            ...e,
-            agnesAnalysis:{
-              placementHypothesis:parsed.placementHypothesis||"",
-              characterTag:parsed.characterTag||"",
-              tensionNote:parsed.tensionNote||"",
-              generatedAt:Date.now()
-            }
-          }:e);
-          setEmbers(updatedEmbers);
-          saveStored("tt-embers",updatedEmbers);
+          setEmbers(prev=>{
+            const updatedEmbers=prev.map(e=>e.id===ember.id?{
+              ...e,
+              agnesAnalysis:{
+                placementHypothesis:parsed.placementHypothesis||"",
+                characterTag:parsed.characterTag||"",
+                tensionNote:parsed.tensionNote||"",
+                generatedAt:Date.now()
+              }
+            }:e);
+            saveStored("tt-embers",updatedEmbers);
+            return updatedEmbers;
+          });
         }catch(e){console.log("Ember analysis parse error:",e);}
       }
     }catch(e){console.log("Ember analysis error:",e);}
