@@ -520,7 +520,7 @@ export default function App() {
   const [flipped, setFlipped] = useState(false);
   const [loadMsg, setLoadMsg] = useState(LOAD[Math.floor(Math.random()*LOAD.length)]);
   const [project, setProject] = useState(null);
-  const [pForm, setPForm] = useState({title:"",genre:"",synopsis:"",protagonist:"",protagonistGoal:"",protagonistDream:"",protagonistFear:"",protagonistWound:"",protagonistBackstory:"",protagonistMisbelief:"",supporting:"",antagonist:"",worldSetting:"",worldRules:"",worldBeliefs:"",worldDanger:"",worldTone:"",chapters:[{num:1,summary:""}],where:"",stuck:"",excites:"",currentChapter:""});
+  const [pForm, setPForm] = useState({title:"",genre:"",synopsis:"",protagonist:"",protagonistGoal:"",protagonistDream:"",protagonistFear:"",protagonistWound:"",protagonistBackstory:"",protagonistMisbelief:"",supporting:"",antagonist:"",worldSetting:"",worldRules:"",worldMythology:"",worldBeliefs:"",worldDanger:"",worldTone:"",chapters:[{num:1,summary:""}],where:"",stuck:"",excites:"",currentChapter:""});
   const [sparks, setSparks] = useState([]);
   const [flaggedIdx, setFlaggedIdx] = useState(null);
   const [ideaLabSparked, setIdeaLabSparked] = useState(false);
@@ -582,6 +582,7 @@ export default function App() {
   const [driftLoading, setDriftLoading] = useState(false);
   const [driftResolutions, setDriftResolutions] = useState({});
   const [driftFinnResponses, setDriftFinnResponses] = useState({});
+  const [driftQueue, setDriftQueue] = useState([]);
   const [forgeMode, setForgeMode] = useState("manuscript");
   const [ideaLabText, setIdeaLabText] = useState("");
   const [ideaLabBuckets, setIdeaLabBuckets] = useState({characters:[],plot:[],world:[],questions:[],fragments:[]});
@@ -688,7 +689,15 @@ export default function App() {
     if (fsdis) setFirstSessionDismissed(true);
     if (fsmsgs && fsmsgs.length>0) setFirstSessionMsgs(fsmsgs);
     if (fscap && Object.keys(fscap).length>0) setFirstSessionCapture(fscap);
-    if (pdr) { setDriftResult(pdr.driftResult); setDriftResolutions(pdr.driftResolutions||{}); /* do NOT auto-open — home screen indicator handles this */ }
+    if (pdr) {
+      // Support both old single-slot format and new array format
+      const queue=Array.isArray(pdr)?pdr:[pdr];
+      if(queue.length>0){
+        setDriftResult(queue[0].driftResult);
+        setDriftResolutions(queue[0].driftResolutions||{});
+        setDriftQueue(queue);
+      }
+    }
     if (pex) { setExtractResult(pex); setExtractOpen(true); }
   };
 
@@ -823,7 +832,7 @@ export default function App() {
     const currentScene=scenes.find(s=>s.id===activeScene);
     const sceneCtx=currentScene?`\n\nCURRENT SCENE (Chapter ${currentScene.chapter}, Scene ${currentScene.scene}):\n${currentScene.text||"(empty, writer hasn't started yet)"}`:""
     const chapStr=project?.chapters?(Array.isArray(project.chapters)?project.chapters.filter(c=>c.summary).map(c=>`Ch${c.num}: ${c.summary}`).join(". "):project.chapters):"";
-    const pCtx=project?`\n\nPROJECT: "${project.title}". Genre: ${project.genre}. Synopsis: ${project.synopsis}. Protagonist: ${project.protagonist}. Goal: ${project.protagonistGoal||"not yet captured"}. Dream: ${project.protagonistDream||"not yet captured"}. Fear: ${project.protagonistFear||"not yet captured"}. Wound: ${project.protagonistWound||"not yet captured"}. Backstory: ${project.protagonistBackstory||"not yet captured"}. Misbelief: ${project.protagonistMisbelief||"not yet captured"}. Supporting: ${project.supporting}. Antagonist: ${project.antagonist}. Setting: ${project.worldSetting}. Rules: ${project.worldRules}. Beliefs vs Reality: ${project.worldBeliefs}. Danger: ${project.worldDanger}. Tone: ${project.worldTone}. Chapters (these summaries are the authoritative record established by Agnes — treat them as ground truth, do not re-interpret or contradict them): ${chapStr}. Position: ${project.where}. Stuck: ${project.stuck}. Excites: ${project.excites}.`:"";
+    const pCtx=project?`\n\nPROJECT: "${project.title}". Genre: ${project.genre}. Synopsis: ${project.synopsis}. Protagonist: ${project.protagonist}. Goal: ${project.protagonistGoal||"not yet captured"}. Dream: ${project.protagonistDream||"not yet captured"}. Fear: ${project.protagonistFear||"not yet captured"}. Wound: ${project.protagonistWound||"not yet captured"}. Backstory: ${project.protagonistBackstory||"not yet captured"}. Misbelief: ${project.protagonistMisbelief||"not yet captured"}. Supporting: ${project.supporting}. Antagonist: ${project.antagonist}. Setting: ${project.worldSetting}. Rules: ${project.worldRules}. Mythology & Paranormal Rules: ${project.worldMythology||"not yet captured"}. Beliefs vs Reality: ${project.worldBeliefs}. Danger: ${project.worldDanger}. Tone: ${project.worldTone}. Chapters (these summaries are the authoritative record established by Agnes — treat them as ground truth, do not re-interpret or contradict them): ${chapStr}. Position: ${project.where}. Stuck: ${project.stuck}. Excites: ${project.excites}.`:"";
     const sparkCtx=sparks.length>0?`\n\nDOPAMINE MAP: ${sparks.map(s=>s.text).join(" | ")}`:"";
     const nm=[...containerMsgs,{role:"user",content:userText}];setContainerMsgs(nm);setContainerInput("");setLoading(true);
     const ctrl=new AbortController();abortRef.current=ctrl;
@@ -1187,11 +1196,19 @@ If there is no genuine drift, only additions or elaborations, return: {"drifts":
         try{
           const result=JSON.parse(cleaned);
           if(result.drifts&&result.drifts.length>0){
+            const newDriftEntry={driftResult:{drifts:result.drifts,chapterNum:extractResult.chapterNum},driftResolutions:{}};
+            // Append to queue instead of overwriting — each chapter's drifts get their own slot
+            setDriftQueue(prev=>{
+              const existing=Array.isArray(prev)?prev:[];
+              // Don't add duplicate entry for same chapter
+              const filtered=existing.filter(e=>e.driftResult.chapterNum!==extractResult.chapterNum);
+              const newQueue=[...filtered,newDriftEntry];
+              saveStored("tt-pending-drift",newQueue);
+              return newQueue;
+            });
             setDriftResult({drifts:result.drifts,chapterNum:extractResult.chapterNum});
             setDriftResolutions({});
             setDriftOpen(true);
-            // Persist so it survives navigation (e.g. Ask Finn)
-            saveStored("tt-pending-drift",{driftResult:{drifts:result.drifts,chapterNum:extractResult.chapterNum},driftResolutions:{}});
           }
         }catch(e){console.log("Drift parse error:",e);}
       }
@@ -1809,7 +1826,7 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
     const userText=input.trim();
     setLastThought(userText);saveStored("tt-lastthought",userText);
     const chapStr = project?.chapters ? (Array.isArray(project.chapters) ? project.chapters.filter(c=>c.summary).map(c=>`Ch${c.num}: ${c.summary}`).join(". ") : project.chapters) : "";
-    const pCtx = project ? `\n\nPROJECT: "${project.title}". Genre: ${project.genre}. Synopsis: ${project.synopsis}. Protagonist: ${project.protagonist}. Supporting Characters: ${project.supporting}. Antagonist: ${project.antagonist}. Core Setting: ${project.worldSetting}. World Rules: ${project.worldRules}. What People Believe vs Reality: ${project.worldBeliefs}. What Makes This World Dangerous: ${project.worldDanger}. World Tone: ${project.worldTone}. Chapters so far (these summaries are the authoritative record established by Agnes — treat them as ground truth, do not re-interpret or contradict them): ${chapStr}. Current point: ${project.where}. Focused on: ${project.stuck}. What excites them: ${project.excites}.${project.currentChapter?` CURRENT CHAPTER TEXT (use this for line-level craft coaching only — for story facts and character psychology, defer to the chapter summaries above): ${project.currentChapter}`:""}` : "";
+    const pCtx = project ? `\n\nPROJECT: "${project.title}". Genre: ${project.genre}. Synopsis: ${project.synopsis}. Protagonist: ${project.protagonist}. Supporting Characters: ${project.supporting}. Antagonist: ${project.antagonist}. Core Setting: ${project.worldSetting}. World Rules: ${project.worldRules}. Mythology & Paranormal Rules: ${project.worldMythology||"not yet captured"}. What People Believe vs Reality: ${project.worldBeliefs}. What Makes This World Dangerous: ${project.worldDanger}. World Tone: ${project.worldTone}. Chapters so far (these summaries are the authoritative record established by Agnes — treat them as ground truth, do not re-interpret or contradict them): ${chapStr}. Current point: ${project.where}. Focused on: ${project.stuck}. What excites them: ${project.excites}.${project.currentChapter?` CURRENT CHAPTER TEXT (use this for line-level craft coaching only — for story facts and character psychology, defer to the chapter summaries above): ${project.currentChapter}`:""}` : "";
     const sparkCtx = sparks.length > 0 ? `\n\nDOPAMINE MAP (moments the writer flagged as exciting): ${sparks.map(s=>s.text).join(" | ")}` : "";
     const userCtx = userName ? `\n\nThe writer's name is ${userName}. Use their name naturally throughout your response, the way a good coach would. Not in every sentence, but enough to feel personal.` : "";
     const profileCtx = userProfile ? `\n\nWriter's profile — use this to calibrate your coaching approach:\n- Experience: ${userProfile.q1?.selected?.join(", ")||"not specified"}\n- Working style: ${userProfile.q2?.selected?.join(", ")||"not specified"}\n- Current goal: ${userProfile.q3?.selected?.join(", ")||"not specified"}\n- Coaching preference: ${userProfile.q4?.selected?.join(", ")||"not specified"}${userProfile.q2?.text?`\nStyle notes: ${userProfile.q2.text}`:""}${userProfile.q4?.text?`\nCoaching notes: ${userProfile.q4.text}`:""}` : "";
@@ -2391,7 +2408,7 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
         {sparks.length>0&&<div onClick={()=>setScreen("sparkmap")} className="card" style={{padding:"12px 16px",marginBottom:8,display:"flex",justifyContent:"space-between",alignItems:"center"}}>
           <div style={{flex:1}}>
             <div style={{fontSize:9,textTransform:"uppercase",letterSpacing:"0.18em",color:"var(--accent-70)",fontWeight:500,marginBottom:5}}>Dopamine map</div>
-            <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:14,color:"var(--text-muted)",fontStyle:"italic"}}>"{(sparks[sparks.length-1]?.text||"").replace(/\*\*/g,"").replace(/\*/g,"").replace(/#{1,6}\s/g,"").substring(0,120)}"</div>
+            <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:14,color:"var(--text-muted)",fontStyle:"italic"}}>"{(sparks[sparks.length-1]?.text||"").replace(/\*\*/g,"").replace(/\*/g,"").replace(/#{1,6}\s/g,"").replace(/\u2014/g,",").replace(/--/g,",").substring(0,120)}"</div>
           </div>
           <div style={{fontSize:11,color:"var(--accent)",marginLeft:12,animation:"wp 4s ease-in-out infinite"}}>{sparks.length} spark{sparks.length>1?"s":""}</div>
         </div>}
@@ -2409,19 +2426,24 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
           <div style={{fontSize:11,color:"#5A7A8A",marginLeft:12}}>{sessionSummaries.length} session{sessionSummaries.length>1?"s":""}</div>
         </div>}
 
-        {/* Agnes Drift Indicator — shows when there are unresolved drift points waiting */}
-        {driftResult&&driftResult.drifts&&driftResult.drifts.length>0&&(()=>{
-          const resolved=Object.keys(driftResolutions).filter(k=>!k.includes("_context")).length;
-          const total=driftResult.drifts.length;
-          const remaining=total-resolved;
-          if(remaining<=0)return null;
+        {/* Agnes Drift Indicator — shows total across all queued chapters */}
+        {(()=>{
+          const totalQueuedPoints=driftQueue.reduce((sum,entry)=>sum+(entry.driftResult?.drifts?.length||0),0);
+          const currentResolved=Object.keys(driftResolutions).filter(k=>!k.includes("_context")).length;
+          const currentTotal=driftResult?.drifts?.length||0;
+          const currentRemaining=currentTotal-currentResolved;
+          // Count points from other queued chapters not currently open
+          const otherQueued=driftQueue.filter(e=>e.driftResult.chapterNum!==driftResult?.chapterNum).reduce((sum,e)=>sum+(e.driftResult?.drifts?.length||0),0);
+          const totalRemaining=currentRemaining+otherQueued;
+          const chapterCount=[...new Set(driftQueue.map(e=>e.driftResult.chapterNum))].length;
+          if(totalRemaining<=0||!driftResult)return null;
           return <div onClick={()=>setDriftOpen(true)} className="card" style={{marginBottom:8,padding:"12px 16px",cursor:"pointer",border:"1px solid var(--accent-30)",background:"var(--bg-card-alt)"}}>
             <div style={{display:"flex",alignItems:"center",gap:10}}>
               <div style={{width:6,height:6,borderRadius:"50%",background:"var(--accent)",flexShrink:0,animation:"wp 2s ease-in-out infinite"}}/>
               <div style={{flex:1}}>
                 <div style={{fontSize:9,textTransform:"uppercase",letterSpacing:"0.18em",color:"var(--accent-80)",fontWeight:500,marginBottom:3,fontFamily:"'DM Sans',sans-serif"}}>Agnes</div>
                 <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:14,color:"var(--text-primary)"}}>
-                  {remaining} point{remaining>1?"s":""} from Chapter {driftResult.chapterNum} waiting for your review
+                  {totalRemaining} point{totalRemaining>1?"s":""} from {chapterCount>1?`${chapterCount} chapters`:`Chapter ${driftResult.chapterNum}`} waiting for your review
                 </div>
                 <div style={{fontSize:10,color:"var(--text-dim)",marginTop:3,fontFamily:"'DM Sans',sans-serif",fontStyle:"italic"}}>Tap to review when you're ready. No rush.</div>
               </div>
@@ -2550,7 +2572,7 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
         {sparks.length>0&&<>
           <div style={{marginBottom:16,cursor:"pointer"}} onClick={()=>setScreen("sparkmap")}>
             <div style={{fontSize:11,textTransform:"uppercase",letterSpacing:"0.12em",color:"var(--accent-60)",fontWeight:500,marginBottom:8}}>Latest Spark</div>
-            <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:13,color:"var(--text-muted)",fontStyle:"italic",lineHeight:1.6}}>"{(sparks[sparks.length-1]?.text||"").replace(/\*\*/g,"").replace(/\*/g,"").replace(/#{1,6}\s/g,"").substring(0,100)}"</div>
+            <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:13,color:"var(--text-muted)",fontStyle:"italic",lineHeight:1.6}}>"{(sparks[sparks.length-1]?.text||"").replace(/\*\*/g,"").replace(/\*/g,"").replace(/#{1,6}\s/g,"").replace(/\u2014/g,",").replace(/--/g,",").substring(0,100)}"</div>
             <div style={{fontSize:10,color:"var(--text-dim)",marginTop:6,animation:"wp 4s ease-in-out infinite"}}>{sparks.length} spark{sparks.length>1?"s":""}</div>
           </div>
           <div style={{height:1,background:"var(--border)",marginBottom:16}}/>
@@ -2662,7 +2684,7 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
           <FormField label="Supporting Characters" k="supporting" ph="One per paragraph works best..." value={pForm.supporting} onChange={updateField} multi/>
           <FormField label="Antagonist" k="antagonist" ph="Person, force, or system..." value={pForm.antagonist} onChange={updateField} multi/>
         </>}
-        {bibTab==="world"&&<><WorldField label="Core Setting" helper="When and where does this story take place?" example="A small coastal town in present-day Maine..." k="worldSetting" value={pForm.worldSetting} onChange={updateField}/><WorldField label="World Rules" helper="What can and cannot happen here?" example="Time can be observed but never changed..." k="worldRules" value={pForm.worldRules} onChange={updateField}/><WorldField label="Beliefs vs. Reality" helper="What do characters assume that isn't true?" example="Everyone believes the disappearances were accidents..." k="worldBeliefs" value={pForm.worldBeliefs} onChange={updateField}/><WorldField label="What Makes This World Dangerous" helper="What creates real stakes?" example="The closer you get to the truth, the more you risk losing..." k="worldDanger" value={pForm.worldDanger} onChange={updateField}/><WorldField label="Tone" helper="What does this world feel like?" example="Warm but uneasy..." k="worldTone" value={pForm.worldTone} onChange={updateField}/></>}
+        {bibTab==="world"&&<><WorldField label="Core Setting" helper="When and where does this story take place?" example="A small coastal town in present-day Maine..." k="worldSetting" value={pForm.worldSetting} onChange={updateField}/><WorldField label="World Rules" helper="What can and cannot happen here?" example="Time can be observed but never changed..." k="worldRules" value={pForm.worldRules} onChange={updateField}/><WorldField label="Mythology & Paranormal Rules" helper="The internal logic of anything that operates outside ordinary reality. Ritual mechanics, supernatural rules, entity limitations, protective systems. Agnes cross-references this during drift detection." example="The ritual requires three components and cannot be reversed once fractured..." k="worldMythology" value={pForm.worldMythology} onChange={updateField}/><WorldField label="Beliefs vs. Reality" helper="What do characters assume that isn't true?" example="Everyone believes the disappearances were accidents..." k="worldBeliefs" value={pForm.worldBeliefs} onChange={updateField}/><WorldField label="What Makes This World Dangerous" helper="What creates real stakes?" example="The closer you get to the truth, the more you risk losing..." k="worldDanger" value={pForm.worldDanger} onChange={updateField}/><WorldField label="Tone" helper="What does this world feel like?" example="Warm but uneasy..." k="worldTone" value={pForm.worldTone} onChange={updateField}/></>}
         {bibTab==="chapters"&&<><p style={{fontSize:12,color:"var(--text-muted)",marginBottom:14,lineHeight:1.5}}>One field per chapter. Keep summaries short.</p>{pForm.chapters.map((ch,idx)=><div key={idx} style={{marginBottom:14}}><div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:5}}><label style={{fontSize:13,color:"var(--accent)",fontWeight:600}}>Chapter {ch.num}</label>{pForm.chapters.length>1&&<span onClick={()=>removeChapter(idx)} style={{fontSize:11,color:"var(--text-dim)",cursor:"pointer"}}>Remove</span>}</div><textarea className="fi" rows={2} placeholder={`What happens in chapter ${ch.num}...`} value={ch.summary} onChange={e=>updateChapter(idx,e.target.value)} style={{resize:"vertical",fontSize:13}}/></div>)}<Btn onClick={addChapter} s={{width:"100%",background:"none",borderStyle:"dashed",borderColor:"var(--border-mid)",color:"var(--text-muted)",marginBottom:8}}>+ Add Chapter</Btn></>}
         {bibTab==="current"&&<><p style={{fontSize:12,color:"var(--text-muted)",marginBottom:8,lineHeight:1.5}}>Paste the chapter you're currently working on. Finn will reference this text directly.</p><FormField label="Current chapter text" k="currentChapter" ph="Paste your current chapter here..." value={pForm.currentChapter} onChange={updateField} multi/></>}
         <Btn onClick={handleSetup} s={{width:"100%",background:"var(--accent-20)",borderColor:"var(--accent-40)",fontWeight:600,marginTop:8}}>{project?"Update":"Save"} Story Bible</Btn>
@@ -2765,6 +2787,7 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
         {!bibleSearch&&bibViewTab==="world"&&<div>
           <ReadField label="Core Setting" value={project.worldSetting} multi/>
           <ReadField label="World Rules" value={project.worldRules} multi/>
+          <ReadField label="Mythology & Paranormal Rules" value={project.worldMythology} multi/>
           <ReadField label="Beliefs vs Reality" value={project.worldBeliefs} multi/>
           <ReadField label="What Makes This World Dangerous" value={project.worldDanger} multi/>
           <ReadField label="Tone" value={project.worldTone}/>
@@ -3703,12 +3726,46 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
             })}
           </div>
           <div style={{borderTop:"1px solid var(--border)",paddingTop:16,display:"flex",gap:8}}>
-            <button onClick={()=>{setDriftOpen(false);setDriftResult(null);setDriftResolutions({});saveStored("tt-pending-drift",null);}} disabled={Object.keys(driftResolutions).filter(k=>!k.includes("_context")).length<driftResult.drifts.length} style={{flex:1,background:Object.keys(driftResolutions).filter(k=>!k.includes("_context")).length>=driftResult.drifts.length?"var(--accent)":"var(--bg-card-alt)",border:"1px solid var(--border)",borderRadius:8,padding:"11px",fontSize:13,fontWeight:500,fontFamily:"'DM Sans',sans-serif",color:Object.keys(driftResolutions).filter(k=>!k.includes("_context")).length>=driftResult.drifts.length?"var(--bg-deepest)":"var(--text-dim)",cursor:Object.keys(driftResolutions).filter(k=>!k.includes("_context")).length>=driftResult.drifts.length?"pointer":"default"}}>
-              {Object.keys(driftResolutions).filter(k=>!k.includes("_context")).length>=driftResult.drifts.length?"Done":`${driftResult.drifts.length-Object.keys(driftResolutions).filter(k=>!k.includes("_context")).length} left to resolve`}
+            <button onClick={()=>{
+              const resolved=Object.keys(driftResolutions).filter(k=>!k.includes("_context")).length;
+              if(resolved<driftResult.drifts.length)return;
+              // Remove current chapter from queue
+              const newQueue=driftQueue.filter(e=>e.driftResult.chapterNum!==driftResult.chapterNum);
+              setDriftQueue(newQueue);
+              if(newQueue.length>0){
+                // Advance to next chapter's drifts
+                const next=newQueue[0];
+                setDriftResult(next.driftResult);
+                setDriftResolutions(next.driftResolutions||{});
+                setDriftFinnResponses({});
+                saveStored("tt-pending-drift",newQueue);
+              } else {
+                // Queue empty — close and clear
+                setDriftOpen(false);
+                setDriftResult(null);
+                setDriftResolutions({});
+                setDriftFinnResponses({});
+                saveStored("tt-pending-drift",null);
+              }
+            }} disabled={Object.keys(driftResolutions).filter(k=>!k.includes("_context")).length<driftResult.drifts.length} style={{flex:1,background:Object.keys(driftResolutions).filter(k=>!k.includes("_context")).length>=driftResult.drifts.length?"var(--accent)":"var(--bg-card-alt)",border:"1px solid var(--border)",borderRadius:8,padding:"11px",fontSize:13,fontWeight:500,fontFamily:"'DM Sans',sans-serif",color:Object.keys(driftResolutions).filter(k=>!k.includes("_context")).length>=driftResult.drifts.length?"var(--bg-deepest)":"var(--text-dim)",cursor:Object.keys(driftResolutions).filter(k=>!k.includes("_context")).length>=driftResult.drifts.length?"pointer":"default"}}>
+              {(()=>{
+                const resolved=Object.keys(driftResolutions).filter(k=>!k.includes("_context")).length;
+                const remaining=driftResult.drifts.length-resolved;
+                const nextChapters=driftQueue.filter(e=>e.driftResult.chapterNum!==driftResult.chapterNum);
+                if(remaining>0) return `${remaining} left to resolve`;
+                if(nextChapters.length>0) return `Done — next: Chapter ${nextChapters[0].driftResult.chapterNum}`;
+                return "Done";
+              })()}
             </button>
             <button onClick={()=>{
-              // Save current resolutions and close — home screen indicator will show remaining items
-              saveStored("tt-pending-drift",{driftResult,driftResolutions});
+              // Save current resolutions into queue and close
+              const updatedQueue=driftQueue.map(e=>
+                e.driftResult.chapterNum===driftResult.chapterNum
+                  ?{...e,driftResolutions}
+                  :e
+              );
+              setDriftQueue(updatedQueue);
+              saveStored("tt-pending-drift",updatedQueue);
               setDriftOpen(false);
             }} style={{background:"none",border:"1px solid var(--border)",borderRadius:8,padding:"11px 16px",fontSize:12,color:"var(--text-dim)",cursor:"pointer",fontFamily:"'DM Sans',sans-serif"}}>Decide later</button>
           </div>
