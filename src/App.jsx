@@ -584,6 +584,10 @@ export default function App() {
   const [driftFinnResponses, setDriftFinnResponses] = useState({});
   const [driftQueue, setDriftQueue] = useState([]);
   const [forgeMode, setForgeMode] = useState("manuscript");
+  const [embers, setEmbers] = useState([]);
+  const [activeEmber, setActiveEmber] = useState(null);
+  const [emberAgnesLoading, setEmberAgnesLoading] = useState(null); // ember id being analyzed
+  const [addEmberOpen, setAddEmberOpen] = useState(false);
   const [ideaLabText, setIdeaLabText] = useState("");
   const [ideaLabBuckets, setIdeaLabBuckets] = useState({characters:[],plot:[],world:[],questions:[],fragments:[]});
   const [highlightPopup, setHighlightPopup] = useState({visible:false,x:0,y:0,text:""});
@@ -671,6 +675,8 @@ export default function App() {
     if (ilt) setIdeaLabText(ilt);
     if (ilb) setIdeaLabBuckets(ilb);
     if (inft) setInfernoText(inft);
+    const emb = loadStored("tt-embers");
+    if (emb && Array.isArray(emb)) setEmbers(emb);
     const un = loadStored("tt-username");
     const up = loadStored("tt-userprofile");
     const od = loadStored("tt-onboarding-done");
@@ -1297,7 +1303,64 @@ If the fields above don't contain actual sensory description, return sensoryAnch
     }
   },[screen,project]);
 
-  // Refresh sidebar when writer adds significant new Story Bible content
+  // Agnes reads an ember on arrival and generates placement hypothesis
+  const generateEmberAnalysis=async(ember)=>{
+    if(!ember||!ember.text||ember.text.trim().length<30)return;
+    setEmberAgnesLoading(ember.id);
+    try{
+      const chapStr=project?.chapters&&Array.isArray(project.chapters)
+        ?[...project.chapters].filter(c=>c.summary).sort((a,b)=>a.num-b.num).map(c=>`Chapter ${c.num}: ${c.summary}`).join("\n")
+        :"No chapters captured yet.";
+      const prompt=`You are Agnes. Meticulous. Direct. You have read this writer's Story Bible and chapter summaries. A new scene fragment has arrived without a home. Read it carefully and generate a brief analysis.
+
+STORY BIBLE:
+Title: "${project?.title||"Untitled"}"
+Genre: ${project?.genre||"not specified"}
+Protagonist: ${project?.protagonist||"not captured"}
+Wound: ${project?.protagonistWound||"not captured"}
+
+CHAPTER SUMMARIES:
+${chapStr}
+
+SCENE FRAGMENT (THE EMBER):
+${ember.text}
+
+Generate a brief analysis with three parts:
+1. placementHypothesis: Where does this scene most likely belong in the story? Reference specific chapters or story position. Be specific and direct. 1-2 sentences.
+2. characterTag: Which character(s) are present or central to this fragment? List names only, comma separated.
+3. tensionNote: What narrative tension or emotional undercurrent is alive in this fragment? 1 sentence. Direct. No flattery.
+
+Rules: Never use em dashes. Never invent details not present in the fragment or Bible. If the fragment is too sparse to analyze, say so plainly.
+
+Respond ONLY with a JSON object. No markdown. No backticks.
+{"placementHypothesis":"","characterTag":"","tensionNote":""}`;
+
+      const resp=await fetch("/api/chat",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({
+        system:"You are Agnes, a meticulous literary analyst. Be direct, specific, and concise. Never use em dashes.",
+        messages:[{role:"user",content:prompt}]
+      })});
+      const data=await resp.json();
+      if(!data.error){
+        const raw=data.content?.filter(b=>b.type==="text").map(b=>b.text).join("")||"";
+        const cleaned=raw.replace(/```json|```/g,"").trim();
+        try{
+          const parsed=JSON.parse(cleaned);
+          const updatedEmbers=embers.map(e=>e.id===ember.id?{
+            ...e,
+            agnesAnalysis:{
+              placementHypothesis:parsed.placementHypothesis||"",
+              characterTag:parsed.characterTag||"",
+              tensionNote:parsed.tensionNote||"",
+              generatedAt:Date.now()
+            }
+          }:e);
+          setEmbers(updatedEmbers);
+          saveStored("tt-embers",updatedEmbers);
+        }catch(e){console.log("Ember analysis parse error:",e);}
+      }
+    }catch(e){console.log("Ember analysis error:",e);}
+    setEmberAgnesLoading(null);
+  };
   useEffect(()=>{
     if(project&&(project.protagonist||project.worldSetting||project.synopsis)){
       const mostRecent=[...scenes].sort((a,b)=>(b.lastEdited||0)-(a.lastEdited||0))[0];
@@ -2894,10 +2957,10 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
               <div style={{fontSize:8,color:"var(--text-dim)",marginTop:3}}>THE FORGE</div>
             </div>
 
-            {/* Three-mode toggle */}
+            {/* Four-mode toggle */}
             <div style={{display:"flex",gap:2,background:"var(--bg-deepest)",borderRadius:8,padding:3,marginBottom:14}}>
-              {[["manuscript","Manuscript","var(--accent)"],["idealab","Idea Lab","#9A8AB0"],["inferno","Inferno","#C07848"]].map(([m,label,color])=>(
-                <div key={m} onClick={()=>setForgeMode(m)} style={{flex:1,padding:"8px 4px",borderRadius:5,background:forgeMode===m?"var(--bg-card-alt)":"transparent",color:forgeMode===m?color:"var(--text-dim)",fontSize:11,textAlign:"center",cursor:"pointer",transition:"all .2s",fontFamily:"'DM Sans',sans-serif",fontWeight:forgeMode===m?500:400}}>
+              {[["manuscript","Manuscript","var(--accent)"],["idealab","Idea Lab","#9A8AB0"],["inferno","Inferno","#C07848"],["embers","Embers","#8A7AAA"]].map(([m,label,color])=>(
+                <div key={m} onClick={()=>setForgeMode(m)} style={{flex:1,padding:"8px 2px",borderRadius:5,background:forgeMode===m?"var(--bg-card-alt)":"transparent",color:forgeMode===m?color:"var(--text-dim)",fontSize:10,textAlign:"center",cursor:"pointer",transition:"all .2s",fontFamily:"'DM Sans',sans-serif",fontWeight:forgeMode===m?500:400}}>
                   {label}
                 </div>
               ))}
@@ -3055,6 +3118,27 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
                 <div style={{fontSize:9,color:"var(--text-dim)",marginTop:3}}>Auto-saving</div>
               </div>
             </>}
+
+            {/* Embers nav */}
+            {forgeMode==="embers"&&<>
+              <div style={{flex:1,overflowY:"auto"}}>
+                <div style={{fontSize:9,textTransform:"uppercase",letterSpacing:"0.18em",color:"#8A7AAA",fontWeight:500,marginBottom:8}}>Embers</div>
+                <div onClick={()=>setAddEmberOpen(true)} style={{background:"var(--bg-card)",border:"1px dashed #8A7AAA50",borderRadius:8,padding:"8px 10px",marginBottom:10,cursor:"pointer",textAlign:"center"}}>
+                  <div style={{fontSize:10,color:"#8A7AAA",fontFamily:"'DM Sans',sans-serif"}}>+ New ember</div>
+                </div>
+                {embers.length===0&&<div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:12,color:"var(--text-dim)",fontStyle:"italic",lineHeight:1.6}}>Scenes without a home. Drop them here. Agnes reads each one and suggests where it might belong.</div>}
+                {embers.filter(e=>e.status!=="archived").map(e=>(
+                  <div key={e.id} onClick={()=>setActiveEmber(e.id)} style={{background:activeEmber===e.id?"var(--bg-card-alt)":"var(--bg-card)",border:`1px solid ${activeEmber===e.id?"#8A7AAA60":"var(--border)"}`,borderLeft:activeEmber===e.id?"2px solid #8A7AAA":"2px solid transparent",borderRadius:6,padding:"8px 10px",marginBottom:6,cursor:"pointer"}}>
+                    <div style={{fontSize:11,color:"#8A7AAA",fontFamily:"'Cormorant Garamond',serif",fontWeight:600,marginBottom:2}}>{e.title||"Untitled ember"}</div>
+                    <div style={{fontSize:9,color:"var(--text-dim)",fontFamily:"'DM Sans',sans-serif"}}>{(e.text||"").split(/\s+/).filter(w=>w).length} words</div>
+                    {e.agnesAnalysis?.characterTag&&<div style={{fontSize:9,color:"#8A7AAA",marginTop:3,fontFamily:"'DM Sans',sans-serif",opacity:0.7}}>{e.agnesAnalysis.characterTag}</div>}
+                  </div>
+                ))}
+              </div>
+              <div style={{borderTop:"1px solid var(--border)",paddingTop:10,marginTop:"auto"}}>
+                <div style={{fontSize:9,color:"var(--text-dim)"}}>Auto-saving</div>
+              </div>
+            </>}
           </div>
 
           {/* Center: Writing Area */}
@@ -3146,6 +3230,139 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
                   <span onClick={goHome} style={{fontSize:12,color:"var(--text-muted)",cursor:"pointer",padding:"7px 12px",background:"var(--bg-card-alt)",border:"1px solid var(--border)",borderRadius:8}}>Home</span>
                 </div>
               </div>
+            </>}
+
+            {/* EMBERS surface */}
+            {forgeMode==="embers"&&<>
+              {/* Add ember overlay */}
+              {addEmberOpen&&<div style={{position:"absolute",top:0,left:0,right:0,bottom:0,background:"rgba(0,0,0,0.85)",zIndex:200,display:"flex",alignItems:"center",justifyContent:"center",padding:24}}>
+                <div style={{background:"var(--bg-card)",border:"1px solid #8A7AAA60",borderRadius:12,padding:24,width:"100%",maxWidth:480}}>
+                  <div style={{fontSize:11,color:"#8A7AAA",fontFamily:"'DM Sans',sans-serif",fontWeight:600,letterSpacing:"0.1em",textTransform:"uppercase",marginBottom:12}}>New Ember</div>
+                  <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:13,color:"var(--text-dim)",lineHeight:1.65,marginBottom:14}}>A scene without a home. No pressure to know where it belongs. Agnes will read it when you save and tell you where she thinks it fits.</div>
+                  <input
+                    placeholder="Title or first line (optional)"
+                    id="ember-title-input"
+                    style={{width:"100%",background:"var(--bg-base)",border:"1px solid var(--border)",borderRadius:6,padding:"8px 10px",fontFamily:"'DM Sans',sans-serif",fontSize:12,color:"var(--text-primary)",outline:"none",marginBottom:10}}
+                  />
+                  <textarea
+                    placeholder="Write the scene. Or just a fragment. Whatever emerged."
+                    id="ember-text-input"
+                    rows={8}
+                    style={{width:"100%",background:"var(--bg-base)",border:"1px solid var(--border)",borderRadius:6,padding:"8px 10px",fontFamily:"'Cormorant Garamond',serif",fontSize:15,color:"var(--text-primary)",lineHeight:1.9,outline:"none",resize:"vertical"}}
+                  />
+                  <div style={{display:"flex",gap:8,marginTop:12}}>
+                    <button onClick={()=>{
+                      const title=document.getElementById("ember-title-input")?.value||"";
+                      const text=document.getElementById("ember-text-input")?.value||"";
+                      if(!text.trim()){setAddEmberOpen(false);return;}
+                      const newEmber={id:`ember-${Date.now()}`,title:title.trim()||"",text:text.trim(),createdAt:Date.now(),status:"active",agnesAnalysis:null};
+                      const updated=[...embers,newEmber];
+                      setEmbers(updated);
+                      saveStored("tt-embers",updated);
+                      setActiveEmber(newEmber.id);
+                      setAddEmberOpen(false);
+                      // Agnes reads immediately
+                      setTimeout(()=>generateEmberAnalysis(newEmber),500);
+                    }} style={{flex:1,background:"#8A7AAA",border:"none",borderRadius:7,padding:"10px",fontSize:12,color:"var(--bg-base)",cursor:"pointer",fontFamily:"'DM Sans',sans-serif",fontWeight:500}}>Save ember</button>
+                    <button onClick={()=>setAddEmberOpen(false)} style={{background:"none",border:"1px solid var(--border)",borderRadius:7,padding:"10px 14px",fontSize:12,color:"var(--text-dim)",cursor:"pointer",fontFamily:"'DM Sans',sans-serif"}}>Cancel</button>
+                  </div>
+                </div>
+              </div>}
+
+              {/* Ember detail view */}
+              {(()=>{
+                const ember=embers.find(e=>e.id===activeEmber);
+                if(!ember)return(
+                  <div style={{flex:1,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",padding:40}}>
+                    <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:20,color:"#8A7AAA",fontStyle:"italic",marginBottom:8,textAlign:"center"}}>Embers</div>
+                    <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:14,color:"var(--text-dim)",lineHeight:1.7,textAlign:"center",maxWidth:340,marginBottom:24}}>Scenes that emerged without a home. Agnes reads each one and suggests where it might belong in your story.</div>
+                    <button onClick={()=>setAddEmberOpen(true)} style={{background:"#8A7AAA20",border:"1px dashed #8A7AAA60",borderRadius:8,padding:"10px 20px",fontSize:12,color:"#8A7AAA",cursor:"pointer",fontFamily:"'DM Sans',sans-serif"}}>Add your first ember</button>
+                  </div>
+                );
+                return <>
+                  {/* Ember header */}
+                  <div style={{padding:"12px 40px 10px",borderBottom:"1px solid #8A7AAA30",display:"flex",justifyContent:"space-between",alignItems:"center",background:"var(--bg-write)"}}>
+                    <div style={{display:"flex",alignItems:"center",gap:12}}>
+                      <div style={{fontSize:12,color:"#8A7AAA",fontWeight:500,fontFamily:"'DM Sans',sans-serif"}}>{ember.title||"Untitled ember"}</div>
+                      <span style={{fontSize:10,color:"var(--text-dim)"}}>{(ember.text||"").split(/\s+/).filter(w=>w).length} words</span>
+                    </div>
+                    <div style={{display:"flex",gap:8,alignItems:"center"}}>
+                      <span onClick={()=>{
+                        if(sparks&&ember.text){const t=ember.text.substring(0,200);const ns=[...sparks,{text:t,date:new Date().toLocaleDateString(),mode:"Embers",modeId:"embers"}];setSparks(ns);saveStored("tt-sparks",ns);}
+                      }} style={{fontSize:10,color:"var(--text-dim)",background:"var(--bg-card)",border:"1px solid #8A7AAA20",borderRadius:4,padding:"3px 8px",cursor:"pointer"}}>This excites me</span>
+                      <span onClick={()=>{
+                        // Place ember — send to manuscript as new chapter
+                        const chapterNums=[...new Set(scenes.map(s=>s.chapter))].sort((a,b)=>a-b);
+                        const nextChapter=(chapterNums[chapterNums.length-1]||0)+1;
+                        const newScene={id:`scene-${Date.now()}`,chapter:nextChapter,scene:1,text:ember.text,title:ember.title||"",draftStatus:"in-progress",lastEdited:Date.now(),modeData:[],sceneNotes:""};
+                        const updatedScenes=[...scenes,newScene];
+                        setScenes(updatedScenes);
+                        saveScenes(updatedScenes);
+                        setActiveScene(newScene.id);
+                        // Archive the ember
+                        const updatedEmbers=embers.map(e=>e.id===ember.id?{...e,status:"placed",placedChapter:nextChapter}:e);
+                        setEmbers(updatedEmbers);
+                        saveStored("tt-embers",updatedEmbers);
+                        setForgeMode("manuscript");
+                        setActiveEmber(null);
+                      }} style={{fontSize:10,color:"#8A7AAA",background:"var(--bg-card)",border:"1px solid #8A7AAA30",borderRadius:4,padding:"3px 8px",cursor:"pointer"}}>Place in manuscript</span>
+                      <span onClick={()=>{
+                        const updatedEmbers=embers.map(e=>e.id===ember.id?{...e,status:"archived"}:e);
+                        setEmbers(updatedEmbers);
+                        saveStored("tt-embers",updatedEmbers);
+                        setActiveEmber(null);
+                      }} style={{fontSize:10,color:"var(--text-dim)",background:"var(--bg-card)",border:"1px solid var(--border)",borderRadius:4,padding:"3px 8px",cursor:"pointer"}}>Archive</span>
+                    </div>
+                  </div>
+
+                  {/* Agnes analysis */}
+                  {emberAgnesLoading===ember.id&&<div style={{padding:"10px 40px",background:"#8A7AAA10",borderBottom:"1px solid #8A7AAA20"}}>
+                    <div style={{fontSize:11,color:"#8A7AAA",fontFamily:"'DM Sans',sans-serif",fontStyle:"italic"}}>Agnes is reading this ember...</div>
+                  </div>}
+                  {ember.agnesAnalysis&&emberAgnesLoading!==ember.id&&<div style={{padding:"12px 40px",background:"#8A7AAA08",borderBottom:"1px solid #8A7AAA20"}}>
+                    <div style={{fontSize:9,color:"#8A7AAA",fontFamily:"'DM Sans',sans-serif",fontWeight:600,letterSpacing:"0.1em",textTransform:"uppercase",marginBottom:8}}>Agnes</div>
+                    <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12,marginBottom:8}}>
+                      {ember.agnesAnalysis.placementHypothesis&&<div>
+                        <div style={{fontSize:8,color:"#8A7AAA",fontFamily:"'DM Sans',sans-serif",textTransform:"uppercase",letterSpacing:"0.1em",marginBottom:3,opacity:0.7}}>Placement hypothesis</div>
+                        <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:12,color:"var(--text-muted)",lineHeight:1.6}}>{ember.agnesAnalysis.placementHypothesis}</div>
+                      </div>}
+                      {ember.agnesAnalysis.tensionNote&&<div>
+                        <div style={{fontSize:8,color:"#8A7AAA",fontFamily:"'DM Sans',sans-serif",textTransform:"uppercase",letterSpacing:"0.1em",marginBottom:3,opacity:0.7}}>Tension note</div>
+                        <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:12,color:"var(--text-muted)",lineHeight:1.6}}>{ember.agnesAnalysis.tensionNote}</div>
+                      </div>}
+                    </div>
+                    {ember.agnesAnalysis.characterTag&&<div style={{fontSize:10,color:"#8A7AAA60",fontFamily:"'DM Sans',sans-serif"}}>Characters: {ember.agnesAnalysis.characterTag}</div>}
+                    <div style={{display:"flex",gap:6,marginTop:8}}>
+                      <span onClick={()=>{
+                        setFinnOpen(true);
+                        const driftContext=`I have a scene fragment without a home. Agnes suggested it might belong ${ember.agnesAnalysis.placementHypothesis}. The tension Agnes noted: ${ember.agnesAnalysis.tensionNote}. Here is the fragment:\n\n${ember.text}\n\nWhat do you think — where does this belong, and what is it trying to do?`;
+                        setContainerMsgs([{role:"assistant",content:"I've read the ember. Let me think about where it belongs."},{role:"user",content:driftContext}]);
+                      }} style={{fontSize:10,color:"#8A7AAA",background:"var(--bg-card)",border:"1px solid #8A7AAA30",borderRadius:4,padding:"3px 8px",cursor:"pointer",fontFamily:"'DM Sans',sans-serif"}}>Ask Finn</span>
+                      <span onClick={()=>generateEmberAnalysis(ember)} style={{fontSize:10,color:"var(--text-dim)",background:"var(--bg-card)",border:"1px solid var(--border)",borderRadius:4,padding:"3px 8px",cursor:"pointer",fontFamily:"'DM Sans',sans-serif"}}>Re-read</span>
+                    </div>
+                  </div>}
+                  {!ember.agnesAnalysis&&emberAgnesLoading!==ember.id&&<div style={{padding:"8px 40px",background:"#8A7AAA06",borderBottom:"1px solid #8A7AAA15"}}>
+                    <span onClick={()=>generateEmberAnalysis(ember)} style={{fontSize:10,color:"#8A7AAA60",fontFamily:"'DM Sans',sans-serif",cursor:"pointer",fontStyle:"italic"}}>Let Agnes read this ember</span>
+                  </div>}
+
+                  {/* Ember text — editable */}
+                  <div style={{flex:1,overflow:"auto",padding:"24px 40px"}}>
+                    <textarea value={ember.text||""} onChange={e=>{
+                      const updatedEmbers=embers.map(em=>em.id===ember.id?{...em,text:e.target.value,lastEdited:Date.now()}:em);
+                      setEmbers(updatedEmbers);
+                      saveStored("tt-embers",updatedEmbers);
+                    }} style={{width:"100%",minHeight:300,background:"none",border:"none",outline:"none",resize:"none",fontFamily:"'Cormorant Garamond',serif",fontSize:18,color:"var(--text-primary)",lineHeight:2}}/>
+                  </div>
+
+                  <div style={{padding:"10px 40px 14px",borderTop:"1px solid #8A7AAA20",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+                    <div style={{fontSize:10,color:"var(--text-dim)"}}>Auto-saved</div>
+                    <div style={{display:"flex",gap:10}}>
+                      <span onClick={()=>{setFinnOpen(!finnOpen);if(!finnOpen&&containerMsgs.length===0){setContainerMsgs([{role:"assistant",content:"I've read the ember. What do you want to know about it?"}])}}} style={{fontSize:12,color:finnOpen?"#8A7AAA":"#8A7AAA80",background:"var(--bg-card-alt)",border:"1px solid #8A7AAA20",borderRadius:8,padding:"7px 16px",cursor:"pointer",fontWeight:500}}>{finnOpen?"Close Finn":"Ask Finn"}</span>
+                      <span onClick={goHome} style={{fontSize:12,color:"var(--text-muted)",cursor:"pointer",padding:"7px 12px",background:"var(--bg-card-alt)",border:"1px solid var(--border)",borderRadius:8}}>Home</span>
+                    </div>
+                  </div>
+                </>;
+              })()}
             </>}
 
             {/* MANUSCRIPT surface */}
