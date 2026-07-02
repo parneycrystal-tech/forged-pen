@@ -483,7 +483,9 @@ const PROFILE_QUESTIONS=[
   {id:"q1",q:"How long have you been writing?",opts:["Just starting out","A few years in","I've been writing for years","I've been published"],multi:false,addl:"Anything Finn should know about your writing background?"},
   {id:"q2",q:"How does your writing brain work? Choose everything that feels true.",opts:["I work best in short focused bursts","I tend to jump around rather than write linearly","I get easily overwhelmed by too many options","I have a hard time starting even when I know what to write","I lose momentum quickly after a good session","I can write for long stretches when I'm in flow","I write linearly, start to finish","It depends completely on the day"],multi:true,addl:"Anything else about how you work best?",disclaimer:"Forged Pen is a writing tool, not a mental health service. If you're experiencing a crisis please reach out to a qualified professional."},
   {id:"q3",q:"What matters most to you right now?",opts:["I have a spark and I want to see where it goes","I'm developing an idea that isn't fully formed yet","I'm deep in a manuscript and need to keep going","I want to get better at the craft while I write","I need to finish what I've started","All of the above honestly"],multi:true,addl:"Anything else Finn should know about where you want to go?"},
-  {id:"q4",q:"How do you want Finn to show up?",opts:["Direct and straight to the point","Warm and encouraging with the hard truth underneath","Ask me questions more than give me answers","Push me when I need it, back off when I don't","I'm not sure yet, figure it out as we go"],multi:false,addl:"Anything else about how you like to be coached?"}
+  {id:"q4",q:"How do you want Finn to show up?",opts:["Direct and straight to the point","Warm and encouraging with the hard truth underneath","Ask me questions more than give me answers","Push me when I need it, back off when I don't","I'm not sure yet, figure it out as we go"],multi:false,addl:"Anything else about how you like to be coached?"},
+  {id:"q5",q:"What do you write? Choose everything that applies.",opts:["Literary fiction","Romance","Upmarket fiction","Women's fiction","Horror","Thriller / suspense","Fantasy","Science fiction","Historical fiction","Young adult","Middle grade","Memoir / creative nonfiction","Short stories","Multiple genres"],multi:true,addl:"Anything else about the kind of stories you write?"},
+  {id:"q6",q:"What's your relationship with finishing?",opts:["I finish regularly","I start a lot but rarely finish","I've never finished a long project","I've finished before but lost the thread on this one","It depends on the project"],multi:false,addl:"Anything else about your history with finishing?"}
 ];
 
 export default function App() {
@@ -509,7 +511,7 @@ export default function App() {
   const [welcomeStep, setWelcomeStep] = useState("intro");
   const [welcomeRoute, setWelcomeRoute] = useState(null);
   const [profileStep, setProfileStep] = useState(1);
-  const [profileAnswers, setProfileAnswers] = useState({q1:{selected:[],text:""},q2:{selected:[],text:""},q3:{selected:[],text:""},q4:{selected:[],text:""}});
+  const [profileAnswers, setProfileAnswers] = useState({q1:{selected:[],text:""},q2:{selected:[],text:""},q3:{selected:[],text:""},q4:{selected:[],text:""},q5:{selected:[],text:""},q6:{selected:[],text:""}});
   const [userProfile, setUserProfile] = useState(null);
   const [onboardingDone, setOnboardingDone] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
@@ -587,7 +589,10 @@ export default function App() {
   const [embers, setEmbers] = useState([]);
   const [activeEmber, setActiveEmber] = useState(null);
   const [emberAgnesLoading, setEmberAgnesLoading] = useState(null); // ember id being analyzed
+  const [newEmberTitle, setNewEmberTitle] = useState("");
+  const [newEmberText, setNewEmberText] = useState("");
   const [addEmberOpen, setAddEmberOpen] = useState(false);
+  const [emberPlacerOpen, setEmberPlacerOpen] = useState(false);
   const [ideaLabText, setIdeaLabText] = useState("");
   const [ideaLabBuckets, setIdeaLabBuckets] = useState({characters:[],plot:[],world:[],questions:[],fragments:[]});
   const [highlightPopup, setHighlightPopup] = useState({visible:false,x:0,y:0,text:""});
@@ -1603,8 +1608,12 @@ Experience: ${userProfile.q1?.selected?.join(", ")||"not specified"}
 Writing brain: ${userProfile.q2?.selected?.join(", ")||"not specified"}
 Current goal: ${userProfile.q3?.selected?.join(", ")||"not specified"}
 Coaching preference: ${userProfile.q4?.selected?.join(", ")||"not specified"}
+Genres / what they write: ${userProfile.q5?.selected?.join(", ")||"not specified"}
+Relationship with finishing: ${userProfile.q6?.selected?.join(", ")||"not specified"}
 ${userProfile.q2?.text?`Additional notes: ${userProfile.q2.text}`:""}
-${userProfile.q4?.text?`Coaching notes: ${userProfile.q4.text}`:""}`.trim():"No profile information yet.";
+${userProfile.q4?.text?`Coaching notes: ${userProfile.q4.text}`:""}
+${userProfile.q5?.text?`Writing notes: ${userProfile.q5.text}`:""}
+${userProfile.q6?.text?`Finishing notes: ${userProfile.q6.text}`:""}`.trim():"No profile information yet.";
 
     const alreadyHasStory=project&&(project.protagonist||project.worldSetting||project.synopsis);
 
@@ -1652,7 +1661,7 @@ Under 120 words.`;
     setFirstSessionMsgs(history);
     setFirstSessionLoading(true);
 
-    const profileCtxStr=userProfile?`Writer profile: experience: ${userProfile.q1?.selected?.join(", ")||"not specified"}. Working style: ${userProfile.q2?.selected?.join(", ")||"not specified"}. Current goal: ${userProfile.q3?.selected?.join(", ")||"not specified"}. Coaching preference: ${userProfile.q4?.selected?.join(", ")||"not specified"}.`:"";
+    const profileCtxStr=userProfile?`Writer profile: experience: ${userProfile.q1?.selected?.join(", ")||"not specified"}. Working style: ${userProfile.q2?.selected?.join(", ")||"not specified"}. Current goal: ${userProfile.q3?.selected?.join(", ")||"not specified"}. Coaching preference: ${userProfile.q4?.selected?.join(", ")||"not specified"}. Genres: ${userProfile.q5?.selected?.join(", ")||"not specified"}. Relationship with finishing: ${userProfile.q6?.selected?.join(", ")||"not specified"}.`:"";
 
     const FIRST_SESSION_SYSTEM=`You are Finn opening your very first session with this writer. Your goal is to learn their story through natural conversation so every session after this gets smarter.
 
@@ -1892,7 +1901,7 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
     const pCtx = project ? `\n\nPROJECT: "${project.title}". Genre: ${project.genre}. Synopsis: ${project.synopsis}. Protagonist: ${project.protagonist}. Supporting Characters: ${project.supporting}. Antagonist: ${project.antagonist}. Core Setting: ${project.worldSetting}. World Rules: ${project.worldRules}. Mythology & Paranormal Rules: ${project.worldMythology||"not yet captured"}. What People Believe vs Reality: ${project.worldBeliefs}. What Makes This World Dangerous: ${project.worldDanger}. World Tone: ${project.worldTone}. Chapters so far (these summaries are the authoritative record established by Agnes — treat them as ground truth, do not re-interpret or contradict them): ${chapStr}. Current point: ${project.where}. Focused on: ${project.stuck}. What excites them: ${project.excites}.${project.currentChapter?` CURRENT CHAPTER TEXT (use this for line-level craft coaching only — for story facts and character psychology, defer to the chapter summaries above): ${project.currentChapter}`:""}` : "";
     const sparkCtx = sparks.length > 0 ? `\n\nDOPAMINE MAP (moments the writer flagged as exciting): ${sparks.map(s=>s.text).join(" | ")}` : "";
     const userCtx = userName ? `\n\nThe writer's name is ${userName}. Use their name naturally throughout your response, the way a good coach would. Not in every sentence, but enough to feel personal.` : "";
-    const profileCtx = userProfile ? `\n\nWriter's profile — use this to calibrate your coaching approach:\n- Experience: ${userProfile.q1?.selected?.join(", ")||"not specified"}\n- Working style: ${userProfile.q2?.selected?.join(", ")||"not specified"}\n- Current goal: ${userProfile.q3?.selected?.join(", ")||"not specified"}\n- Coaching preference: ${userProfile.q4?.selected?.join(", ")||"not specified"}${userProfile.q2?.text?`\nStyle notes: ${userProfile.q2.text}`:""}${userProfile.q4?.text?`\nCoaching notes: ${userProfile.q4.text}`:""}` : "";
+    const profileCtx = userProfile ? `\n\nWriter's profile — use this to calibrate your coaching approach:\n- Experience: ${userProfile.q1?.selected?.join(", ")||"not specified"}\n- Working style: ${userProfile.q2?.selected?.join(", ")||"not specified"}\n- Current goal: ${userProfile.q3?.selected?.join(", ")||"not specified"}\n- Coaching preference: ${userProfile.q4?.selected?.join(", ")||"not specified"}\n- Genres / what they write: ${userProfile.q5?.selected?.join(", ")||"not specified"}\n- Relationship with finishing: ${userProfile.q6?.selected?.join(", ")||"not specified"}${userProfile.q2?.text?`\nStyle notes: ${userProfile.q2.text}`:""}${userProfile.q4?.text?`\nCoaching notes: ${userProfile.q4.text}`:""}${userProfile.q5?.text?`\nWriting notes: ${userProfile.q5.text}`:""}${userProfile.q6?.text?`\nFinishing notes: ${userProfile.q6.text}`:""}` : "";
     const sessionCtx = sessionSummaries.length>0 ? `\n\nRECENT SESSION HISTORY (read before responding, use naturally without announcing it):\n${sessionSummaries.slice(0,5).map((s,i)=>`Session ${i+1}${i===0?" (most recent)":""}: ${s.date} in ${s.mode}. Worked on: ${s.storyElement}. Key insight: ${s.keyInsight}. Still sitting with: ${s.openQuestion}. Writer seemed: ${s.writerState}.${s.rawTexture?` In their own words: "${s.rawTexture}"`:""}`).join("\n")}` : "";
 
     // PATTERN DETECTION
@@ -2959,8 +2968,8 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
 
             {/* Four-mode toggle */}
             <div style={{display:"flex",gap:2,background:"var(--bg-deepest)",borderRadius:8,padding:3,marginBottom:14}}>
-              {[["manuscript","Manuscript","var(--accent)"],["idealab","Idea Lab","#9A8AB0"],["inferno","Inferno","#C07848"],["embers","Embers","#8A7AAA"]].map(([m,label,color])=>(
-                <div key={m} onClick={()=>setForgeMode(m)} style={{flex:1,padding:"8px 2px",borderRadius:5,background:forgeMode===m?"var(--bg-card-alt)":"transparent",color:forgeMode===m?color:"var(--text-dim)",fontSize:10,textAlign:"center",cursor:"pointer",transition:"all .2s",fontFamily:"'DM Sans',sans-serif",fontWeight:forgeMode===m?500:400}}>
+              {[["manuscript","Write","var(--accent)"],["idealab","Lab","#9A8AB0"],["inferno","Inferno","#C07848"],["embers","Embers","#8A7AAA"]].map(([m,label,color])=>(
+                <div key={m} onClick={()=>setForgeMode(m)} style={{flex:1,padding:"7px 2px",borderRadius:5,background:forgeMode===m?"var(--bg-card-alt)":"transparent",color:forgeMode===m?color:"var(--text-dim)",fontSize:9,textAlign:"center",cursor:"pointer",transition:"all .2s",fontFamily:"'DM Sans',sans-serif",fontWeight:forgeMode===m?500:400,whiteSpace:"nowrap"}}>
                   {label}
                 </div>
               ))}
@@ -3241,35 +3250,110 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
                   <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:13,color:"var(--text-dim)",lineHeight:1.65,marginBottom:14}}>A scene without a home. No pressure to know where it belongs. Agnes will read it when you save and tell you where she thinks it fits.</div>
                   <input
                     placeholder="Title or first line (optional)"
-                    id="ember-title-input"
+                    value={newEmberTitle}
+                    onChange={e=>setNewEmberTitle(e.target.value)}
                     style={{width:"100%",background:"var(--bg-base)",border:"1px solid var(--border)",borderRadius:6,padding:"8px 10px",fontFamily:"'DM Sans',sans-serif",fontSize:12,color:"var(--text-primary)",outline:"none",marginBottom:10}}
                   />
                   <textarea
                     placeholder="Write the scene. Or just a fragment. Whatever emerged."
-                    id="ember-text-input"
+                    value={newEmberText}
+                    onChange={e=>setNewEmberText(e.target.value)}
                     rows={8}
                     style={{width:"100%",background:"var(--bg-base)",border:"1px solid var(--border)",borderRadius:6,padding:"8px 10px",fontFamily:"'Cormorant Garamond',serif",fontSize:15,color:"var(--text-primary)",lineHeight:1.9,outline:"none",resize:"vertical"}}
                   />
                   <div style={{display:"flex",gap:8,marginTop:12}}>
                     <button onClick={()=>{
-                      const title=document.getElementById("ember-title-input")?.value||"";
-                      const text=document.getElementById("ember-text-input")?.value||"";
-                      if(!text.trim()){setAddEmberOpen(false);return;}
-                      const newEmber={id:`ember-${Date.now()}`,title:title.trim()||"",text:text.trim(),createdAt:Date.now(),status:"active",agnesAnalysis:null};
+                      if(!newEmberText.trim()){setAddEmberOpen(false);return;}
+                      const newEmber={id:`ember-${Date.now()}`,title:newEmberTitle.trim()||"",text:newEmberText.trim(),createdAt:Date.now(),status:"active",agnesAnalysis:null};
                       const updated=[...embers,newEmber];
                       setEmbers(updated);
                       saveStored("tt-embers",updated);
                       setActiveEmber(newEmber.id);
+                      setNewEmberTitle("");
+                      setNewEmberText("");
                       setAddEmberOpen(false);
                       // Agnes reads immediately
                       setTimeout(()=>generateEmberAnalysis(newEmber),500);
                     }} style={{flex:1,background:"#8A7AAA",border:"none",borderRadius:7,padding:"10px",fontSize:12,color:"var(--bg-base)",cursor:"pointer",fontFamily:"'DM Sans',sans-serif",fontWeight:500}}>Save ember</button>
-                    <button onClick={()=>setAddEmberOpen(false)} style={{background:"none",border:"1px solid var(--border)",borderRadius:7,padding:"10px 14px",fontSize:12,color:"var(--text-dim)",cursor:"pointer",fontFamily:"'DM Sans',sans-serif"}}>Cancel</button>
+                    <button onClick={()=>{setAddEmberOpen(false);setNewEmberTitle("");setNewEmberText("");}} style={{background:"none",border:"1px solid var(--border)",borderRadius:7,padding:"10px 14px",fontSize:12,color:"var(--text-dim)",cursor:"pointer",fontFamily:"'DM Sans',sans-serif"}}>Cancel</button>
                   </div>
                 </div>
               </div>}
 
-              {/* Ember detail view */}
+              {/* Placement picker overlay */}
+              {emberPlacerOpen&&(()=>{
+                const ember=embers.find(e=>e.id===activeEmber);
+                if(!ember)return null;
+                const chapterNums=[...new Set(scenes.map(s=>s.chapter))].sort((a,b)=>a-b);
+                const nextChapter=(chapterNums[chapterNums.length-1]||0)+1;
+                const placeInChapter=(chapterNum)=>{
+                  // Append ember text to existing chapter's primary scene
+                  const chScene=scenes.find(s=>s.chapter===chapterNum&&s.scene===1)||scenes.find(s=>s.chapter===chapterNum);
+                  if(chScene){
+                    const updatedScenes=scenes.map(s=>s.id===chScene.id?{...s,text:(s.text?s.text+"\n\n"+ember.text:ember.text),lastEdited:Date.now()}:s);
+                    setScenes(updatedScenes);
+                    saveScenes(updatedScenes);
+                    setActiveScene(chScene.id);
+                  }
+                  const updatedEmbers=embers.map(e=>e.id===ember.id?{...e,status:"placed",placedChapter:chapterNum}:e);
+                  setEmbers(updatedEmbers);
+                  saveStored("tt-embers",updatedEmbers);
+                  setEmberPlacerOpen(false);
+                  setForgeMode("manuscript");
+                  setActiveEmber(null);
+                };
+                const placeAsNew=()=>{
+                  const newScene={id:`scene-${Date.now()}`,chapter:nextChapter,scene:1,text:ember.text,title:ember.title||"",draftStatus:"in-progress",lastEdited:Date.now(),modeData:[],sceneNotes:""};
+                  const updatedScenes=[...scenes,newScene];
+                  setScenes(updatedScenes);
+                  saveScenes(updatedScenes);
+                  setActiveScene(newScene.id);
+                  const updatedEmbers=embers.map(e=>e.id===ember.id?{...e,status:"placed",placedChapter:nextChapter}:e);
+                  setEmbers(updatedEmbers);
+                  saveStored("tt-embers",updatedEmbers);
+                  setEmberPlacerOpen(false);
+                  setForgeMode("manuscript");
+                  setActiveEmber(null);
+                };
+                return <div style={{position:"absolute",top:0,left:0,right:0,bottom:0,background:"rgba(0,0,0,0.85)",zIndex:200,display:"flex",alignItems:"center",justifyContent:"center",padding:24}}>
+                  <div style={{background:"var(--bg-card)",border:"1px solid #8A7AAA60",borderRadius:12,padding:24,width:"100%",maxWidth:440,maxHeight:"80vh",overflowY:"auto"}}>
+                    <div style={{fontSize:11,color:"#8A7AAA",fontFamily:"'DM Sans',sans-serif",fontWeight:600,letterSpacing:"0.1em",textTransform:"uppercase",marginBottom:10}}>Place in manuscript</div>
+
+                    {/* Agnes hypothesis */}
+                    {ember.agnesAnalysis?.placementHypothesis&&<div style={{background:"#8A7AAA10",border:"1px solid #8A7AAA25",borderRadius:7,padding:"9px 12px",marginBottom:14}}>
+                      <div style={{fontSize:8,color:"#8A7AAA",fontFamily:"'DM Sans',sans-serif",fontWeight:600,letterSpacing:"0.1em",textTransform:"uppercase",marginBottom:4}}>Agnes suggests</div>
+                      <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:12,color:"var(--text-muted)",lineHeight:1.6}}>{ember.agnesAnalysis.placementHypothesis}</div>
+                    </div>}
+
+                    {/* Existing chapters */}
+                    {chapterNums.length>0&&<>
+                      <div style={{fontSize:10,color:"var(--text-dim)",fontFamily:"'DM Sans',sans-serif",marginBottom:8}}>Add to an existing chapter:</div>
+                      {chapterNums.map(ch=>{
+                        const chScene=scenes.find(s=>s.chapter===ch&&s.scene===1)||scenes.find(s=>s.chapter===ch);
+                        const chTitle=chScene?.title||"";
+                        const chWords=(chScene?.text||"").split(/\s+/).filter(w=>w).length;
+                        const bibleSummary=project?.chapters?.find(c=>c.num===ch)?.summary||"";
+                        return <div key={ch} onClick={()=>placeInChapter(ch)} style={{background:"var(--bg-card-alt)",border:"1px solid var(--border)",borderRadius:7,padding:"9px 12px",marginBottom:6,cursor:"pointer"}}>
+                          <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:bibleSummary?3:0}}>
+                            <div style={{fontSize:12,color:"var(--text-muted)",fontFamily:"'Cormorant Garamond',serif",fontWeight:600}}>Chapter {ch}{chTitle?` · ${chTitle}`:""}</div>
+                            <div style={{fontSize:9,color:"var(--text-dim)",fontFamily:"'DM Sans',sans-serif"}}>{chWords} words</div>
+                          </div>
+                          {bibleSummary&&<div style={{fontSize:11,color:"var(--text-dim)",fontFamily:"'Cormorant Garamond',serif",fontStyle:"italic",lineHeight:1.5}}>{bibleSummary.substring(0,80)}{bibleSummary.length>80?"...":""}</div>}
+                        </div>;
+                      })}
+                      <div style={{height:1,background:"var(--border)",margin:"12px 0"}}/>
+                    </>}
+
+                    {/* New chapter option */}
+                    <div onClick={placeAsNew} style={{background:"var(--bg-card-alt)",border:"1px dashed var(--border)",borderRadius:7,padding:"9px 12px",marginBottom:12,cursor:"pointer",textAlign:"center"}}>
+                      <div style={{fontSize:12,color:"var(--text-dim)",fontFamily:"'DM Sans',sans-serif"}}>Create as Chapter {nextChapter}</div>
+                    </div>
+
+                    {/* Decide later */}
+                    <button onClick={()=>setEmberPlacerOpen(false)} style={{width:"100%",background:"none",border:"1px solid var(--border)",borderRadius:7,padding:"9px",fontSize:12,color:"var(--text-dim)",cursor:"pointer",fontFamily:"'DM Sans',sans-serif"}}>Keep here, I'll decide later</button>
+                  </div>
+                </div>;
+              })()}
               {(()=>{
                 const ember=embers.find(e=>e.id===activeEmber);
                 if(!ember)return(
@@ -3290,22 +3374,7 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
                       <span onClick={()=>{
                         if(sparks&&ember.text){const t=ember.text.substring(0,200);const ns=[...sparks,{text:t,date:new Date().toLocaleDateString(),mode:"Embers",modeId:"embers"}];setSparks(ns);saveStored("tt-sparks",ns);}
                       }} style={{fontSize:10,color:"var(--text-dim)",background:"var(--bg-card)",border:"1px solid #8A7AAA20",borderRadius:4,padding:"3px 8px",cursor:"pointer"}}>This excites me</span>
-                      <span onClick={()=>{
-                        // Place ember — send to manuscript as new chapter
-                        const chapterNums=[...new Set(scenes.map(s=>s.chapter))].sort((a,b)=>a-b);
-                        const nextChapter=(chapterNums[chapterNums.length-1]||0)+1;
-                        const newScene={id:`scene-${Date.now()}`,chapter:nextChapter,scene:1,text:ember.text,title:ember.title||"",draftStatus:"in-progress",lastEdited:Date.now(),modeData:[],sceneNotes:""};
-                        const updatedScenes=[...scenes,newScene];
-                        setScenes(updatedScenes);
-                        saveScenes(updatedScenes);
-                        setActiveScene(newScene.id);
-                        // Archive the ember
-                        const updatedEmbers=embers.map(e=>e.id===ember.id?{...e,status:"placed",placedChapter:nextChapter}:e);
-                        setEmbers(updatedEmbers);
-                        saveStored("tt-embers",updatedEmbers);
-                        setForgeMode("manuscript");
-                        setActiveEmber(null);
-                      }} style={{fontSize:10,color:"#8A7AAA",background:"var(--bg-card)",border:"1px solid #8A7AAA30",borderRadius:4,padding:"3px 8px",cursor:"pointer"}}>Place in manuscript</span>
+                      <span onClick={()=>setEmberPlacerOpen(true)} style={{fontSize:10,color:"#8A7AAA",background:"var(--bg-card)",border:"1px solid #8A7AAA30",borderRadius:4,padding:"3px 8px",cursor:"pointer"}}>Place in manuscript</span>
                       <span onClick={()=>{
                         const updatedEmbers=embers.map(e=>e.id===ember.id?{...e,status:"archived"}:e);
                         setEmbers(updatedEmbers);
@@ -4070,7 +4139,7 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
             {profileEditMode?<>
               <div onClick={()=>setProfileEditMode(false)} style={{background:"none",border:"1px solid var(--border)",borderRadius:7,padding:"10px 16px",cursor:"pointer"}}><span style={{fontSize:13,color:"var(--text-dim)",fontFamily:"'DM Sans',sans-serif"}}>Cancel</span></div>
               <div onClick={()=>{const newName=profileEditName.trim()||userName;setUserName(newName);saveStored("tt-username",newName);cloudSave("tt-username",newName);const updated={...userProfile,...profileEditAnswers,updatedAt:new Date().toISOString()};setUserProfile(updated);saveStored("tt-userprofile",updated);cloudSave("tt-userprofile",updated);setProfileEditMode(false);}} style={{flex:1,background:"var(--accent)",border:"none",borderRadius:7,padding:"10px",textAlign:"center",cursor:"pointer"}}><span style={{fontSize:13,fontWeight:500,color:"var(--bg-deepest)",fontFamily:"'DM Sans',sans-serif"}}>Save changes</span></div>
-            </>:<div onClick={()=>{setProfileEditAnswers(userProfile?{q1:{...userProfile.q1},q2:{...userProfile.q2},q3:{...userProfile.q3},q4:{...userProfile.q4}}:{q1:{selected:[],text:""},q2:{selected:[],text:""},q3:{selected:[],text:""},q4:{selected:[],text:""}});setProfileEditName(userName||"");setProfileEditMode(true);}} style={{flex:1,background:"var(--accent)",border:"none",borderRadius:7,padding:"10px",textAlign:"center",cursor:"pointer"}}><span style={{fontSize:13,fontWeight:500,color:"var(--bg-deepest)",fontFamily:"'DM Sans',sans-serif"}}>Edit Profile</span></div>}
+            </>:<div onClick={()=>{setProfileEditAnswers(userProfile?{q1:{...userProfile.q1},q2:{...userProfile.q2},q3:{...userProfile.q3},q4:{...userProfile.q4},q5:{...userProfile.q5||{selected:[],text:""}},q6:{...userProfile.q6||{selected:[],text:""}}}:{q1:{selected:[],text:""},q2:{selected:[],text:""},q3:{selected:[],text:""},q4:{selected:[],text:""},q5:{selected:[],text:""},q6:{selected:[],text:""}});setProfileEditName(userName||"");setProfileEditMode(true);}} style={{flex:1,background:"var(--accent)",border:"none",borderRadius:7,padding:"10px",textAlign:"center",cursor:"pointer"}}><span style={{fontSize:13,fontWeight:500,color:"var(--bg-deepest)",fontFamily:"'DM Sans',sans-serif"}}>Edit Profile</span></div>}
           </div>
         </div>
       </div>}
