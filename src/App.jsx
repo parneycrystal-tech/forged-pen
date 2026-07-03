@@ -841,15 +841,24 @@ export default function App() {
     const userText=containerInput.trim();
     setLastThought(userText);saveStored("tt-lastthought",userText);
     const currentScene=scenes.find(s=>s.id===activeScene);
-    const sceneCtx=currentScene?`\n\nCURRENT SCENE (Chapter ${currentScene.chapter}, Scene ${currentScene.scene}):\n${currentScene.text||"(empty, writer hasn't started yet)"}`:""
+    // When in Embers, pass the active ember as context instead of manuscript scene
+    const activeEmberObj=forgeMode==="embers"?embers.find(e=>e.id===activeEmber):null;
+    const sceneCtx=forgeMode==="embers"
+      ?activeEmberObj?`\n\nEMBER FRAGMENT (scene without a home):\nTitle: ${activeEmberObj.title||"Untitled"}\n${activeEmberObj.text||""}${activeEmberObj.agnesAnalysis?`\n\nAgnes's read: Placement hypothesis: ${activeEmberObj.agnesAnalysis.placementHypothesis}. Tension note: ${activeEmberObj.agnesAnalysis.tensionNote}. Characters: ${activeEmberObj.agnesAnalysis.characterTag}.`:""}`
+      :""
+      :currentScene?`\n\nCURRENT SCENE (Chapter ${currentScene.chapter}):\n${currentScene.text||"(empty, writer hasn't started yet)"}`:""
     const chapStr=project?.chapters?(Array.isArray(project.chapters)?project.chapters.filter(c=>c.summary).map(c=>`Ch${c.num}: ${c.summary}`).join(". "):project.chapters):"";
     const pCtx=project?`\n\nPROJECT: "${project.title}". Genre: ${project.genre}. Synopsis: ${project.synopsis}. Protagonist: ${project.protagonist}. Goal: ${project.protagonistGoal||"not yet captured"}. Dream: ${project.protagonistDream||"not yet captured"}. Fear: ${project.protagonistFear||"not yet captured"}. Wound: ${project.protagonistWound||"not yet captured"}. Backstory: ${project.protagonistBackstory||"not yet captured"}. Misbelief: ${project.protagonistMisbelief||"not yet captured"}. Supporting: ${project.supporting}. Antagonist: ${project.antagonist}. Setting: ${project.worldSetting}. Rules: ${project.worldRules}. Mythology & Paranormal Rules: ${project.worldMythology||"not yet captured"}. Beliefs vs Reality: ${project.worldBeliefs}. Danger: ${project.worldDanger}. Tone: ${project.worldTone}. Chapters (these summaries are the authoritative record established by Agnes — treat them as ground truth, do not re-interpret or contradict them): ${chapStr}. Position: ${project.where}. Stuck: ${project.stuck}. Excites: ${project.excites}.`:"";
     const sparkCtx=sparks.length>0?`\n\nDOPAMINE MAP: ${sparks.map(s=>s.text).join(" | ")}`:"";
+    // Different Finn framing for Embers vs manuscript
+    const containerSys=forgeMode==="embers"
+      ?`${FINN}\n\nMODE: EMBERS COACHING. The writer has a scene fragment without a home. You have read the ember and Agnes's placement analysis if available. Help the writer understand where this fragment belongs in their story, what it's doing emotionally and narratively, and what it needs to become a full scene. Be specific to this fragment. Ask the one question that unlocks where it belongs. Do not write prose for the writer. Under 150 words unless they ask for more.`
+      :CONTAINER_FINN;
     const nm=[...containerMsgs,{role:"user",content:userText}];setContainerMsgs(nm);setContainerInput("");setLoading(true);
     const ctrl=new AbortController();abortRef.current=ctrl;
     try{
       const sessionCtxForge = sessionSummaries.length>0 ? `\n\nRECENT SESSION HISTORY:\n${sessionSummaries.slice(0,5).map((s,i)=>`Session ${i+1}${i===0?" (most recent)":""}: ${s.date} in ${s.mode}. Worked on: ${s.storyElement}. Key insight: ${s.keyInsight}. Still sitting with: ${s.openQuestion}.${s.rawTexture?` The writer said, in their own words: "${s.rawTexture}"`:""}`).join("\n")}` : "";
-      const r=await fetch("/api/chat",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({system:CONTAINER_FINN+sceneCtx+pCtx+sparkCtx+(userName?`\n\nThe writer's name is ${userName}. Use their name naturally.`:"")+sessionCtxForge,messages:nm.map(m=>({role:m.role,content:m.content}))}),signal:ctrl.signal});
+      const r=await fetch("/api/chat",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({system:containerSys+sceneCtx+pCtx+sparkCtx+(userName?`\n\nThe writer's name is ${userName}. Use their name naturally.`:"")+sessionCtxForge,messages:nm.map(m=>({role:m.role,content:m.content}))}),signal:ctrl.signal});
       const d=await r.json();
       if(d.error){setContainerMsgs(p=>[...p,{role:"assistant",content:`Connection issue: ${d.error}`}])}
       else{
@@ -3361,7 +3370,7 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
                 if(!ember)return(
                   <div style={{flex:1,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",padding:40}}>
                     <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:20,color:"#8A7AAA",fontStyle:"italic",marginBottom:8,textAlign:"center"}}>Embers</div>
-                    <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:14,color:"var(--text-dim)",lineHeight:1.7,textAlign:"center",maxWidth:340,marginBottom:24}}>Scenes that emerged without a home. Agnes reads each one and suggests where it might belong in your story.</div>
+                    <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:14,color:"var(--text-dim)",lineHeight:1.7,textAlign:"center",maxWidth:340,marginBottom:24}}>Scenes that emerged without a home. Agnes can read each one and suggest where it might belong. Just ask her.</div>
                     <button onClick={()=>setAddEmberOpen(true)} style={{background:"#8A7AAA20",border:"1px dashed #8A7AAA60",borderRadius:8,padding:"10px 20px",fontSize:12,color:"#8A7AAA",cursor:"pointer",fontFamily:"'DM Sans',sans-serif"}}>Add your first ember</button>
                   </div>
                 );
@@ -3534,7 +3543,9 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
             <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12}}>
               <div>
                 <div style={{fontSize:9,textTransform:"uppercase",letterSpacing:"0.18em",color:"var(--accent-80)",fontWeight:500}}>Finn</div>
-                {currentScene&&<div style={{fontSize:10,color:"var(--text-dim)",marginTop:2}}>Ch{currentScene.chapter}, Scene {currentScene.scene}</div>}
+                {forgeMode==="embers"
+                  ?<div style={{fontSize:10,color:"#8A7AAA",marginTop:2}}>Embers</div>
+                  :currentScene&&<div style={{fontSize:10,color:"var(--text-dim)",marginTop:2}}>Ch{currentScene.chapter}</div>}
               </div>
               <div style={{display:"flex",gap:6,alignItems:"center"}}>
                 <div style={{display:"flex",gap:2}}>{["small","medium","large"].map(sz=><span key={sz} onClick={()=>setFinnPanelSize(sz)} style={{width:sz==="small"?10:sz==="medium"?14:18,height:10,borderRadius:2,background:finnPanelSize===sz?"var(--accent)":"var(--border-mid)",cursor:"pointer",transition:"background .2s"}}/>)}</div>
@@ -3556,7 +3567,7 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
                 <button className="sb" onClick={sendContainer} disabled={!containerInput.trim()||loading} style={{width:28,height:28,borderRadius:6,background:"var(--accent)",color:"var(--bg-deepest)",fontSize:14,fontWeight:700,border:"none",cursor:"pointer",flexShrink:0,display:"flex",alignItems:"center",justifyContent:"center",opacity:!containerInput.trim()||loading?.3:1}}>{"\u2191"}</button>
               </div>
             </div>
-            {project&&<div style={{marginTop:10,paddingTop:8,borderTop:"1px solid var(--border)"}}>
+            {project&&forgeMode!=="embers"&&<div style={{marginTop:10,paddingTop:8,borderTop:"1px solid var(--border)"}}>
               <div style={{fontSize:8,textTransform:"uppercase",letterSpacing:"0.15em",color:"var(--text-dim)",fontWeight:500,marginBottom:4}}>Story Bible</div>
               <div style={{fontSize:10,color:"var(--text-dim)",lineHeight:1.5}}>{project.protagonist?.substring(0,80)}</div>
               {sparks.length>0&&<><div style={{fontSize:8,textTransform:"uppercase",letterSpacing:"0.15em",color:"var(--accent-50)",fontWeight:500,marginTop:8,marginBottom:4}}>Dopamine Map</div><div style={{fontSize:10,color:"var(--text-dim)"}}>{sparks.length} sparks</div></>}
