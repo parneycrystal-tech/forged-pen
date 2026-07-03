@@ -1317,7 +1317,13 @@ If the fields above don't contain actual sensory description, return sensoryAnch
     }
   },[screen,project]);
 
-  // Agnes reads an ember on arrival and generates placement hypothesis
+  // Clear Finn panel messages when switching embers so old conversations don't persist
+  useEffect(()=>{
+    if(forgeMode==="embers"){
+      setContainerMsgs([]);
+      setFinnOpen(false);
+    }
+  },[activeEmber]);
   const generateEmberAnalysis=async(ember)=>{
     if(!ember||!ember.text||ember.text.trim().length<30)return;
     setEmberAgnesLoading(ember.id);
@@ -3412,32 +3418,42 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
                       </div>}
                     </div>
                     {ember.agnesAnalysis.characterTag&&<div style={{fontSize:10,color:"#8A7AAA60",fontFamily:"'DM Sans',sans-serif"}}>Characters: {ember.agnesAnalysis.characterTag}</div>}
-                    <div style={{display:"flex",gap:6,marginTop:8}}>
-                      <span onClick={()=>{
-                        setFinnOpen(true);
-                        const driftContext=`I have a scene fragment without a home. Agnes suggested it might belong ${ember.agnesAnalysis.placementHypothesis}. The tension Agnes noted: ${ember.agnesAnalysis.tensionNote}. Here is the fragment:\n\n${ember.text}\n\nWhat do you think — where does this belong, and what is it trying to do?`;
-                        setContainerMsgs([{role:"assistant",content:"I've read the ember. Let me think about where it belongs."},{role:"user",content:driftContext}]);
-                      }} style={{fontSize:10,color:"#8A7AAA",background:"var(--bg-card)",border:"1px solid #8A7AAA30",borderRadius:4,padding:"3px 8px",cursor:"pointer",fontFamily:"'DM Sans',sans-serif"}}>Ask Finn</span>
-                      <span onClick={()=>generateEmberAnalysis(ember)} style={{fontSize:10,color:"var(--text-dim)",background:"var(--bg-card)",border:"1px solid var(--border)",borderRadius:4,padding:"3px 8px",cursor:"pointer",fontFamily:"'DM Sans',sans-serif"}}>Re-read</span>
+                    {/* Re-read only — no Ask Finn here, one button at the bottom */}
+                    <div style={{marginTop:8}}>
+                      <span onClick={()=>generateEmberAnalysis(embers.find(e=>e.id===activeEmber)||ember)} style={{fontSize:10,color:"var(--text-dim)",background:"var(--bg-card)",border:"1px solid var(--border)",borderRadius:4,padding:"3px 8px",cursor:"pointer",fontFamily:"'DM Sans',sans-serif"}}>Re-read</span>
                     </div>
                   </div>}
                   {!ember.agnesAnalysis&&emberAgnesLoading!==ember.id&&<div style={{padding:"8px 40px",background:"#8A7AAA06",borderBottom:"1px solid #8A7AAA15"}}>
-                    <span onClick={()=>generateEmberAnalysis(ember)} style={{fontSize:10,color:"#8A7AAA60",fontFamily:"'DM Sans',sans-serif",cursor:"pointer",fontStyle:"italic"}}>Let Agnes read this ember</span>
+                    <span onClick={()=>{
+                      // Always look up ember fresh from state to avoid stale closure
+                      const freshEmber=embers.find(e=>e.id===activeEmber);
+                      if(freshEmber) generateEmberAnalysis(freshEmber);
+                    }} style={{fontSize:10,color:"#8A7AAA60",fontFamily:"'DM Sans',sans-serif",cursor:"pointer",fontStyle:"italic"}}>Let Agnes read this ember</span>
                   </div>}
 
-                  {/* Ember text — editable */}
-                  <div style={{flex:1,overflow:"auto",padding:"24px 40px"}}>
+                  {/* Ember text — editable, fills all remaining height */}
+                  <div style={{flex:1,overflow:"auto",padding:"24px 40px",display:"flex",flexDirection:"column"}}>
                     <textarea value={ember.text||""} onChange={e=>{
                       const updatedEmbers=embers.map(em=>em.id===ember.id?{...em,text:e.target.value,lastEdited:Date.now()}:em);
                       setEmbers(updatedEmbers);
                       saveStored("tt-embers",updatedEmbers);
-                    }} style={{width:"100%",minHeight:300,background:"none",border:"none",outline:"none",resize:"none",fontFamily:"'Cormorant Garamond',serif",fontSize:18,color:"var(--text-primary)",lineHeight:2}}/>
+                    }} style={{flex:1,width:"100%",height:"100%",minHeight:200,background:"none",border:"none",outline:"none",resize:"none",fontFamily:"'Cormorant Garamond',serif",fontSize:18,color:"var(--text-primary)",lineHeight:2}}/>
                   </div>
 
                   <div style={{padding:"10px 40px 14px",borderTop:"1px solid #8A7AAA20",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
                     <div style={{fontSize:10,color:"var(--text-dim)"}}>Auto-saved</div>
                     <div style={{display:"flex",gap:10}}>
-                      <span onClick={()=>{setFinnOpen(!finnOpen);if(!finnOpen&&containerMsgs.length===0){setContainerMsgs([{role:"assistant",content:"I've read the ember. What do you want to know about it?"}])}}} style={{fontSize:12,color:finnOpen?"#8A7AAA":"#8A7AAA80",background:"var(--bg-card-alt)",border:"1px solid #8A7AAA20",borderRadius:8,padding:"7px 16px",cursor:"pointer",fontWeight:500}}>{finnOpen?"Close Finn":"Ask Finn"}</span>
+                      <span onClick={()=>{
+                        // Clear old messages and open Finn with ember-specific context
+                        // Agnes analysis goes into system prompt via sendContainer, not as a fake user message
+                        const freshEmber=embers.find(e=>e.id===activeEmber)||ember;
+                        const hasAgnes=freshEmber.agnesAnalysis;
+                        const opening=hasAgnes
+                          ?`I've read it. Agnes placed it around ${hasAgnes.placementHypothesis?.split(".")[0]||"an unknown chapter"}. The tension she caught: ${hasAgnes.tensionNote} What's your instinct — does her read feel right?`
+                          :`I've read the ember. "${(freshEmber.text||"").substring(0,60).trim()}..." — tell me what you know about this scene that isn't on the page yet.`;
+                        setContainerMsgs([{role:"assistant",content:opening}]);
+                        setFinnOpen(true);
+                      }} style={{fontSize:12,color:finnOpen?"#8A7AAA":"#8A7AAA80",background:"var(--bg-card-alt)",border:"1px solid #8A7AAA20",borderRadius:8,padding:"7px 16px",cursor:"pointer",fontWeight:500}}>{finnOpen?"Close Finn":"Ask Finn"}</span>
                       <span onClick={goHome} style={{fontSize:12,color:"var(--text-muted)",cursor:"pointer",padding:"7px 12px",background:"var(--bg-card-alt)",border:"1px solid var(--border)",borderRadius:8}}>Home</span>
                     </div>
                   </div>
