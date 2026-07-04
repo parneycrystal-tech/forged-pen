@@ -479,6 +479,12 @@ function Btn({children,onClick,s}){return <button onClick={onClick} style={{back
 function BibTab({id,label,active,onClick}){return <button onClick={()=>onClick(id)} style={{background:active?"var(--bg-card-alt)":"none",border:active?"1px solid var(--border-mid)":"1px solid transparent",borderRadius:8,color:active?"var(--accent)":"var(--text-dim)",fontSize:12,padding:"6px 14px",cursor:"pointer",fontFamily:"'DM Sans',sans-serif"}}>{label}</button>}
 
 
+const AGNES_INVOLVEMENT_LEVELS=[
+  {id:"full",label:"Full",desc:"Agnes speaks up on her own. Drift notes, ember analysis, and her read on where you are all surface automatically."},
+  {id:"quiet",label:"Quiet",desc:"Agnes still reads everything. She won't interrupt, but a quiet marker lets you know when she has something. You decide when to look."},
+  {id:"off",label:"Off",desc:"Agnes stays fully out of the way. No markers, no automatic notes. She's still there if you ask, just never uninvited."}
+];
+
 const PROFILE_QUESTIONS=[
   {id:"q1",q:"How long have you been writing?",opts:["Just starting out","A few years in","I've been writing for years","I've been published"],multi:false,addl:"Anything Finn should know about your writing background?"},
   {id:"q2",q:"How does your writing brain work? Choose everything that feels true.",opts:["I work best in short focused bursts","I tend to jump around rather than write linearly","I get easily overwhelmed by too many options","I have a hard time starting even when I know what to write","I lose momentum quickly after a good session","I can write for long stretches when I'm in flow","I write linearly, start to finish","It depends completely on the day"],multi:true,addl:"Anything else about how you work best?",disclaimer:"Forged Pen is a writing tool, not a mental health service. If you're experiencing a crisis please reach out to a qualified professional."},
@@ -514,6 +520,9 @@ export default function App() {
   const [profileAnswers, setProfileAnswers] = useState({q1:{selected:[],text:""},q2:{selected:[],text:""},q3:{selected:[],text:""},q4:{selected:[],text:""},q5:{selected:[],text:""},q6:{selected:[],text:""}});
   const [userProfile, setUserProfile] = useState(null);
   const [onboardingDone, setOnboardingDone] = useState(false);
+  const [agnesInvolvement, setAgnesInvolvement] = useState("full"); // "full" | "quiet" | "off" — gates AUTOMATIC surfacing only. Manual asks always work at full quality in every mode.
+  const [driftBadges, setDriftBadges] = useState([]); // chapter nums with a waiting (unopened) drift note, shown only in "quiet" mode
+  const [involvementEditChoice, setInvolvementEditChoice] = useState("full"); // scratch value while editing in onboarding/profile
   const [profileOpen, setProfileOpen] = useState(false);
   const [profileEditMode, setProfileEditMode] = useState(false);
   const [profileEditAnswers, setProfileEditAnswers] = useState(null);
@@ -692,9 +701,13 @@ export default function App() {
     const fscap = loadStored("tt-first-session-capture");
     const pdr = loadStored("tt-pending-drift");
     const pex = loadStored("tt-pending-extract");
+    const ai = loadStored("tt-agnes-involvement");
+    const db = loadStored("tt-drift-badges");
     if (un) setUserName(un);
     if (up) setUserProfile(up);
     if (od) setOnboardingDone(true);
+    if (ai) setAgnesInvolvement(ai);
+    if (db && Array.isArray(db)) setDriftBadges(db);
     if (ss) setSessionSummaries(ss);
     if (fsd) setFirstSessionDone(true);
     if (fsdis) setFirstSessionDismissed(true);
@@ -1228,7 +1241,11 @@ If there is no genuine drift, only additions or elaborations, return: {"drifts":
             });
             setDriftResult({drifts:result.drifts,chapterNum:extractResult.chapterNum});
             setDriftResolutions({});
-            setDriftOpen(true);
+            // Agnes always finishes the read regardless of mode. Involvement only gates whether
+            // she interrupts you with it automatically. Quiet/Off still queue it for the badge/manual review.
+            if(agnesInvolvement==="full"){
+              setDriftOpen(true);
+            }
           }
         }catch(e){console.log("Drift parse error:",e);}
       }
@@ -1317,13 +1334,7 @@ If the fields above don't contain actual sensory description, return sensoryAnch
     }
   },[screen,project]);
 
-  // Clear Finn panel messages when switching embers so old conversations don't persist
-  useEffect(()=>{
-    if(forgeMode==="embers"){
-      setContainerMsgs([]);
-      setFinnOpen(false);
-    }
-  },[activeEmber]);
+  // Agnes reads an ember on arrival and generates placement hypothesis
   const generateEmberAnalysis=async(ember)=>{
     if(!ember||!ember.text||ember.text.trim().length<30)return;
     setEmberAgnesLoading(ember.id);
@@ -1534,12 +1545,15 @@ Respond ONLY with a JSON object. No markdown. No backticks. No explanation.
     setAgnesBriefLoading(false);
   };
 
-  // Trigger Agnes brief generation when home screen loads with a project
+  // Trigger Agnes brief generation when home screen loads with a project.
+  // Full only — in Quiet/Off, Agnes waits for an explicit "Refresh Finn's Read" instead of
+  // greeting the writer with her own read unprompted. The home screen's existing fallback
+  // messaging covers the gap gracefully until asked.
   useEffect(()=>{
-    if(screen==="home"&&project){
+    if(screen==="home"&&project&&agnesInvolvement==="full"){
       generateAgnesBrief();
     }
-  },[screen,project?.updated]);
+  },[screen,project?.updated,agnesInvolvement]);
 
   const generateSidebarContext=async(sessionMsgs,sessionMode,sceneText,sessionModeId)=>{
     if(!project||sessionMsgs.length<2)return;
@@ -1597,6 +1611,17 @@ If there are no concrete sensory details actually present in the conversation (f
     else if(welcomeRoute==="storybible"){saveSession(null);setScreen("setup");}
     else if(welcomeRoute==="manuscript"||welcomeRoute==="forge"){initScenes();}
     else{saveSession(null);setScreen("home");}
+  };
+
+  const saveAgnesInvolvement=(level)=>{
+    setAgnesInvolvement(level);
+    saveStored("tt-agnes-involvement",level);
+    cloudSave("tt-agnes-involvement",level);
+    // Off means no passive markers either — clear any waiting badges rather than let them linger unseen
+    if(level==="off"&&driftBadges.length>0){
+      setDriftBadges([]);
+      saveStored("tt-drift-badges",[]);
+    }
   };
 
   const saveProfile=(answers)=>{
@@ -2241,7 +2266,7 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
                 <p style={{fontFamily:"'Cormorant Garamond',serif",fontSize:15,fontWeight:300,color:"#3A3428",lineHeight:1.85,marginBottom:20}}>Would you like to set up your profile now or as we go?</p>
                 <div style={{display:"flex",flexDirection:"column",gap:8}}>
                   <div onClick={()=>{setWelcomeStep("profile");setProfileStep(1);}} style={{background:"#5A6B3A",borderRadius:7,padding:"11px",textAlign:"center",cursor:"pointer"}}><span style={{fontSize:13,fontWeight:500,color:"#F0EAE0",fontFamily:"'DM Sans',sans-serif"}}>Let's do it now</span></div>
-                  <div onClick={()=>{routeToDestination();}} style={{background:"none",border:"1px solid #C8BC9A",borderRadius:7,padding:"11px",textAlign:"center",cursor:"pointer"}}><span style={{fontSize:13,color:"#5A5040",fontFamily:"'DM Sans',sans-serif"}}>As we go</span></div>
+                  <div onClick={()=>{setWelcomeStep("involvement");}} style={{background:"none",border:"1px solid #C8BC9A",borderRadius:7,padding:"11px",textAlign:"center",cursor:"pointer"}}><span style={{fontSize:13,color:"#5A5040",fontFamily:"'DM Sans',sans-serif"}}>As we go</span></div>
                 </div>
               </div>
             </>}
@@ -2278,23 +2303,42 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
                     <span style={{fontSize:12,color:"#908878",fontFamily:"'DM Sans',sans-serif"}}>← Back</span>
                   </div>}
                   <div onClick={()=>{
-                    if(isLast){saveProfile(profileAnswers);routeToDestination();}
+                    if(isLast){saveProfile(profileAnswers);setWelcomeStep("involvement");}
                     else setProfileStep(s=>s+1);
                   }} style={{flex:1,background:hasAnswer?"#5A6B3A":"#D8CEB0",borderRadius:7,padding:"10px",textAlign:"center",cursor:hasAnswer?"pointer":"default"}}>
                     <span style={{fontSize:13,fontWeight:500,color:hasAnswer?"#F0EAE0":"#908878",fontFamily:"'DM Sans',sans-serif"}}>{isLast?"Let's go":"Next"}</span>
                   </div>
                   <div onClick={()=>{
-                    if(isLast){saveProfile(profileAnswers);routeToDestination();}
+                    if(isLast){saveProfile(profileAnswers);setWelcomeStep("involvement");}
                     else setProfileStep(s=>s+1);
                   }} style={{background:"none",border:"1px solid #C8BC9A",borderRadius:7,padding:"10px 14px",cursor:"pointer"}}>
                     <span style={{fontSize:12,color:"#908878",fontFamily:"'DM Sans',sans-serif"}}>Skip</span>
                   </div>
                 </div>
                 <div style={{textAlign:"center",marginTop:10}}>
-                  <span onClick={()=>routeToDestination()} style={{fontSize:11,color:"#908878",cursor:"pointer",fontFamily:"'DM Sans',sans-serif"}}>I'll come back to this</span>
+                  <span onClick={()=>setWelcomeStep("involvement")} style={{fontSize:11,color:"#908878",cursor:"pointer",fontFamily:"'DM Sans',sans-serif"}}>I'll come back to this</span>
                 </div>
               </div>;
             })()}
+
+            {welcomeStep==="involvement"&&<div style={{borderTop:"1px solid #D8CEB0",paddingTop:24}}>
+              <p style={{fontFamily:"'Cormorant Garamond',serif",fontSize:17,color:"#1E1C14",lineHeight:1.75,marginBottom:10}}>One more thing, {userName}. This one's about Agnes.</p>
+              <p style={{fontFamily:"'Cormorant Garamond',serif",fontSize:15,fontWeight:300,color:"#3A3428",lineHeight:1.85,marginBottom:20}}>Agnes keeps your Story Bible and reads everything you write, always, no matter what you choose here. This just decides how much she says without being asked. You can change this anytime from your Profile.</p>
+              <div style={{display:"flex",flexDirection:"column",gap:10,marginBottom:20}}>
+                {AGNES_INVOLVEMENT_LEVELS.map(lvl=>(
+                  <div key={lvl.id} onClick={()=>setInvolvementEditChoice(lvl.id)} style={{background:involvementEditChoice===lvl.id?"#F5EEE4":"#F0EAE0",border:"1px solid "+(involvementEditChoice===lvl.id?"#A8884A":"#C8BC9A"),borderRadius:8,padding:"14px 16px",cursor:"pointer",transition:"all .2s"}}>
+                    <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:4}}>
+                      <div style={{width:14,height:14,borderRadius:"50%",border:"1px solid "+(involvementEditChoice===lvl.id?"#5A6B3A":"#C8BC9A"),background:involvementEditChoice===lvl.id?"#5A6B3A":"transparent",flexShrink:0,display:"flex",alignItems:"center",justifyContent:"center"}}>
+                        {involvementEditChoice===lvl.id&&<div style={{width:6,height:6,borderRadius:"50%",background:"#F0EAE0"}}/>}
+                      </div>
+                      <span style={{fontFamily:"'Cormorant Garamond',serif",fontSize:16,color:"#1E1C14"}}>{lvl.label}</span>
+                    </div>
+                    <div style={{fontSize:12,color:"#7A6E60",fontFamily:"'DM Sans',sans-serif",lineHeight:1.6,paddingLeft:24}}>{lvl.desc}</div>
+                  </div>
+                ))}
+              </div>
+              <div onClick={()=>{saveAgnesInvolvement(involvementEditChoice);routeToDestination();}} style={{background:"#5A6B3A",borderRadius:7,padding:"11px",textAlign:"center",cursor:"pointer"}}><span style={{fontSize:13,fontWeight:500,color:"#F0EAE0",fontFamily:"'DM Sans',sans-serif"}}>Continue</span></div>
+            </div>}
 
             <div style={{textAlign:"center",marginTop:16,paddingTop:16,borderTop:"1px solid #D8CEB0"}}>
               <p style={{fontSize:12,color:"#9A8870",lineHeight:1.6,fontFamily:"'DM Sans',sans-serif"}}>Your content never trains AI.<br/>Your story is yours, always.</p>
@@ -2525,6 +2569,8 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
           const otherQueued=driftQueue.filter(e=>e.driftResult.chapterNum!==driftResult?.chapterNum).reduce((sum,e)=>sum+(e.driftResult?.drifts?.length||0),0);
           const totalRemaining=currentRemaining+otherQueued;
           const chapterCount=[...new Set(driftQueue.map(e=>e.driftResult.chapterNum))].length;
+          // Off mode: no passive markers, waiting for an explicit ask instead
+          if(agnesInvolvement==="off")return null;
           if(totalRemaining<=0||!driftResult)return null;
           return <div onClick={()=>setDriftOpen(true)} className="card" style={{marginBottom:8,padding:"12px 16px",cursor:"pointer",border:"1px solid var(--accent-30)",background:"var(--bg-card-alt)"}}>
             <div style={{display:"flex",alignItems:"center",gap:10}}>
@@ -3289,8 +3335,11 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
                       setNewEmberTitle("");
                       setNewEmberText("");
                       setAddEmberOpen(false);
-                      // Agnes reads immediately
-                      setTimeout(()=>generateEmberAnalysis(newEmber),500);
+                      // Agnes reads immediately, but only surfaces it unprompted in Full mode.
+                      // In Quiet/Off she still forms the read; the writer opts in via "Let Agnes read this ember".
+                      if(agnesInvolvement==="full"){
+                        setTimeout(()=>generateEmberAnalysis(newEmber),500);
+                      }
                     }} style={{flex:1,background:"#8A7AAA",border:"none",borderRadius:7,padding:"10px",fontSize:12,color:"var(--bg-base)",cursor:"pointer",fontFamily:"'DM Sans',sans-serif",fontWeight:500}}>Save ember</button>
                     <button onClick={()=>{setAddEmberOpen(false);setNewEmberTitle("");setNewEmberText("");}} style={{background:"none",border:"1px solid var(--border)",borderRadius:7,padding:"10px 14px",fontSize:12,color:"var(--text-dim)",cursor:"pointer",fontFamily:"'DM Sans',sans-serif"}}>Cancel</button>
                   </div>
@@ -3418,42 +3467,32 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
                       </div>}
                     </div>
                     {ember.agnesAnalysis.characterTag&&<div style={{fontSize:10,color:"#8A7AAA60",fontFamily:"'DM Sans',sans-serif"}}>Characters: {ember.agnesAnalysis.characterTag}</div>}
-                    {/* Re-read only — no Ask Finn here, one button at the bottom */}
-                    <div style={{marginTop:8}}>
-                      <span onClick={()=>generateEmberAnalysis(embers.find(e=>e.id===activeEmber)||ember)} style={{fontSize:10,color:"var(--text-dim)",background:"var(--bg-card)",border:"1px solid var(--border)",borderRadius:4,padding:"3px 8px",cursor:"pointer",fontFamily:"'DM Sans',sans-serif"}}>Re-read</span>
+                    <div style={{display:"flex",gap:6,marginTop:8}}>
+                      <span onClick={()=>{
+                        setFinnOpen(true);
+                        const driftContext=`I have a scene fragment without a home. Agnes suggested it might belong ${ember.agnesAnalysis.placementHypothesis}. The tension Agnes noted: ${ember.agnesAnalysis.tensionNote}. Here is the fragment:\n\n${ember.text}\n\nWhat do you think — where does this belong, and what is it trying to do?`;
+                        setContainerMsgs([{role:"assistant",content:"I've read the ember. Let me think about where it belongs."},{role:"user",content:driftContext}]);
+                      }} style={{fontSize:10,color:"#8A7AAA",background:"var(--bg-card)",border:"1px solid #8A7AAA30",borderRadius:4,padding:"3px 8px",cursor:"pointer",fontFamily:"'DM Sans',sans-serif"}}>Ask Finn</span>
+                      <span onClick={()=>generateEmberAnalysis(ember)} style={{fontSize:10,color:"var(--text-dim)",background:"var(--bg-card)",border:"1px solid var(--border)",borderRadius:4,padding:"3px 8px",cursor:"pointer",fontFamily:"'DM Sans',sans-serif"}}>Re-read</span>
                     </div>
                   </div>}
                   {!ember.agnesAnalysis&&emberAgnesLoading!==ember.id&&<div style={{padding:"8px 40px",background:"#8A7AAA06",borderBottom:"1px solid #8A7AAA15"}}>
-                    <span onClick={()=>{
-                      // Always look up ember fresh from state to avoid stale closure
-                      const freshEmber=embers.find(e=>e.id===activeEmber);
-                      if(freshEmber) generateEmberAnalysis(freshEmber);
-                    }} style={{fontSize:10,color:"#8A7AAA60",fontFamily:"'DM Sans',sans-serif",cursor:"pointer",fontStyle:"italic"}}>Let Agnes read this ember</span>
+                    <span onClick={()=>generateEmberAnalysis(ember)} style={{fontSize:10,color:"#8A7AAA60",fontFamily:"'DM Sans',sans-serif",cursor:"pointer",fontStyle:"italic"}}>Let Agnes read this ember</span>
                   </div>}
 
-                  {/* Ember text — editable, fills all remaining height */}
-                  <div style={{flex:1,overflow:"auto",padding:"24px 40px",display:"flex",flexDirection:"column"}}>
+                  {/* Ember text — editable */}
+                  <div style={{flex:1,overflow:"auto",padding:"24px 40px"}}>
                     <textarea value={ember.text||""} onChange={e=>{
                       const updatedEmbers=embers.map(em=>em.id===ember.id?{...em,text:e.target.value,lastEdited:Date.now()}:em);
                       setEmbers(updatedEmbers);
                       saveStored("tt-embers",updatedEmbers);
-                    }} style={{flex:1,width:"100%",height:"100%",minHeight:200,background:"none",border:"none",outline:"none",resize:"none",fontFamily:"'Cormorant Garamond',serif",fontSize:18,color:"var(--text-primary)",lineHeight:2}}/>
+                    }} style={{width:"100%",minHeight:300,background:"none",border:"none",outline:"none",resize:"none",fontFamily:"'Cormorant Garamond',serif",fontSize:18,color:"var(--text-primary)",lineHeight:2}}/>
                   </div>
 
                   <div style={{padding:"10px 40px 14px",borderTop:"1px solid #8A7AAA20",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
                     <div style={{fontSize:10,color:"var(--text-dim)"}}>Auto-saved</div>
                     <div style={{display:"flex",gap:10}}>
-                      <span onClick={()=>{
-                        // Clear old messages and open Finn with ember-specific context
-                        // Agnes analysis goes into system prompt via sendContainer, not as a fake user message
-                        const freshEmber=embers.find(e=>e.id===activeEmber)||ember;
-                        const hasAgnes=freshEmber.agnesAnalysis;
-                        const opening=hasAgnes
-                          ?`I've read it. Agnes placed it around ${hasAgnes.placementHypothesis?.split(".")[0]||"an unknown chapter"}. The tension she caught: ${hasAgnes.tensionNote} What's your instinct — does her read feel right?`
-                          :`I've read the ember. "${(freshEmber.text||"").substring(0,60).trim()}..." — tell me what you know about this scene that isn't on the page yet.`;
-                        setContainerMsgs([{role:"assistant",content:opening}]);
-                        setFinnOpen(true);
-                      }} style={{fontSize:12,color:finnOpen?"#8A7AAA":"#8A7AAA80",background:"var(--bg-card-alt)",border:"1px solid #8A7AAA20",borderRadius:8,padding:"7px 16px",cursor:"pointer",fontWeight:500}}>{finnOpen?"Close Finn":"Ask Finn"}</span>
+                      <span onClick={()=>{setFinnOpen(!finnOpen);if(!finnOpen&&containerMsgs.length===0){setContainerMsgs([{role:"assistant",content:"I've read the ember. What do you want to know about it?"}])}}} style={{fontSize:12,color:finnOpen?"#8A7AAA":"#8A7AAA80",background:"var(--bg-card-alt)",border:"1px solid #8A7AAA20",borderRadius:8,padding:"7px 16px",cursor:"pointer",fontWeight:500}}>{finnOpen?"Close Finn":"Ask Finn"}</span>
                       <span onClick={goHome} style={{fontSize:12,color:"var(--text-muted)",cursor:"pointer",padding:"7px 12px",background:"var(--bg-card-alt)",border:"1px solid var(--border)",borderRadius:8}}>Home</span>
                     </div>
                   </div>
@@ -4142,6 +4181,25 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
                 ?<input value={profileEditName} onChange={e=>setProfileEditName(e.target.value)} style={{width:"100%",background:"var(--bg-card-alt)",border:"1px solid var(--border)",borderRadius:7,padding:"8px 12px",fontFamily:"'Cormorant Garamond',serif",fontSize:16,color:"var(--text-primary)",outline:"none"}}/>
                 :<div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:17,color:"var(--text-primary)"}}>{userName||"Not set"}</div>}
             </div>
+            <div style={{marginBottom:20,paddingBottom:20,borderBottom:"1px solid var(--border)"}}>
+              <div style={{fontSize:10,textTransform:"uppercase",letterSpacing:"0.12em",color:"var(--text-dim)",fontFamily:"'DM Sans',sans-serif",marginBottom:6}}>How much Agnes speaks up unprompted</div>
+              {profileEditMode
+                ?<div style={{display:"flex",flexDirection:"column",gap:8}}>
+                  {AGNES_INVOLVEMENT_LEVELS.map(lvl=>{
+                    const isSel=involvementEditChoice===lvl.id;
+                    return <div key={lvl.id} onClick={()=>setInvolvementEditChoice(lvl.id)} style={{display:"flex",alignItems:"flex-start",gap:10,padding:"10px 12px",borderRadius:7,border:"1px solid "+(isSel?"var(--accent)":"var(--border)"),background:isSel?"var(--accent-0a)":"var(--bg-card-alt)",cursor:"pointer",transition:"all .15s"}}>
+                      <div style={{width:14,height:14,borderRadius:"50%",border:"1px solid "+(isSel?"var(--accent)":"var(--border)"),background:isSel?"var(--accent)":"transparent",flexShrink:0,marginTop:2,display:"flex",alignItems:"center",justifyContent:"center"}}>
+                        {isSel&&<div style={{width:6,height:6,borderRadius:"50%",background:"var(--bg-deepest)"}}/>}
+                      </div>
+                      <div>
+                        <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:14,color:"var(--text-primary)",marginBottom:2}}>{lvl.label}</div>
+                        <div style={{fontSize:11,color:"var(--text-dim)",fontFamily:"'DM Sans',sans-serif",lineHeight:1.5}}>{lvl.desc}</div>
+                      </div>
+                    </div>;
+                  })}
+                </div>
+                :<div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:15,color:"var(--text-primary)"}}>{AGNES_INVOLVEMENT_LEVELS.find(l=>l.id===agnesInvolvement)?.label||"Full"}</div>}
+            </div>
             {PROFILE_QUESTIONS.map((q,qi)=>{
               const ans=profileEditMode?profileEditAnswers?.[q.id]:userProfile?.[q.id];
               const selected=ans?.selected||[];
@@ -4167,8 +4225,8 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
           <div style={{padding:"14px 24px",borderTop:"1px solid var(--border)",display:"flex",gap:8,position:"sticky",bottom:0,background:"var(--bg-base)",borderRadius:"0 0 12px 12px"}}>
             {profileEditMode?<>
               <div onClick={()=>setProfileEditMode(false)} style={{background:"none",border:"1px solid var(--border)",borderRadius:7,padding:"10px 16px",cursor:"pointer"}}><span style={{fontSize:13,color:"var(--text-dim)",fontFamily:"'DM Sans',sans-serif"}}>Cancel</span></div>
-              <div onClick={()=>{const newName=profileEditName.trim()||userName;setUserName(newName);saveStored("tt-username",newName);cloudSave("tt-username",newName);const updated={...userProfile,...profileEditAnswers,updatedAt:new Date().toISOString()};setUserProfile(updated);saveStored("tt-userprofile",updated);cloudSave("tt-userprofile",updated);setProfileEditMode(false);}} style={{flex:1,background:"var(--accent)",border:"none",borderRadius:7,padding:"10px",textAlign:"center",cursor:"pointer"}}><span style={{fontSize:13,fontWeight:500,color:"var(--bg-deepest)",fontFamily:"'DM Sans',sans-serif"}}>Save changes</span></div>
-            </>:<div onClick={()=>{setProfileEditAnswers(userProfile?{q1:{...userProfile.q1},q2:{...userProfile.q2},q3:{...userProfile.q3},q4:{...userProfile.q4},q5:{...userProfile.q5||{selected:[],text:""}},q6:{...userProfile.q6||{selected:[],text:""}}}:{q1:{selected:[],text:""},q2:{selected:[],text:""},q3:{selected:[],text:""},q4:{selected:[],text:""},q5:{selected:[],text:""},q6:{selected:[],text:""}});setProfileEditName(userName||"");setProfileEditMode(true);}} style={{flex:1,background:"var(--accent)",border:"none",borderRadius:7,padding:"10px",textAlign:"center",cursor:"pointer"}}><span style={{fontSize:13,fontWeight:500,color:"var(--bg-deepest)",fontFamily:"'DM Sans',sans-serif"}}>Edit Profile</span></div>}
+              <div onClick={()=>{const newName=profileEditName.trim()||userName;setUserName(newName);saveStored("tt-username",newName);cloudSave("tt-username",newName);const updated={...userProfile,...profileEditAnswers,updatedAt:new Date().toISOString()};setUserProfile(updated);saveStored("tt-userprofile",updated);cloudSave("tt-userprofile",updated);saveAgnesInvolvement(involvementEditChoice);setProfileEditMode(false);}} style={{flex:1,background:"var(--accent)",border:"none",borderRadius:7,padding:"10px",textAlign:"center",cursor:"pointer"}}><span style={{fontSize:13,fontWeight:500,color:"var(--bg-deepest)",fontFamily:"'DM Sans',sans-serif"}}>Save changes</span></div>
+            </>:<div onClick={()=>{setProfileEditAnswers(userProfile?{q1:{...userProfile.q1},q2:{...userProfile.q2},q3:{...userProfile.q3},q4:{...userProfile.q4},q5:{...userProfile.q5||{selected:[],text:""}},q6:{...userProfile.q6||{selected:[],text:""}}}:{q1:{selected:[],text:""},q2:{selected:[],text:""},q3:{selected:[],text:""},q4:{selected:[],text:""},q5:{selected:[],text:""},q6:{selected:[],text:""}});setProfileEditName(userName||"");setInvolvementEditChoice(agnesInvolvement);setProfileEditMode(true);}} style={{flex:1,background:"var(--accent)",border:"none",borderRadius:7,padding:"10px",textAlign:"center",cursor:"pointer"}}><span style={{fontSize:13,fontWeight:500,color:"var(--bg-deepest)",fontFamily:"'DM Sans',sans-serif"}}>Edit Profile</span></div>}
           </div>
         </div>
       </div>}
