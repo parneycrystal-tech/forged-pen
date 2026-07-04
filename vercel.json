@@ -1,5 +1,7 @@
-import { defineConfig } from 'vite'
-import react from '@vitejs/plugin-react'
-export default defineConfig({
-  plugins: [react()]
-})
+{
+  "routes": [
+    { "src": "/api/chat", "dest": "/api/chat" },
+    { "src": "/", "dest": "/public/landing.html" },
+    { "src": "/(.*)", "dest": "/index.html" }
+  ]
+}
