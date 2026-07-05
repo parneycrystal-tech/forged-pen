@@ -1326,7 +1326,7 @@ ${existingBible}
 CHAPTER DRAFT STATUS: ${draftNote}
 
 CHAPTER ${chapterNum||"??"} TEXT:
-${sceneText.substring(0,2500)}
+${sceneText.substring(0,20000)}
 
 Extract what this chapter actually establishes. Only include fields where you found something meaningful that isn't already well-captured in the existing Bible. Leave fields as empty string if nothing new or significant was found.
 
