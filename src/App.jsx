@@ -497,15 +497,15 @@ const WHAT_WE_BELIEVE=[
 
 function LandingScreen({onSignIn,onSubmitEmail}){
   const [email,setEmail]=useState("");
-  const [submitState,setSubmitState]=useState("idle"); // idle | submitting | done | error
+  const [submitState,setSubmitState]=useState("idle"); // idle | submitting | done | invalid | failed
   const waitlistRef=useRef(null);
   const scrollToWaitlist=()=>{waitlistRef.current?.scrollIntoView({behavior:"smooth",block:"center"});};
   const handleSubmit=async()=>{
     const trimmed=email.trim();
-    if(!trimmed||!trimmed.includes("@")){setSubmitState("error");return;}
+    if(!trimmed||!trimmed.includes("@")||!trimmed.includes(".")){setSubmitState("invalid");return;}
     setSubmitState("submitting");
     const ok=await onSubmitEmail(trimmed);
-    setSubmitState(ok?"done":"error");
+    setSubmitState(ok?"done":"failed");
   };
   const ink="#1E1C14", parchment="#EDE6DA", parchmentAlt="#F5EEE4", brass="#A8884A", olive="#5A6B3A", border="#C8BC9A", muted="#7A6E60", deep="#141210";
   const serif="'Cormorant Garamond',serif", sans="'DM Sans',sans-serif";
@@ -545,12 +545,13 @@ function LandingScreen({onSignIn,onSubmitEmail}){
           :<>
             <p style={{fontFamily:serif,fontSize:17,color:ink,marginBottom:16}}>Request early access</p>
             <div style={{display:"flex",gap:8,maxWidth:380,margin:"0 auto"}}>
-              <input value={email} onChange={e=>{setEmail(e.target.value);if(submitState==="error")setSubmitState("idle");}} onKeyDown={e=>{if(e.key==="Enter")handleSubmit();}} type="email" placeholder="your@email.com" style={{flex:1,background:"#FFFFFF",border:"1px solid "+border,borderRadius:7,padding:"10px 12px",fontFamily:sans,fontSize:13,color:ink,outline:"none"}}/>
+              <input value={email} onChange={e=>{setEmail(e.target.value);if(submitState==="invalid"||submitState==="failed")setSubmitState("idle");}} onKeyDown={e=>{if(e.key==="Enter")handleSubmit();}} type="email" placeholder="your@email.com" style={{flex:1,background:"#FFFFFF",border:"1px solid "+border,borderRadius:7,padding:"10px 12px",fontFamily:sans,fontSize:13,color:ink,outline:"none"}}/>
               <div onClick={handleSubmit} style={{background:submitState==="submitting"?border:olive,borderRadius:7,padding:"10px 18px",cursor:submitState==="submitting"?"default":"pointer",display:"flex",alignItems:"center"}}>
                 <span style={{fontSize:12,fontWeight:600,color:parchment,fontFamily:sans,whiteSpace:"nowrap"}}>{submitState==="submitting"?"...":"Request access"}</span>
               </div>
             </div>
-            {submitState==="error"&&<p style={{fontSize:11,color:"#B06848",marginTop:10,fontFamily:sans}}>That doesn't look like a valid email yet.</p>}
+            {submitState==="invalid"&&<p style={{fontSize:11,color:"#B06848",marginTop:10,fontFamily:sans}}>That doesn't look like a valid email yet.</p>}
+            {submitState==="failed"&&<p style={{fontSize:11,color:"#B06848",marginTop:10,fontFamily:sans}}>Something went wrong on our end, not yours. Please try again in a moment.</p>}
             <p style={{fontSize:11,color:muted,marginTop:14,fontFamily:sans}}>Beta opening soon. No spam. No pressure. <span onClick={onSignIn} style={{textDecoration:"underline",cursor:"pointer"}}>Already have access? Sign in.</span></p>
           </>}
       </div>
