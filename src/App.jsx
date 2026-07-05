@@ -1317,6 +1317,7 @@ Themes: ${project?.themes||"none"}`;
 
     try{
       const r=await fetch("/api/chat",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({
+        max_tokens:4000,
         system:`You are Finn, a writing coach reading a chapter of a writer's manuscript. Your job is to extract useful Story Bible information from what is actually written on the page, then surface it for the writer to review before anything gets saved. You are not summarizing for a reader. You are a coach helping a writer capture what their manuscript has already established so their Story Bible stays current. Read carefully. Extract only what is actually present in the text. Do not invent, infer beyond what's clearly implied, or add details that aren't on the page. Never use em dashes. Respond ONLY with a JSON object.`,
         messages:[{role:"user",content:`Read this chapter excerpt and extract Story Bible information from what is actually written.
 
@@ -1328,7 +1329,7 @@ CHAPTER DRAFT STATUS: ${draftNote}
 CHAPTER ${chapterNum||"??"} TEXT:
 ${sceneText.substring(0,20000)}
 
-Extract what this chapter actually establishes. Only include fields where you found something meaningful that isn't already well-captured in the existing Bible. Leave fields as empty string if nothing new or significant was found.
+Extract what this chapter actually establishes. Only include fields where you found something meaningful that isn't already well-captured in the existing Bible. Leave fields as empty string if nothing new or significant was found. Paraphrase what you find in your own words rather than quoting dialogue directly, since direct quotes containing quotation marks can break the JSON format.
 
 Respond with ONLY this JSON:
 {
@@ -1364,6 +1365,7 @@ Respond with ONLY this JSON:
           // Persist so it survives navigation
           saveStored("tt-pending-extract",result);
         }catch(e){
+          console.log("Extraction JSON parse error:",e,"Raw response length:",cleaned.length,"Raw response:",cleaned);
           setExtractResult({chapterSummary:"Finn had trouble reading that. Try a shorter excerpt.",chapterNum});
         }
       } else {
