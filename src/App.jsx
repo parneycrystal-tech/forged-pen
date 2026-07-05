@@ -758,6 +758,7 @@ export default function App() {
   const [driftLoading, setDriftLoading] = useState(false);
   const [driftResolutions, setDriftResolutions] = useState({});
   const [driftOriginalValues, setDriftOriginalValues] = useState({});
+  const [lastSavedChapterNum, setLastSavedChapterNum] = useState(null);
   const [driftFinnResponses, setDriftFinnResponses] = useState({});
   const [driftQueue, setDriftQueue] = useState([]);
   const [forgeMode, setForgeMode] = useState("manuscript");
@@ -1376,6 +1377,7 @@ Respond with ONLY this JSON:
 
   const applyExtractToBible=(result)=>{
     if(!result)return;
+    setLastSavedChapterNum(result.chapterNum);
     // Capture the pre-merge Bible so Agnes can compare what WAS there vs what the chapter shows,
     // and so drift resolution can revert to the true original if the writer chooses "keep original"
     const projectBeforeMerge={...project};
@@ -4440,6 +4442,7 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
               </div>
             </div>
             <p style={{fontFamily:"'Cormorant Garamond',serif",fontSize:15,color:"var(--text-primary)",lineHeight:1.75,margin:0}}>This chapter appears to be moving in a different direction than your Story Bible on {driftResult.drifts.length} point{driftResult.drifts.length>1?"s":""}. Review each one and tell me what's true now.</p>
+            {lastSavedChapterNum!==null&&driftResult.chapterNum!==lastSavedChapterNum&&<p style={{fontSize:11,color:"var(--text-dim)",fontFamily:"'DM Sans',sans-serif",fontStyle:"italic",marginTop:8}}>This was flagged earlier and left for later. It's not related to what you just saved.</p>}
           </div>
           <div style={{display:"flex",flexDirection:"column",gap:14,marginBottom:20}}>
             {driftResult.drifts.map((drift,i)=>{
