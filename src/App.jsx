@@ -471,6 +471,11 @@ async function cloudLoadAll() {
     return true;
   } catch { return false; }
 }
+function charactersCtx(project){
+  const chars=project?.characters;
+  if(!Array.isArray(chars)||chars.length===0)return "";
+  return chars.map(c=>`${c.name} (${c.role}${c.relationship?", "+c.relationship:""})${c.description?": "+c.description:""}`).join(" | ");
+}
 
 function FormField({label,k,ph,multi,value,onChange}){return <div style={{marginBottom:14}}><label style={{fontSize:12,color:"var(--text-muted)",display:"block",marginBottom:5,fontFamily:"'DM Sans',sans-serif"}}>{label}</label>{multi?<textarea className="fi" rows={4} placeholder={ph} value={value} onChange={e=>onChange(k,e.target.value)} style={{resize:"vertical"}}/>:<input className="fi" placeholder={ph} value={value} onChange={e=>onChange(k,e.target.value)}/>}</div>}
 function ReadField({label,value,multi}){if(!value)return null;return <div style={{marginBottom:14}}><label style={{fontSize:12,color:"var(--text-muted)",display:"block",marginBottom:5,fontFamily:"'DM Sans',sans-serif"}}>{label}</label><div style={{background:"var(--bg-card)",border:"1px solid var(--border)",borderRadius:8,padding:"10px 14px",fontFamily:"'Cormorant Garamond',serif",fontSize:15,color:"var(--text-primary)",lineHeight:1.7,minHeight:multi?60:40,whiteSpace:"pre-wrap"}}>{value}</div></div>}
@@ -632,6 +637,8 @@ function LandingScreen({onSignIn,onSubmitEmail}){
 }
 
 
+const CHARACTER_ROLES=["Antagonist / villain","Love interest","Mentor","Best friend / confidant","Foil","Family","Secondary character","Other"];
+
 const AGNES_INVOLVEMENT_LEVELS=[
   {id:"full",label:"Full",desc:"Agnes speaks up on her own. Drift notes, ember analysis, and her read on where you are all surface automatically."},
   {id:"quiet",label:"Quiet",desc:"Agnes still reads everything. She won't interrupt, but a quiet marker lets you know when she has something. You decide when to look."},
@@ -687,7 +694,7 @@ export default function App() {
   const [flipped, setFlipped] = useState(false);
   const [loadMsg, setLoadMsg] = useState(LOAD[Math.floor(Math.random()*LOAD.length)]);
   const [project, setProject] = useState(null);
-  const [pForm, setPForm] = useState({title:"",genre:"",synopsis:"",protagonist:"",protagonistGoal:"",protagonistDream:"",protagonistFear:"",protagonistWound:"",protagonistBackstory:"",protagonistMisbelief:"",supporting:"",antagonist:"",worldSetting:"",worldRules:"",worldMythology:"",worldBeliefs:"",worldDanger:"",worldTone:"",themes:"",chapters:[{num:1,summary:""}],where:"",stuck:"",excites:"",currentChapter:""});
+  const [pForm, setPForm] = useState({title:"",genre:"",synopsis:"",protagonist:"",protagonistGoal:"",protagonistDream:"",protagonistFear:"",protagonistWound:"",protagonistBackstory:"",protagonistMisbelief:"",supporting:"",antagonist:"",worldSetting:"",worldRules:"",worldMythology:"",worldBeliefs:"",worldDanger:"",worldTone:"",themes:"",characters:[],openQuestions:[],chapters:[{num:1,summary:""}],where:"",stuck:"",excites:"",currentChapter:""});
   const [sparks, setSparks] = useState([]);
   const [flaggedIdx, setFlaggedIdx] = useState(null);
   const [ideaLabSparked, setIdeaLabSparked] = useState(false);
@@ -1040,7 +1047,7 @@ export default function App() {
       :""
       :currentScene?`\n\nCURRENT SCENE (Chapter ${currentScene.chapter}):\n${currentScene.text||"(empty, writer hasn't started yet)"}`:""
     const chapStr=project?.chapters?(Array.isArray(project.chapters)?project.chapters.filter(c=>c.summary).map(c=>`Ch${c.num}: ${c.summary}`).join(". "):project.chapters):"";
-    const pCtx=project?`\n\nPROJECT: "${project.title}". Genre: ${project.genre}. Synopsis: ${project.synopsis}. Themes: ${project.themes||"not yet captured"}. Protagonist: ${project.protagonist}. Goal: ${project.protagonistGoal||"not yet captured"}. Dream: ${project.protagonistDream||"not yet captured"}. Fear: ${project.protagonistFear||"not yet captured"}. Wound: ${project.protagonistWound||"not yet captured"}. Backstory: ${project.protagonistBackstory||"not yet captured"}. Misbelief: ${project.protagonistMisbelief||"not yet captured"}. Supporting: ${project.supporting}. Antagonist: ${project.antagonist}. Setting: ${project.worldSetting}. Rules: ${project.worldRules}. Mythology & Paranormal Rules: ${project.worldMythology||"not yet captured"}. Beliefs vs Reality: ${project.worldBeliefs}. Danger: ${project.worldDanger}. Tone: ${project.worldTone}. Chapters (these summaries are the authoritative record established by Agnes — treat them as ground truth, do not re-interpret or contradict them): ${chapStr}. Position: ${project.where}. Stuck: ${project.stuck}. Excites: ${project.excites}.`:"";
+    const pCtx=project?`\n\nPROJECT: "${project.title}". Genre: ${project.genre}. Synopsis: ${project.synopsis}. Themes: ${project.themes||"not yet captured"}. Protagonist: ${project.protagonist}. Goal: ${project.protagonistGoal||"not yet captured"}. Dream: ${project.protagonistDream||"not yet captured"}. Fear: ${project.protagonistFear||"not yet captured"}. Wound: ${project.protagonistWound||"not yet captured"}. Backstory: ${project.protagonistBackstory||"not yet captured"}. Misbelief: ${project.protagonistMisbelief||"not yet captured"}.${charactersCtx(project)?" Characters: "+charactersCtx(project)+".":""} Supporting: ${project.supporting}. Antagonist: ${project.antagonist}. Setting: ${project.worldSetting}. Rules: ${project.worldRules}. Mythology & Paranormal Rules: ${project.worldMythology||"not yet captured"}. Beliefs vs Reality: ${project.worldBeliefs}. Danger: ${project.worldDanger}. Tone: ${project.worldTone}. Chapters (these summaries are the authoritative record established by Agnes — treat them as ground truth, do not re-interpret or contradict them): ${chapStr}. Position: ${project.where}. Stuck: ${project.stuck}. Excites: ${project.excites}.`:"";
     const sparkCtx=sparks.length>0?`\n\nDOPAMINE MAP: ${sparks.map(s=>s.text).join(" | ")}`:"";
     // Different Finn framing for Embers vs manuscript
     const containerSys=forgeMode==="embers"
@@ -1213,17 +1220,42 @@ Respond with ONLY this JSON:
   const commitOrganized=(destination)=>{
     if(!organizeResult)return;
     const approved=(section)=>(organizeResult[section]||[]).filter(i=>i.status==="approved").map(i=>i.text);
-    // Add approved characters, world to Story Bible
-    const chars=approved("characters").join("\n\n");
+    // Add approved world details to Story Bible. Characters no longer get glued onto the Protagonist
+    // field — they become real character cards instead (see below), which is what was breaking Emma's Bible.
     const world=approved("world").join("\n\n");
     const plot=approved("plot");
-    if((chars||world)&&project){
-      const updated={...project,
-        protagonist:chars?((project.protagonist||"")+"\n\n"+chars).trim():project.protagonist,
-        worldSetting:world?((project.worldSetting||"")+"\n\n"+world).trim():project.worldSetting,
-        updated:Date.now()
-      };
-      setProject(updated);saveStored("tt-project",updated);
+    const newCharacterTexts=approved("characters");
+    const newQuestions=approved("questions");
+    if(project){
+      const existingChars=Array.isArray(project.characters)?[...project.characters]:[];
+      // Idea Lab's rough sort gives freeform text like "Emma: protagonist, descendant of..." — split
+      // on the first colon for a name if there is one, otherwise leave the name blank for the writer
+      // to fill in rather than guessing something wrong.
+      newCharacterTexts.forEach((text,i)=>{
+        const colonIdx=text.indexOf(":");
+        const hasName=colonIdx>0&&colonIdx<40;
+        existingChars.push({
+          id:"char_il_"+Date.now()+"_"+i,
+          name:hasName?text.substring(0,colonIdx).trim():"",
+          role:"Secondary character",
+          relationship:"",
+          description:hasName?text.substring(colonIdx+1).trim():text
+        });
+      });
+      const existingQuestions=Array.isArray(project.openQuestions)?[...project.openQuestions]:[];
+      newQuestions.forEach(q=>existingQuestions.push({text:q,addedAt:new Date().toLocaleDateString()}));
+      if(world||newCharacterTexts.length>0||newQuestions.length>0){
+        const updated={...project,
+          worldSetting:world?((project.worldSetting||"")+"\n\n"+world).trim():project.worldSetting,
+          characters:existingChars,
+          openQuestions:existingQuestions,
+          updated:Date.now()
+        };
+        setProject(updated);
+        setPForm(prev=>({...prev,worldSetting:updated.worldSetting,characters:existingChars,openQuestions:existingQuestions}));
+        saveStored("tt-project",updated);
+        cloudSave("tt-project",updated);
+      }
     }
     // Add approved plot moments as new scenes in Manuscript
     if(plot.length>0){
@@ -2212,7 +2244,7 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
     const userText=input.trim();
     setLastThought(userText);saveStored("tt-lastthought",userText);
     const chapStr = project?.chapters ? (Array.isArray(project.chapters) ? project.chapters.filter(c=>c.summary).map(c=>`Ch${c.num}: ${c.summary}`).join(". ") : project.chapters) : "";
-    const pCtx = project ? `\n\nPROJECT: "${project.title}". Genre: ${project.genre}. Synopsis: ${project.synopsis}. Themes: ${project.themes||"not yet captured"}. Protagonist: ${project.protagonist}. Supporting Characters: ${project.supporting}. Antagonist: ${project.antagonist}. Core Setting: ${project.worldSetting}. World Rules: ${project.worldRules}. Mythology & Paranormal Rules: ${project.worldMythology||"not yet captured"}. What People Believe vs Reality: ${project.worldBeliefs}. What Makes This World Dangerous: ${project.worldDanger}. World Tone: ${project.worldTone}. Chapters so far (these summaries are the authoritative record established by Agnes — treat them as ground truth, do not re-interpret or contradict them): ${chapStr}. Current point: ${project.where}. Focused on: ${project.stuck}. What excites them: ${project.excites}.${project.currentChapter?` CURRENT CHAPTER TEXT (use this for line-level craft coaching only — for story facts and character psychology, defer to the chapter summaries above): ${project.currentChapter}`:""}` : "";
+    const pCtx = project ? `\n\nPROJECT: "${project.title}". Genre: ${project.genre}. Synopsis: ${project.synopsis}. Themes: ${project.themes||"not yet captured"}. Protagonist: ${project.protagonist}.${charactersCtx(project)?" Characters: "+charactersCtx(project)+".":""} Supporting Characters: ${project.supporting}. Antagonist: ${project.antagonist}. Core Setting: ${project.worldSetting}. World Rules: ${project.worldRules}. Mythology & Paranormal Rules: ${project.worldMythology||"not yet captured"}. What People Believe vs Reality: ${project.worldBeliefs}. What Makes This World Dangerous: ${project.worldDanger}. World Tone: ${project.worldTone}. Chapters so far (these summaries are the authoritative record established by Agnes — treat them as ground truth, do not re-interpret or contradict them): ${chapStr}. Current point: ${project.where}. Focused on: ${project.stuck}. What excites them: ${project.excites}.${project.currentChapter?` CURRENT CHAPTER TEXT (use this for line-level craft coaching only — for story facts and character psychology, defer to the chapter summaries above): ${project.currentChapter}`:""}` : "";
     const sparkCtx = sparks.length > 0 ? `\n\nDOPAMINE MAP (moments the writer flagged as exciting): ${sparks.map(s=>s.text).join(" | ")}` : "";
     const userCtx = userName ? `\n\nThe writer's name is ${userName}. Use their name naturally throughout your response, the way a good coach would. Not in every sentence, but enough to feel personal.` : "";
     const profileCtx = userProfile ? `\n\nWriter's profile — use this to calibrate your coaching approach:\n- Experience: ${userProfile.q1?.selected?.join(", ")||"not specified"}\n- Working style: ${userProfile.q2?.selected?.join(", ")||"not specified"}\n- Current goal: ${userProfile.q3?.selected?.join(", ")||"not specified"}\n- Coaching preference: ${userProfile.q4?.selected?.join(", ")||"not specified"}\n- Genres / what they write: ${userProfile.q5?.selected?.join(", ")||"not specified"}\n- Relationship with finishing: ${userProfile.q6?.selected?.join(", ")||"not specified"}${userProfile.q2?.text?`\nStyle notes: ${userProfile.q2.text}`:""}${userProfile.q4?.text?`\nCoaching notes: ${userProfile.q4.text}`:""}${userProfile.q5?.text?`\nWriting notes: ${userProfile.q5.text}`:""}${userProfile.q6?.text?`\nFinishing notes: ${userProfile.q6.text}`:""}` : "";
@@ -2348,6 +2380,52 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
   const usedChapterTags=()=>{
     const src=project?.chapters||pForm.chapters||[];
     return [...new Set(src.map(c=>(c.tag||"").trim()).filter(t=>t&&t.toLowerCase()!=="main"))];
+  };
+
+  const [charFormOpen,setCharFormOpen]=useState(false);
+  const [charFormEdit,setCharFormEdit]=useState(null); // index being edited, or null for a new character
+  const [charForm,setCharForm]=useState({name:"",role:"Secondary character",relationship:"",description:""});
+
+  const openAddCharacter=()=>{setCharForm({name:"",role:"Secondary character",relationship:"",description:""});setCharFormEdit(null);setCharFormOpen(true);};
+  const openEditCharacter=(idx)=>{
+    const c=(project?.characters||[])[idx];
+    if(!c)return;
+    setCharForm({name:c.name||"",role:c.role||"Secondary character",relationship:c.relationship||"",description:c.description||""});
+    setCharFormEdit(idx);
+    setCharFormOpen(true);
+  };
+  const saveCharacterForm=()=>{
+    if(!charForm.name.trim())return;
+    const existing=Array.isArray(project?.characters)?[...project.characters]:[];
+    if(charFormEdit===null){
+      existing.push({...charForm,name:charForm.name.trim(),id:"char_"+Date.now()});
+    }else{
+      existing[charFormEdit]={...existing[charFormEdit],...charForm,name:charForm.name.trim()};
+    }
+    const updated={...project,characters:existing,updated:Date.now()};
+    setProject(updated);
+    setPForm(prev=>({...prev,characters:existing}));
+    saveStored("tt-project",updated);
+    cloudSave("tt-project",updated);
+    setCharFormOpen(false);
+  };
+  const removeCharacter=(idx)=>{
+    const existing=Array.isArray(project?.characters)?[...project.characters]:[];
+    existing.splice(idx,1);
+    const updated={...project,characters:existing,updated:Date.now()};
+    setProject(updated);
+    setPForm(prev=>({...prev,characters:existing}));
+    saveStored("tt-project",updated);
+    cloudSave("tt-project",updated);
+  };
+  const dismissOpenQuestion=(idx)=>{
+    const existing=Array.isArray(project?.openQuestions)?[...project.openQuestions]:[];
+    existing.splice(idx,1);
+    const updated={...project,openQuestions:existing,updated:Date.now()};
+    setProject(updated);
+    setPForm(prev=>({...prev,openQuestions:existing}));
+    saveStored("tt-project",updated);
+    cloudSave("tt-project",updated);
   };
 
   const isFocusMode = mode && (mode.id==="micro"||mode.id==="smoke");
@@ -3111,8 +3189,46 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
             <FormField label="Backstory" k="protagonistBackstory" ph="Childhood, family, formative relationships. The wallpaper that lives in the background..." value={pForm.protagonistBackstory} onChange={updateField} multi/>
             <FormField label="Misbelief" k="protagonistMisbelief" ph="The false story they tell themselves born from the wound. The thing the story will test..." value={pForm.protagonistMisbelief} onChange={updateField} multi/>
           </div>
-          <FormField label="Supporting Characters" k="supporting" ph="One per paragraph works best..." value={pForm.supporting} onChange={updateField} multi/>
-          <FormField label="Antagonist" k="antagonist" ph="Person, force, or system..." value={pForm.antagonist} onChange={updateField} multi/>
+
+          <div style={{marginTop:4,marginBottom:14}}>
+            <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:10,paddingTop:8,borderTop:"1px solid var(--border)"}}>
+              <div style={{fontSize:9,textTransform:"uppercase",letterSpacing:"0.14em",color:"var(--accent-70)",fontWeight:500}}>Characters</div>
+              <span onClick={openAddCharacter} style={{fontSize:11,color:"var(--accent)",cursor:"pointer",fontFamily:"'DM Sans',sans-serif",display:"flex",alignItems:"center",gap:4}}><span style={{fontSize:14}}>+</span>Add character</span>
+            </div>
+            {(project?.characters||[]).length===0&&<p style={{fontFamily:"'Cormorant Garamond',serif",fontSize:13,color:"var(--text-dim)",fontStyle:"italic",marginBottom:10}}>No characters added yet.</p>}
+            {(project?.characters||[]).map((c,idx)=>(
+              <div key={c.id||idx} style={{background:"var(--bg-card-alt)",border:"1px solid var(--border)",borderRadius:8,padding:"10px 12px",marginBottom:8}}>
+                <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:3}}>
+                  <div style={{display:"flex",alignItems:"center",gap:8}}>
+                    <span style={{fontFamily:"'Cormorant Garamond',serif",fontSize:14,color:c.name?"var(--text-primary)":"var(--text-dim)",fontStyle:c.name?"normal":"italic"}}>{c.name||"Unnamed, tap Edit to name them"}</span>
+                    <span style={{fontSize:9,fontWeight:500,color:"var(--accent)",background:"var(--accent-10)",padding:"2px 8px",borderRadius:8}}>{c.role}</span>
+                  </div>
+                  <div style={{display:"flex",gap:10}}>
+                    <span onClick={()=>openEditCharacter(idx)} style={{fontSize:11,color:"var(--text-dim)",cursor:"pointer"}}>Edit</span>
+                    <span onClick={()=>removeCharacter(idx)} style={{fontSize:11,color:"var(--text-dim)",cursor:"pointer"}}>Remove</span>
+                  </div>
+                </div>
+                {c.relationship&&<div style={{fontSize:11,fontStyle:"italic",color:"var(--text-dim)",marginBottom:3}}>{c.relationship}</div>}
+                {c.description&&<div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:13,color:"var(--text-secondary)",lineHeight:1.6}}>{c.description}</div>}
+              </div>
+            ))}
+            {charFormOpen&&<div style={{background:"var(--bg-card)",border:"1px solid var(--accent-40)",borderRadius:8,padding:14,marginTop:6}}>
+              <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:14,color:"var(--text-primary)",marginBottom:10}}>{charFormEdit===null?"New character":"Edit character"}</div>
+              <input className="fi" placeholder="Name" value={charForm.name} onChange={e=>setCharForm(prev=>({...prev,name:e.target.value}))} style={{width:"100%",marginBottom:8}}/>
+              <select value={charForm.role} onChange={e=>setCharForm(prev=>({...prev,role:e.target.value}))} className="fi" style={{width:"100%",marginBottom:8}}>
+                {CHARACTER_ROLES.map(r=><option key={r} value={r}>{r}</option>)}
+              </select>
+              <input className="fi" placeholder="Relationship to protagonist" value={charForm.relationship} onChange={e=>setCharForm(prev=>({...prev,relationship:e.target.value}))} style={{width:"100%",marginBottom:8}}/>
+              <textarea className="fi" rows={3} placeholder="Description" value={charForm.description} onChange={e=>setCharForm(prev=>({...prev,description:e.target.value}))} style={{width:"100%",marginBottom:10,resize:"vertical"}}/>
+              <div style={{display:"flex",gap:8}}>
+                <Btn onClick={saveCharacterForm} s={{flex:1}}>Save character</Btn>
+                <Btn onClick={()=>setCharFormOpen(false)} s={{background:"none",borderColor:"var(--border)",color:"var(--text-dim)"}}>Cancel</Btn>
+              </div>
+            </div>}
+          </div>
+
+          <FormField label="Other notes on supporting characters" k="supporting" ph="Anything not captured in a character card above..." value={pForm.supporting} onChange={updateField} multi/>
+          <FormField label="Other notes on the antagonist" k="antagonist" ph="Anything not captured in a character card above..." value={pForm.antagonist} onChange={updateField} multi/>
         </>}
         {bibTab==="world"&&<><WorldField label="Core Setting" helper="When and where does this story take place?" example="A small coastal town in present-day Maine..." k="worldSetting" value={pForm.worldSetting} onChange={updateField}/><WorldField label="World Rules" helper="What can and cannot happen here?" example="Time can be observed but never changed..." k="worldRules" value={pForm.worldRules} onChange={updateField}/><WorldField label="Mythology & Paranormal Rules" helper="The internal logic of anything that operates outside ordinary reality. Ritual mechanics, supernatural rules, entity limitations, protective systems. Agnes cross-references this during drift detection." example="The ritual requires three components and cannot be reversed once fractured..." k="worldMythology" value={pForm.worldMythology} onChange={updateField}/><WorldField label="Beliefs vs. Reality" helper="What do characters assume that isn't true?" example="Everyone believes the disappearances were accidents..." k="worldBeliefs" value={pForm.worldBeliefs} onChange={updateField}/><WorldField label="What Makes This World Dangerous" helper="What creates real stakes?" example="The closer you get to the truth, the more you risk losing..." k="worldDanger" value={pForm.worldDanger} onChange={updateField}/><WorldField label="Tone" helper="What does this world feel like?" example="Warm but uneasy..." k="worldTone" value={pForm.worldTone} onChange={updateField}/></>}
         {bibTab==="chapters"&&<><p style={{fontSize:12,color:"var(--text-muted)",marginBottom:14,lineHeight:1.5}}>One field per chapter. Keep summaries short. Most books only need one timeline. If yours shifts between different points of view or time periods, tag those chapters here so Agnes keeps them separate.</p>{pForm.chapters.map((ch,idx)=><div key={idx} style={{marginBottom:14}}>
@@ -3216,6 +3332,15 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
           <ReadField label="What this story is about" value={project.synopsis} multi/>
           <ReadField label="Themes" value={project.themes} multi/>
           <ReadField label="What excites you most" value={project.excites} multi/>
+          {(project.openQuestions||[]).length>0&&<div style={{marginTop:8,paddingTop:14,borderTop:"1px solid var(--border)"}}>
+            <div style={{fontSize:9,textTransform:"uppercase",letterSpacing:"0.14em",color:"var(--text-dim)",fontFamily:"'DM Sans',sans-serif",marginBottom:10}}>Open questions</div>
+            {project.openQuestions.map((q,idx)=>(
+              <div key={idx} style={{display:"flex",alignItems:"flex-start",justifyContent:"space-between",gap:10,background:"var(--bg-card)",border:"1px solid var(--border)",borderRadius:8,padding:"10px 14px",marginBottom:8}}>
+                <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:13,color:"var(--text-secondary)",lineHeight:1.6,fontStyle:"italic"}}>{q.text}</div>
+                <span onClick={()=>dismissOpenQuestion(idx)} style={{fontSize:11,color:"var(--text-dim)",cursor:"pointer",whiteSpace:"nowrap",flexShrink:0}}>Dismiss</span>
+              </div>
+            ))}
+          </div>}
         </div>}
         {!bibleSearch&&bibViewTab==="characters"&&<div>
           <ReadField label="Protagonist" value={project.protagonist} multi/>
@@ -3228,9 +3353,22 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
             <ReadField label="Backstory" value={project.protagonistBackstory} multi/>
             <ReadField label="Misbelief" value={project.protagonistMisbelief} multi/>
           </>}
-          <ReadField label="Supporting Characters" value={project.supporting} multi/>
-          <ReadField label="Antagonist" value={project.antagonist} multi/>
-          {!project.protagonist&&!project.supporting&&!project.antagonist&&<p style={{fontFamily:"'Cormorant Garamond',serif",fontSize:14,color:"var(--text-dim)",fontStyle:"italic"}}>No characters added yet. Tap Edit to add them.</p>}
+          {(project.characters||[]).length>0&&<>
+            <div style={{fontSize:9,textTransform:"uppercase",letterSpacing:"0.14em",color:"var(--accent-70)",fontWeight:500,marginBottom:10,marginTop:8,paddingTop:8,borderTop:"1px solid var(--border)"}}>Characters</div>
+            {project.characters.map((c,idx)=>(
+              <div key={c.id||idx} style={{background:"var(--bg-card)",border:"1px solid var(--border)",borderRadius:8,padding:"10px 14px",marginBottom:8}}>
+                <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:3}}>
+                  <span style={{fontFamily:"'Cormorant Garamond',serif",fontSize:14,color:c.name?"var(--text-primary)":"var(--text-dim)",fontStyle:c.name?"normal":"italic"}}>{c.name||"Unnamed, tap Edit to name them"}</span>
+                  <span style={{fontSize:9,fontWeight:500,color:"var(--accent)",background:"var(--accent-10)",padding:"2px 8px",borderRadius:8}}>{c.role}</span>
+                </div>
+                {c.relationship&&<div style={{fontSize:11,fontStyle:"italic",color:"var(--text-dim)",marginBottom:3}}>{c.relationship}</div>}
+                {c.description&&<div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:13,color:"var(--text-secondary)",lineHeight:1.6}}>{c.description}</div>}
+              </div>
+            ))}
+          </>}
+          <ReadField label="Other notes on supporting characters" value={project.supporting} multi/>
+          <ReadField label="Other notes on the antagonist" value={project.antagonist} multi/>
+          {!project.protagonist&&!project.supporting&&!project.antagonist&&(project.characters||[]).length===0&&<p style={{fontFamily:"'Cormorant Garamond',serif",fontSize:14,color:"var(--text-dim)",fontStyle:"italic"}}>No characters added yet. Tap Edit to add them.</p>}
         </div>}
         {!bibleSearch&&bibViewTab==="world"&&<div>
           <ReadField label="Core Setting" value={project.worldSetting} multi/>
@@ -3974,7 +4112,7 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
                 <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:14,fontStyle:"italic",color:"var(--text-muted)",marginBottom:14,lineHeight:1.6}}>Your Idea Lab stays exactly as it is. Where do you want to go next?</div>
                 <div style={{display:"flex",gap:8}}>
                   <div onClick={()=>commitOrganized("bible")} style={{flex:1,background:"var(--accent)",border:"none",borderRadius:8,padding:"11px",textAlign:"center",cursor:"pointer"}}><span style={{fontSize:12,fontWeight:500,color:"var(--bg-deepest)",fontFamily:"'DM Sans',sans-serif"}}>Open Story Bible</span></div>
-                  <div onClick={()=>commitOrganized("manuscript")} style={{flex:1,background:"var(--bg-card-alt)",border:"1px solid var(--border)",borderRadius:8,padding:"11px",textAlign:"center",cursor:"pointer"}}><span style={{fontSize:12,color:"var(--text-muted)",fontFamily:"'DM Sans',sans-serif"}}>Open Manuscript</span></div>
+                  <div onClick={()=>commitOrganized("manuscript")} style={{flex:1,background:"var(--bg-card-alt)",border:"1px solid var(--border)",borderRadius:8,padding:"11px",textAlign:"center",cursor:"pointer"}}><span style={{fontSize:12,color:"var(--text-muted)",fontFamily:"'DM Sans',sans-serif"}}>Open Write</span></div>
                   <div onClick={()=>{commitOrganized("stay");setOrganizeOpen(false);}} style={{flex:1,background:"var(--bg-card-alt)",border:"1px solid var(--border)",borderRadius:8,padding:"11px",textAlign:"center",cursor:"pointer"}}><span style={{fontSize:12,color:"var(--text-dim)",fontFamily:"'DM Sans',sans-serif"}}>Stay in Idea Lab</span></div>
                 </div>
               </div>
