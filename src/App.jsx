@@ -713,6 +713,7 @@ export default function App() {
   const [lastSession, setLastSession] = useState(null);
   const [bibTab, setBibTab] = useState("overview");
   const [openTagIdx, setOpenTagIdx] = useState(null);
+  const [newTagInput, setNewTagInput] = useState("");
   const [bibViewTab, setBibViewTab] = useState("overview");
   const [bibExpanded, setBibExpanded] = useState(false);
   const [bibleSearch, setBibleSearch] = useState("");
@@ -3118,14 +3119,17 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
           <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:5}}>
             <label style={{fontSize:13,color:"var(--accent)",fontWeight:600}}>Chapter {ch.num}</label>
             <div style={{display:"flex",alignItems:"center",gap:8}}>
-              <span onClick={()=>setOpenTagIdx(openTagIdx===idx?null:idx)} style={{fontSize:10,fontWeight:500,color:ch.tag&&ch.tag.toLowerCase()!=="main"?"#7A6EA0":"var(--text-dim)",background:ch.tag&&ch.tag.toLowerCase()!=="main"?"#7A6EA020":"var(--bg-card-alt)",padding:"3px 9px",borderRadius:8,cursor:"pointer",fontFamily:"'DM Sans',sans-serif"}}>{ch.tag&&ch.tag.trim()?ch.tag:"Main"}</span>
+              <span onClick={()=>{setOpenTagIdx(openTagIdx===idx?null:idx);setNewTagInput("");}} style={{fontSize:10,fontWeight:500,color:ch.tag&&ch.tag.toLowerCase()!=="main"?"#7A6EA0":"var(--text-dim)",background:ch.tag&&ch.tag.toLowerCase()!=="main"?"#7A6EA020":"var(--bg-card-alt)",padding:"3px 9px",borderRadius:8,cursor:"pointer",fontFamily:"'DM Sans',sans-serif"}}>{ch.tag&&ch.tag.trim()?ch.tag:"Main"}</span>
               {pForm.chapters.length>1&&<span onClick={()=>removeChapter(idx)} style={{fontSize:11,color:"var(--text-dim)",cursor:"pointer"}}>Remove</span>}
             </div>
           </div>
           {openTagIdx===idx&&<div style={{background:"var(--bg-card-alt)",border:"1px solid var(--border)",borderRadius:6,padding:"8px 10px",marginBottom:8,display:"flex",flexWrap:"wrap",gap:6,alignItems:"center"}}>
             <span onClick={()=>{updateChapterTag(idx,"");setOpenTagIdx(null);}} style={{fontSize:11,padding:"4px 10px",borderRadius:6,background:"var(--bg-card)",border:"1px solid var(--border)",color:"var(--text-muted)",cursor:"pointer",fontFamily:"'DM Sans',sans-serif"}}>Main</span>
             {usedChapterTags().map(t=><span key={t} onClick={()=>{updateChapterTag(idx,t);setOpenTagIdx(null);}} style={{fontSize:11,padding:"4px 10px",borderRadius:6,background:"var(--bg-card)",border:"1px solid var(--border)",color:"var(--text-muted)",cursor:"pointer",fontFamily:"'DM Sans',sans-serif"}}>{t}</span>)}
-            <input placeholder="Or type a new one..." defaultValue="" onKeyDown={e=>{if(e.key==="Enter"&&e.target.value.trim()){updateChapterTag(idx,e.target.value.trim());setOpenTagIdx(null);}}} style={{flex:1,minWidth:120,background:"var(--bg-base)",border:"1px solid var(--border)",borderRadius:5,padding:"5px 8px",fontSize:11,fontFamily:"'DM Sans',sans-serif",color:"var(--text-primary)",outline:"none"}}/>
+            <div style={{display:"flex",gap:6,flex:1,minWidth:180}}>
+              <input placeholder="Or type a new one..." value={newTagInput} onChange={e=>setNewTagInput(e.target.value)} onKeyDown={e=>{if(e.key==="Enter"&&newTagInput.trim()){updateChapterTag(idx,newTagInput.trim());setOpenTagIdx(null);setNewTagInput("");}}} style={{flex:1,background:"var(--bg-base)",border:"1px solid var(--border)",borderRadius:5,padding:"5px 8px",fontSize:11,fontFamily:"'DM Sans',sans-serif",color:"var(--text-primary)",outline:"none"}}/>
+              <span onClick={()=>{if(newTagInput.trim()){updateChapterTag(idx,newTagInput.trim());setOpenTagIdx(null);setNewTagInput("");}}} style={{fontSize:11,fontWeight:500,padding:"5px 12px",borderRadius:5,cursor:newTagInput.trim()?"pointer":"default",background:newTagInput.trim()?"#5A6B3A":"var(--bg-card)",color:newTagInput.trim()?"#F0EAE0":"var(--text-dim)",fontFamily:"'DM Sans',sans-serif",whiteSpace:"nowrap"}}>Add</span>
+            </div>
           </div>}
           <textarea className="fi" rows={2} placeholder={`What happens in chapter ${ch.num}...`} value={ch.summary} onChange={e=>updateChapter(idx,e.target.value)} style={{resize:"vertical",fontSize:13}}/>
         </div>)}<Btn onClick={addChapter} s={{width:"100%",background:"none",borderStyle:"dashed",borderColor:"var(--border-mid)",color:"var(--text-muted)",marginBottom:8}}>+ Add Chapter</Btn></>}
