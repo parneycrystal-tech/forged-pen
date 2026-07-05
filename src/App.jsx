@@ -712,6 +712,7 @@ export default function App() {
   },[firstSessionCapture]);
   const [lastSession, setLastSession] = useState(null);
   const [bibTab, setBibTab] = useState("overview");
+  const [openTagIdx, setOpenTagIdx] = useState(null);
   const [bibViewTab, setBibViewTab] = useState("overview");
   const [bibExpanded, setBibExpanded] = useState(false);
   const [bibleSearch, setBibleSearch] = useState("");
@@ -1359,24 +1360,57 @@ Respond with ONLY this JSON:
       existingChapters.sort((a,b)=>a.num-b.num);
       updated.chapters=existingChapters;
     }
-    // Merge new details into existing fields (append rather than replace)
-    const appendField=(key,value)=>{if(value&&value.trim())updated[key]=(updated[key]?updated[key]+"\n\n"+value:value);};
-    appendField("protagonist",result.protagonistReveal);
-    appendField("protagonistGoal",result.protagonistGoalUpdate);
-    appendField("protagonistDream",result.protagonistDreamUpdate);
-    appendField("protagonistFear",result.protagonistFearUpdate);
-    appendField("protagonistWound",result.protagonistWoundUpdate);
-    appendField("protagonistBackstory",result.protagonistBackstoryUpdate);
-    appendField("protagonistMisbelief",result.protagonistMisbeliefUpdate);
-    appendField("supporting",result.characterReveal);
-    appendField("antagonist",result.antagonistReveal);
-    appendField("worldSetting",result.worldReveal);
-    appendField("worldRules",result.worldRulesUpdate);
-    appendField("worldMythology",result.worldMythologyUpdate);
-    appendField("worldBeliefs",result.worldBeliefsUpdate);
-    appendField("worldDanger",result.worldDangerUpdate);
-    appendField("worldTone",result.worldToneUpdate);
-    appendField("themes",result.themeReveal);
+    // Does this chapter belong to a different timeline/POV than the main story? If so, none of what
+    // Agnes found here belongs in Emma-the-protagonist's own fields — it goes into a separate holding
+    // area instead, tagged by name, until Characters exists to give it a real home.
+    const chapterEntry=(updated.chapters||project.chapters||[]).find(c=>c.num===result.chapterNum);
+    const tag=(chapterEntry?.tag||"").trim();
+    const isOtherTimeline=tag&&tag.toLowerCase()!=="main";
+    if(isOtherTimeline){
+      const captureLines=[
+        ["Protagonist reveal",result.protagonistReveal],
+        ["Goal",result.protagonistGoalUpdate],
+        ["Dream",result.protagonistDreamUpdate],
+        ["Fear",result.protagonistFearUpdate],
+        ["Wound",result.protagonistWoundUpdate],
+        ["Backstory",result.protagonistBackstoryUpdate],
+        ["Misbelief",result.protagonistMisbeliefUpdate],
+        ["Characters",result.characterReveal],
+        ["Antagonist",result.antagonistReveal],
+        ["World/setting",result.worldReveal],
+        ["World rules",result.worldRulesUpdate],
+        ["Mythology",result.worldMythologyUpdate],
+        ["Beliefs vs reality",result.worldBeliefsUpdate],
+        ["Danger",result.worldDangerUpdate],
+        ["Tone",result.worldToneUpdate],
+      ].filter(([,v])=>v&&v.trim()).map(([l,v])=>`${l}: ${v}`).join("\n");
+      if(captureLines){
+        const existingCaptures=updated.timelineCaptures||{};
+        const priorForTag=existingCaptures[tag]?existingCaptures[tag]+"\n\n":"";
+        updated.timelineCaptures={...existingCaptures,[tag]:priorForTag+`[Chapter ${result.chapterNum}]\n`+captureLines};
+      }
+      // Themes are story-wide regardless of which timeline reveals them, so those still merge normally
+      if(result.themeReveal&&result.themeReveal.trim())updated.themes=(updated.themes?updated.themes+"\n\n"+result.themeReveal:result.themeReveal);
+    }else{
+      // Merge new details into existing fields (append rather than replace)
+      const appendField=(key,value)=>{if(value&&value.trim())updated[key]=(updated[key]?updated[key]+"\n\n"+value:value);};
+      appendField("protagonist",result.protagonistReveal);
+      appendField("protagonistGoal",result.protagonistGoalUpdate);
+      appendField("protagonistDream",result.protagonistDreamUpdate);
+      appendField("protagonistFear",result.protagonistFearUpdate);
+      appendField("protagonistWound",result.protagonistWoundUpdate);
+      appendField("protagonistBackstory",result.protagonistBackstoryUpdate);
+      appendField("protagonistMisbelief",result.protagonistMisbeliefUpdate);
+      appendField("supporting",result.characterReveal);
+      appendField("antagonist",result.antagonistReveal);
+      appendField("worldSetting",result.worldReveal);
+      appendField("worldRules",result.worldRulesUpdate);
+      appendField("worldMythology",result.worldMythologyUpdate);
+      appendField("worldBeliefs",result.worldBeliefsUpdate);
+      appendField("worldDanger",result.worldDangerUpdate);
+      appendField("worldTone",result.worldToneUpdate);
+      appendField("themes",result.themeReveal);
+    }
     setPForm(updated);
     const proj={...updated,updated:Date.now()};
     setProject(proj);
@@ -1385,8 +1419,11 @@ Respond with ONLY this JSON:
     setExtractOpen(false);
     setExtractResult(null);
     saveStored("tt-pending-extract",null);
-    // Run Agnes drift detection against the pre-merge Bible
-    detectBibleDrift(result,projectBeforeMerge);
+    // Drift detection only makes sense against the main timeline's own established facts — comparing
+    // a different POV/timeline's content against Emma's fields would misfire constantly.
+    if(!isOtherTimeline){
+      detectBibleDrift(result,projectBeforeMerge);
+    }
   };
 
   const detectBibleDrift=async(extractResult,projectBeforeMerge)=>{
@@ -2289,9 +2326,28 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
     setScreen("project");
   };
   const updateField=(k,v)=>setPForm(prev=>({...prev,[k]:v}));
-  const addChapter=()=>setPForm(prev=>({...prev,chapters:[...prev.chapters,{num:prev.chapters.length+1,summary:""}]}));
+  const addChapter=()=>setPForm(prev=>({...prev,chapters:[...prev.chapters,{num:prev.chapters.length+1,summary:"",tag:""}]}));
   const removeChapter=(idx)=>setPForm(prev=>({...prev,chapters:prev.chapters.filter((_,i)=>i!==idx).map((c,i)=>({...c,num:i+1}))}));
   const updateChapter=(idx,val)=>setPForm(prev=>({...prev,chapters:prev.chapters.map((c,i)=>i===idx?{...c,summary:val}:c)}));
+  const updateChapterTag=(idx,val)=>{
+    setPForm(prev=>{
+      const updated={...prev,chapters:prev.chapters.map((c,i)=>i===idx?{...c,tag:val}:c)};
+      // Keep project in sync immediately so extraction (which reads project.chapters, not pForm)
+      // always sees the current tag, even if the writer hasn't clicked the main Save button yet
+      if(project){
+        const proj={...project,chapters:updated.chapters,updated:Date.now()};
+        setProject(proj);
+        saveStored("tt-project",proj);
+        cloudSave("tt-project",proj);
+      }
+      return updated;
+    });
+  };
+  // All distinct tags used across chapters so far, for the quick-select chips. "Main"/blank excluded.
+  const usedChapterTags=()=>{
+    const src=project?.chapters||pForm.chapters||[];
+    return [...new Set(src.map(c=>(c.tag||"").trim()).filter(t=>t&&t.toLowerCase()!=="main"))];
+  };
 
   const isFocusMode = mode && (mode.id==="micro"||mode.id==="smoke");
 
@@ -3058,7 +3114,21 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
           <FormField label="Antagonist" k="antagonist" ph="Person, force, or system..." value={pForm.antagonist} onChange={updateField} multi/>
         </>}
         {bibTab==="world"&&<><WorldField label="Core Setting" helper="When and where does this story take place?" example="A small coastal town in present-day Maine..." k="worldSetting" value={pForm.worldSetting} onChange={updateField}/><WorldField label="World Rules" helper="What can and cannot happen here?" example="Time can be observed but never changed..." k="worldRules" value={pForm.worldRules} onChange={updateField}/><WorldField label="Mythology & Paranormal Rules" helper="The internal logic of anything that operates outside ordinary reality. Ritual mechanics, supernatural rules, entity limitations, protective systems. Agnes cross-references this during drift detection." example="The ritual requires three components and cannot be reversed once fractured..." k="worldMythology" value={pForm.worldMythology} onChange={updateField}/><WorldField label="Beliefs vs. Reality" helper="What do characters assume that isn't true?" example="Everyone believes the disappearances were accidents..." k="worldBeliefs" value={pForm.worldBeliefs} onChange={updateField}/><WorldField label="What Makes This World Dangerous" helper="What creates real stakes?" example="The closer you get to the truth, the more you risk losing..." k="worldDanger" value={pForm.worldDanger} onChange={updateField}/><WorldField label="Tone" helper="What does this world feel like?" example="Warm but uneasy..." k="worldTone" value={pForm.worldTone} onChange={updateField}/></>}
-        {bibTab==="chapters"&&<><p style={{fontSize:12,color:"var(--text-muted)",marginBottom:14,lineHeight:1.5}}>One field per chapter. Keep summaries short.</p>{pForm.chapters.map((ch,idx)=><div key={idx} style={{marginBottom:14}}><div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:5}}><label style={{fontSize:13,color:"var(--accent)",fontWeight:600}}>Chapter {ch.num}</label>{pForm.chapters.length>1&&<span onClick={()=>removeChapter(idx)} style={{fontSize:11,color:"var(--text-dim)",cursor:"pointer"}}>Remove</span>}</div><textarea className="fi" rows={2} placeholder={`What happens in chapter ${ch.num}...`} value={ch.summary} onChange={e=>updateChapter(idx,e.target.value)} style={{resize:"vertical",fontSize:13}}/></div>)}<Btn onClick={addChapter} s={{width:"100%",background:"none",borderStyle:"dashed",borderColor:"var(--border-mid)",color:"var(--text-muted)",marginBottom:8}}>+ Add Chapter</Btn></>}
+        {bibTab==="chapters"&&<><p style={{fontSize:12,color:"var(--text-muted)",marginBottom:14,lineHeight:1.5}}>One field per chapter. Keep summaries short.</p>{pForm.chapters.map((ch,idx)=><div key={idx} style={{marginBottom:14}}>
+          <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:5}}>
+            <label style={{fontSize:13,color:"var(--accent)",fontWeight:600}}>Chapter {ch.num}</label>
+            <div style={{display:"flex",alignItems:"center",gap:8}}>
+              <span onClick={()=>setOpenTagIdx(openTagIdx===idx?null:idx)} style={{fontSize:10,fontWeight:500,color:ch.tag&&ch.tag.toLowerCase()!=="main"?"#7A6EA0":"var(--text-dim)",background:ch.tag&&ch.tag.toLowerCase()!=="main"?"#7A6EA020":"var(--bg-card-alt)",padding:"3px 9px",borderRadius:8,cursor:"pointer",fontFamily:"'DM Sans',sans-serif"}}>{ch.tag&&ch.tag.trim()?ch.tag:"Main"}</span>
+              {pForm.chapters.length>1&&<span onClick={()=>removeChapter(idx)} style={{fontSize:11,color:"var(--text-dim)",cursor:"pointer"}}>Remove</span>}
+            </div>
+          </div>
+          {openTagIdx===idx&&<div style={{background:"var(--bg-card-alt)",border:"1px solid var(--border)",borderRadius:6,padding:"8px 10px",marginBottom:8,display:"flex",flexWrap:"wrap",gap:6,alignItems:"center"}}>
+            <span onClick={()=>{updateChapterTag(idx,"");setOpenTagIdx(null);}} style={{fontSize:11,padding:"4px 10px",borderRadius:6,background:"var(--bg-card)",border:"1px solid var(--border)",color:"var(--text-muted)",cursor:"pointer",fontFamily:"'DM Sans',sans-serif"}}>Main</span>
+            {usedChapterTags().map(t=><span key={t} onClick={()=>{updateChapterTag(idx,t);setOpenTagIdx(null);}} style={{fontSize:11,padding:"4px 10px",borderRadius:6,background:"var(--bg-card)",border:"1px solid var(--border)",color:"var(--text-muted)",cursor:"pointer",fontFamily:"'DM Sans',sans-serif"}}>{t}</span>)}
+            <input placeholder="Or type a new one..." defaultValue="" onKeyDown={e=>{if(e.key==="Enter"&&e.target.value.trim()){updateChapterTag(idx,e.target.value.trim());setOpenTagIdx(null);}}} style={{flex:1,minWidth:120,background:"var(--bg-base)",border:"1px solid var(--border)",borderRadius:5,padding:"5px 8px",fontSize:11,fontFamily:"'DM Sans',sans-serif",color:"var(--text-primary)",outline:"none"}}/>
+          </div>}
+          <textarea className="fi" rows={2} placeholder={`What happens in chapter ${ch.num}...`} value={ch.summary} onChange={e=>updateChapter(idx,e.target.value)} style={{resize:"vertical",fontSize:13}}/>
+        </div>)}<Btn onClick={addChapter} s={{width:"100%",background:"none",borderStyle:"dashed",borderColor:"var(--border-mid)",color:"var(--text-muted)",marginBottom:8}}>+ Add Chapter</Btn></>}
         {bibTab==="current"&&<><p style={{fontSize:12,color:"var(--text-muted)",marginBottom:8,lineHeight:1.5}}>Paste the chapter you're currently working on. Finn will reference this text directly.</p><FormField label="Current chapter text" k="currentChapter" ph="Paste your current chapter here..." value={pForm.currentChapter} onChange={updateField} multi/></>}
         <Btn onClick={handleSetup} s={{width:"100%",background:"var(--accent-20)",borderColor:"var(--accent-40)",fontWeight:600,marginTop:8}}>{project?"Update":"Save"} Story Bible</Btn>
       </div>}
@@ -3169,9 +3239,21 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
         </div>}
         {!bibleSearch&&bibViewTab==="chapters"&&<div>
           {project.chapters&&Array.isArray(project.chapters)&&project.chapters.some(c=>c.summary)?project.chapters.filter(c=>c.summary).map((c,i)=><div key={i} style={{marginBottom:12}}>
-            <div style={{fontSize:12,color:"var(--accent)",fontWeight:600,fontFamily:"'DM Sans',sans-serif",marginBottom:4}}>Chapter {c.num}</div>
+            <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:4}}>
+              <div style={{fontSize:12,color:"var(--accent)",fontWeight:600,fontFamily:"'DM Sans',sans-serif"}}>Chapter {c.num}</div>
+              {c.tag&&c.tag.trim()&&c.tag.toLowerCase()!=="main"&&<span style={{fontSize:9,fontWeight:500,color:"#7A6EA0",background:"#7A6EA020",padding:"2px 8px",borderRadius:8,fontFamily:"'DM Sans',sans-serif"}}>{c.tag}</span>}
+            </div>
             <div style={{background:"var(--bg-card)",border:"1px solid var(--border)",borderRadius:8,padding:"10px 14px",fontFamily:"'Cormorant Garamond',serif",fontSize:14,color:"var(--text-primary)",lineHeight:1.7}}>{c.summary}</div>
           </div>):<p style={{fontFamily:"'Cormorant Garamond',serif",fontSize:14,color:"var(--text-dim)",fontStyle:"italic"}}>No chapters added yet. Tap Edit to add them.</p>}
+          {project.timelineCaptures&&Object.keys(project.timelineCaptures).length>0&&<div style={{marginTop:20,paddingTop:16,borderTop:"1px solid var(--border)"}}>
+            <div style={{fontSize:10,textTransform:"uppercase",letterSpacing:"0.14em",color:"var(--text-dim)",fontFamily:"'DM Sans',sans-serif",marginBottom:10}}>Other timelines Agnes is tracking separately</div>
+            {Object.entries(project.timelineCaptures).map(([tag,text])=>(
+              <div key={tag} style={{marginBottom:10}}>
+                <div style={{fontSize:11,fontWeight:500,color:"#7A6EA0",marginBottom:4,fontFamily:"'DM Sans',sans-serif"}}>{tag}</div>
+                <div style={{background:"var(--bg-card)",border:"1px solid var(--border)",borderRadius:8,padding:"10px 14px",fontFamily:"'Cormorant Garamond',serif",fontSize:13,color:"var(--text-secondary)",lineHeight:1.7,whiteSpace:"pre-wrap"}}>{text}</div>
+              </div>
+            ))}
+          </div>}
         </div>}
       </div>}
 
@@ -4133,6 +4215,16 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
           </div>}
 
           {extractResult&&<>
+            {(()=>{
+              const ch=(project?.chapters||[]).find(c=>c.num===extractResult.chapterNum);
+              const tag=(ch?.tag||"").trim();
+              if(tag&&tag.toLowerCase()!=="main"){
+                return <div style={{marginBottom:14,padding:"10px 14px",background:"#7A6EA015",border:"1px solid #7A6EA040",borderRadius:8}}>
+                  <div style={{fontSize:11,color:"#7A6EA0",fontFamily:"'DM Sans',sans-serif"}}>This chapter is tagged <strong>{tag}</strong>. What Agnes finds here goes into a separate holding area for that timeline, not into your main character or world fields.</div>
+                </div>;
+              }
+              return null;
+            })()}
             {extractResult.chapterSummary&&<div style={{marginBottom:14,padding:14,background:"var(--bg-card)",borderRadius:8,border:"1px solid var(--border)"}}>
               <div style={{fontSize:9,textTransform:"uppercase",letterSpacing:"0.14em",color:"var(--accent-80)",fontFamily:"'DM Sans',sans-serif",marginBottom:6}}>Chapter {extractResult.chapterNum||"?"} Summary</div>
               <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:14,color:"var(--text-primary)",lineHeight:1.75}}>{extractResult.chapterSummary}</div>
