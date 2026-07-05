@@ -8,7 +8,7 @@ const supabase = createClient(
   "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImpreWdycWV4bm9pYXBkdWJyeXp5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzkzMDgxNDYsImV4cCI6MjA5NDg4NDE0Nn0.cLGoSlItw5ABr-fk-NvSr-vyXvu02NCy7mxqGOf0yGc"
 );
 
-const FINN = `ABSOLUTE RULE — ZERO EXCEPTIONS: Never use em dashes (—) in any response. Never. Not in coaching language. Not in examples. Not in prose suggestions. Not in quotes. Not ever. Not one single em dash in any form. If you find yourself about to write an em dash, stop immediately and restructure the sentence. Use commas, colons, semicolons, or periods instead. This is the first rule. It overrides everything else. Also never use asterisks (*word*) for emphasis. Never bold words with markdown. Plain prose only.
+const FINN = `ABSOLUTE RULE, ZERO EXCEPTIONS: Never use em dashes in any response. Never. Not in coaching language. Not in examples. Not in prose suggestions. Not in quotes. Not ever. Not one single em dash in any form. If you find yourself about to write an em dash, stop immediately and restructure the sentence. Use commas, colons, semicolons, or periods instead. This is the first rule. It overrides everything else. Also never use asterisks (*word*) for emphasis. Never bold words with markdown. Plain prose only.
 
 You are Finn (short for Finnigan), the writing coach behind Forged Pen. Lit major, psych minor. Old soul, sharp but never cutting, dry wit, warm underneath. You ask the one question that unlocks everything.
 
@@ -478,6 +478,158 @@ function WorldField({label,helper,example,k,value,onChange}){return <div style={
 function Btn({children,onClick,s}){return <button onClick={onClick} style={{background:"var(--bg-card-alt)",border:"1px solid var(--border-mid)",borderRadius:8,color:"var(--text-secondary)",fontSize:13,padding:"10px 16px",fontFamily:"'DM Sans',sans-serif",cursor:"pointer",...s}}>{children}</button>}
 function BibTab({id,label,active,onClick}){return <button onClick={()=>onClick(id)} style={{background:active?"var(--bg-card-alt)":"none",border:active?"1px solid var(--border-mid)":"1px solid transparent",borderRadius:8,color:active?"var(--accent)":"var(--text-dim)",fontSize:12,padding:"6px 14px",cursor:"pointer",fontFamily:"'DM Sans',sans-serif"}}>{label}</button>}
 
+// LANDING SCREEN — pre-login screen shown once per browser until dismissed via Sign in or Request access.
+// Built as a real screen in the app's own screen system rather than a standalone HTML file, so it never
+// fights with Vite's asset pipeline or vercel.json routing again. Content and copy order are locked.
+const WHO_ITS_FOR=[
+  {lede:"You have ADHD, autism, or another neurodivergent experience that shapes how you create.",body:"Executive dysfunction, rejection sensitive dysphoria, perfectionism paralysis. No other writing tool was designed for any of it."},
+  {lede:"You write scenes before you know where they belong.",body:"You have fragments that feel alive and homeless. You discover the story by writing it, and traditional plotting software feels like a leash. Embers is where those fragments live until Agnes finds them a home."},
+  {lede:"You've stepped away from your manuscript for weeks and can't find your way back in.",body:"The re-reading spiral starts. You lose another session. The story didn't go anywhere. You just need a way back in."},
+  {lede:"You've been skeptical of AI writing tools because you don't want a ghostwriter.",body:"You want to grow as a writer, not outsource the work. Finn refuses to write for you. That refusal is the product."}
+];
+const WHAT_WE_BELIEVE=[
+  {title:"Every word on the page should belong to the writer.",body:"We will never write it for you. Finn is a coach, not a ghostwriter. That line does not move."},
+  {title:"Struggling to start is not laziness.",body:"Losing the thread is not failure. Stepping away is not giving up. These are neurological realities, not character flaws."},
+  {title:"Your brain's way of working is not a problem to fix.",body:"Forged Pen is built around it. No word count goals. No streaks. No guilt about time away."},
+  {title:"A writing coach should make you trust yourself more, not depend on them more.",body:"Every session with Finn is designed to leave you more capable, not more reliant."},
+  {title:"Human creativity is irreplaceable.",body:"AI's proper role is to support it, not supplant it. The voice, the instinct, the lived experience that makes writing matter: that's yours. Always."}
+];
+
+function LandingScreen({onSignIn,onSubmitEmail}){
+  const [email,setEmail]=useState("");
+  const [submitState,setSubmitState]=useState("idle"); // idle | submitting | done | error
+  const waitlistRef=useRef(null);
+  const scrollToWaitlist=()=>{waitlistRef.current?.scrollIntoView({behavior:"smooth",block:"center"});};
+  const handleSubmit=async()=>{
+    const trimmed=email.trim();
+    if(!trimmed||!trimmed.includes("@")){setSubmitState("error");return;}
+    setSubmitState("submitting");
+    const ok=await onSubmitEmail(trimmed);
+    setSubmitState(ok?"done":"error");
+  };
+  const ink="#1E1C14", parchment="#EDE6DA", parchmentAlt="#F5EEE4", brass="#A8884A", olive="#5A6B3A", border="#C8BC9A", muted="#7A6E60", deep="#141210";
+  const serif="'Cormorant Garamond',serif", sans="'DM Sans',sans-serif";
+  return <div style={{position:"fixed",top:0,left:0,right:0,bottom:0,background:parchment,zIndex:200,overflowY:"auto"}}>
+    {/* NAV */}
+    <div style={{position:"sticky",top:0,zIndex:5,background:parchment,borderBottom:"1px solid "+border,padding:"16px 24px",display:"flex",alignItems:"center",justifyContent:"space-between"}}>
+      <div style={{fontFamily:serif,fontSize:18,letterSpacing:"0.1em",textTransform:"uppercase",color:brass,fontWeight:600}}>Forged Pen</div>
+      <div style={{display:"flex",alignItems:"center",gap:18}}>
+        <span onClick={onSignIn} style={{fontSize:13,color:ink,cursor:"pointer",fontFamily:sans}}>Sign in</span>
+        <div onClick={scrollToWaitlist} style={{background:olive,borderRadius:7,padding:"8px 16px",cursor:"pointer"}}>
+          <span style={{fontSize:12,fontWeight:600,color:parchment,fontFamily:sans}}>Request access</span>
+        </div>
+      </div>
+    </div>
+
+    <div style={{maxWidth:640,margin:"0 auto",padding:"56px 24px 0"}}>
+      {/* FINN SPEAKS FIRST */}
+      <div style={{textAlign:"center",marginBottom:10}}>
+        <div style={{fontSize:11,letterSpacing:"0.18em",textTransform:"uppercase",color:muted,fontFamily:sans,marginBottom:18}}>Finn</div>
+        <p style={{fontFamily:serif,fontSize:24,fontWeight:400,color:ink,lineHeight:1.6,fontStyle:"italic"}}>
+          "I'm not here to write your story.<br/>That part belongs to you.<br/>I'm here for the moments when your plot gets tangled,<br/>your words stall, and you can't see the shape of what you're building."
+        </p>
+      </div>
+
+      {/* FINN SUB PARAGRAPH */}
+      <p style={{fontFamily:serif,fontSize:16,fontWeight:300,color:"#3A3428",lineHeight:1.85,textAlign:"center",maxWidth:520,margin:"28px auto 40px"}}>
+        Forged Pen is a writing coach built for writers who discover their story as they write it. And for neurodivergent writers whose brains have been failed by every tool that assumes you can just sit down and write. Finn coaches. Agnes keeps the record. Every word on the page stays yours.
+      </p>
+
+      {/* WAITLIST FORM */}
+      <div ref={waitlistRef} id="waitlist" style={{background:parchmentAlt,border:"1px solid "+border,borderRadius:10,padding:"28px 28px",textAlign:"center",marginBottom:56}}>
+        {submitState==="done"
+          ?<>
+            <p style={{fontFamily:serif,fontSize:17,color:ink,marginBottom:6}}>You're on the list.</p>
+            <p style={{fontSize:12,color:muted,fontFamily:sans}}>No spam. No pressure. Just a door when it opens.</p>
+          </>
+          :<>
+            <p style={{fontFamily:serif,fontSize:17,color:ink,marginBottom:16}}>Request early access</p>
+            <div style={{display:"flex",gap:8,maxWidth:380,margin:"0 auto"}}>
+              <input value={email} onChange={e=>{setEmail(e.target.value);if(submitState==="error")setSubmitState("idle");}} onKeyDown={e=>{if(e.key==="Enter")handleSubmit();}} type="email" placeholder="your@email.com" style={{flex:1,background:"#FFFFFF",border:"1px solid "+border,borderRadius:7,padding:"10px 12px",fontFamily:sans,fontSize:13,color:ink,outline:"none"}}/>
+              <div onClick={handleSubmit} style={{background:submitState==="submitting"?border:olive,borderRadius:7,padding:"10px 18px",cursor:submitState==="submitting"?"default":"pointer",display:"flex",alignItems:"center"}}>
+                <span style={{fontSize:12,fontWeight:600,color:parchment,fontFamily:sans,whiteSpace:"nowrap"}}>{submitState==="submitting"?"...":"Request access"}</span>
+              </div>
+            </div>
+            {submitState==="error"&&<p style={{fontSize:11,color:"#B06848",marginTop:10,fontFamily:sans}}>That doesn't look like a valid email yet.</p>}
+            <p style={{fontSize:11,color:muted,marginTop:14,fontFamily:sans}}>Beta opening soon. No spam. No pressure. <span onClick={onSignIn} style={{textDecoration:"underline",cursor:"pointer"}}>Already have access? Sign in.</span></p>
+          </>}
+      </div>
+    </div>
+
+    {/* OUBLIETTE SECTION — dark, atmospheric */}
+    <div style={{background:deep,padding:"64px 24px"}}>
+      <div style={{maxWidth:640,margin:"0 auto"}}>
+        <p style={{fontFamily:serif,fontSize:19,fontWeight:300,color:"#E0D8C0",lineHeight:1.85,textAlign:"center",marginBottom:48}}>
+          Forged Pen is more than a tool. It's <em>a place you can go to get lost in your story</em>, like the dim corner of a beautiful old library, with a window that looks out into a green garden. The world outside agrees to wait. Your story is right where you left it. Agnes kept the record while you were away. Finn has been thinking about your last chapter.
+        </p>
+        <div style={{display:"flex",flexDirection:"column",gap:16}}>
+          <div style={{background:"#1E1C14",border:"1px solid #3A3428",borderRadius:10,padding:"22px 24px"}}>
+            <div style={{fontFamily:serif,fontSize:18,color:brass,marginBottom:2}}>Finn</div>
+            <div style={{fontSize:11,color:"#8A7A60",fontFamily:sans,textTransform:"uppercase",letterSpacing:"0.1em",marginBottom:10}}>Your writing coach</div>
+            <p style={{fontFamily:serif,fontSize:15,fontWeight:300,color:"#C8BC9A",lineHeight:1.75}}>Finn reads everything before he says a word. He asks the question that unlocks the thing you've been avoiding. He never writes your prose. He never says "just push through." He coaches you to find the story yourself.</p>
+          </div>
+          <div style={{background:"#1E1C14",border:"1px solid #3A3428",borderRadius:10,padding:"22px 24px"}}>
+            <div style={{fontFamily:serif,fontSize:18,color:brass,marginBottom:2}}>Agnes</div>
+            <div style={{fontSize:11,color:"#8A7A60",fontFamily:sans,textTransform:"uppercase",letterSpacing:"0.1em",marginBottom:10}}>The record keeper</div>
+            <p style={{fontFamily:serif,fontSize:15,fontWeight:300,color:"#C8BC9A",lineHeight:1.75}}>Agnes works quietly. She reads every chapter, keeps the record of your story, notices when your characters are moving in a direction your notes haven't caught up to yet. Meticulous. Slightly pointed. But when she does speak, she's usually right.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div style={{maxWidth:640,margin:"0 auto",padding:"64px 24px 0"}}>
+      {/* WHO IT'S FOR */}
+      <div style={{marginBottom:56}}>
+        <p style={{fontSize:11,letterSpacing:"0.18em",textTransform:"uppercase",color:muted,fontFamily:sans,textAlign:"center",marginBottom:14}}>Who this is for</p>
+        <p style={{fontFamily:serif,fontSize:21,color:ink,lineHeight:1.6,textAlign:"center",marginBottom:32}}>Built for writers whose brains work differently. And for writers who discover the story as they write it.</p>
+        <div style={{display:"flex",flexDirection:"column",gap:20}}>
+          {WHO_ITS_FOR.map((item,i)=>(
+            <div key={i} style={{borderLeft:"2px solid "+brass,paddingLeft:18}}>
+              <p style={{fontFamily:serif,fontSize:16,color:ink,lineHeight:1.6,marginBottom:6}}>{item.lede}</p>
+              <p style={{fontFamily:serif,fontSize:14,fontWeight:300,color:"#3A3428",lineHeight:1.75,fontStyle:"italic"}}>{item.body}</p>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* THE TEAM LINE */}
+      <div style={{textAlign:"center",marginBottom:56,padding:"32px 0",borderTop:"1px solid "+border,borderBottom:"1px solid "+border}}>
+        <p style={{fontFamily:serif,fontSize:22,fontStyle:"italic",color:ink,lineHeight:1.6,marginBottom:16}}>"The support system that used to require a team."</p>
+        <p style={{fontFamily:serif,fontSize:15,fontWeight:300,color:"#3A3428",lineHeight:1.8,maxWidth:480,margin:"0 auto"}}>Successful high-volume authors have developmental editors, continuity readers, research assistants, and writing coaches on call. Most writers write alone. Forged Pen is the infrastructure that used to require money and connections, available to any writer with a story worth finishing.</p>
+      </div>
+
+      {/* WHAT WE BELIEVE */}
+      <div id="believe" style={{marginBottom:56}}>
+        <p style={{fontFamily:serif,fontSize:21,color:ink,lineHeight:1.6,textAlign:"center",marginBottom:32}}>What we believe.</p>
+        <div style={{display:"flex",flexDirection:"column",gap:22}}>
+          {WHAT_WE_BELIEVE.map((b,i)=>(
+            <div key={i}>
+              <p style={{fontFamily:serif,fontSize:16,color:ink,lineHeight:1.6,marginBottom:4,fontWeight:500}}>{b.title}</p>
+              <p style={{fontFamily:serif,fontSize:14,fontWeight:300,color:"#3A3428",lineHeight:1.75}}>{b.body}</p>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* FINAL CTA */}
+      <div style={{textAlign:"center",marginBottom:16}}>
+        <p style={{fontFamily:serif,fontSize:24,fontStyle:"italic",color:ink,lineHeight:1.6,marginBottom:20}}>"Your story is right where you left it."</p>
+        <p style={{fontSize:12,color:muted,fontFamily:sans,marginBottom:16}}>Beta access opening soon &middot; Request your spot</p>
+        <div onClick={scrollToWaitlist} style={{background:olive,borderRadius:7,padding:"12px 24px",display:"inline-block",cursor:"pointer",marginBottom:10}}>
+          <span style={{fontSize:13,fontWeight:600,color:parchment,fontFamily:sans}}>Request access</span>
+        </div>
+        <p style={{fontSize:11,color:muted,fontFamily:sans}}>No spam. No pressure. Just a door when it opens.</p>
+      </div>
+    </div>
+
+    {/* FOOTER */}
+    <div style={{borderTop:"1px solid "+border,padding:"28px 24px",textAlign:"center"}}>
+      <p style={{fontSize:11,color:muted,fontFamily:sans,marginBottom:4}}>Forged Pen &middot; A Valewyn House product</p>
+      <p style={{fontSize:10,color:"#9A8870",fontFamily:sans}}>forgedpen.com &middot; Beta 2026</p>
+    </div>
+  </div>;
+}
+
 
 const AGNES_INVOLVEMENT_LEVELS=[
   {id:"full",label:"Full",desc:"Agnes speaks up on her own. Drift notes, ember analysis, and her read on where you are all surface automatically."},
@@ -523,6 +675,9 @@ export default function App() {
   const [agnesInvolvement, setAgnesInvolvement] = useState("full"); // "full" | "quiet" | "off" — gates AUTOMATIC surfacing only. Manual asks always work at full quality in every mode.
   const [driftBadges, setDriftBadges] = useState([]); // chapter nums with a waiting (unopened) drift note, shown only in "quiet" mode
   const [involvementEditChoice, setInvolvementEditChoice] = useState("full"); // scratch value while editing in onboarding/profile
+  // Landing screen: read synchronously so there's no flash between "haven't seen it" and "have seen it" on first paint.
+  // Not user-scoped (no session exists yet when this matters), so it reads straight from localStorage.
+  const [hasSeenLanding, setHasSeenLanding] = useState(()=>!!loadStored("tt-hasseenlanding"));
   const [profileOpen, setProfileOpen] = useState(false);
   const [profileEditMode, setProfileEditMode] = useState(false);
   const [profileEditAnswers, setProfileEditAnswers] = useState(null);
@@ -1613,6 +1768,19 @@ If there are no concrete sensory details actually present in the conversation (f
     else{saveSession(null);setScreen("home");}
   };
 
+  const dismissLanding=()=>{
+    setHasSeenLanding(true);
+    saveStored("tt-hasseenlanding",true); // safe pre-login; cloudSave silently no-ops with no session yet
+  };
+
+  const submitWaitlistEmail=async(email)=>{
+    try{
+      const {error}=await supabase.from("waitlist").insert({email,created_at:new Date().toISOString()});
+      if(error)throw error;
+      return true;
+    }catch(e){console.log("Waitlist insert error:",e);return false;}
+  };
+
   const saveAgnesInvolvement=(level)=>{
     setAgnesInvolvement(level);
     saveStored("tt-agnes-involvement",level);
@@ -2159,8 +2327,11 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
         </div>
       </div>}
 
+      {/* LANDING — shown once per browser before login, until dismissed via Sign in or Request access */}
+      {!authLoading&&!user&&!hasSeenLanding&&<LandingScreen onSignIn={dismissLanding} onSubmitEmail={submitWaitlistEmail}/>}
+
       {/* LOGIN */}
-      {!authLoading&&!user&&<div style={{position:"fixed",top:0,left:0,right:0,bottom:0,background:"var(--bg-base)",zIndex:300,display:"flex",alignItems:"center",justifyContent:"center",padding:24}}>
+      {!authLoading&&!user&&hasSeenLanding&&<div style={{position:"fixed",top:0,left:0,right:0,bottom:0,background:"var(--bg-base)",zIndex:300,display:"flex",alignItems:"center",justifyContent:"center",padding:24}}>
         <div style={{maxWidth:380,width:"100%",textAlign:"center",animation:"fi .6s ease-out"}}>
           <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:28,fontWeight:600,color:"var(--accent)",marginBottom:6}}>Forged Pen</div>
           <div style={{fontSize:12,color:"var(--text-dim)",marginBottom:32}}>Your writing coach, not your ghostwriter</div>
@@ -3961,7 +4132,7 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
               </div>
               <div>
                 <div style={{fontSize:9,textTransform:"uppercase",letterSpacing:"0.18em",color:"var(--text-dim)",fontFamily:"'DM Sans',sans-serif"}}>Agnes</div>
-                <div style={{fontSize:11,color:"var(--text-muted)",fontFamily:"'DM Sans',sans-serif"}}>Chapter {driftResult.chapterNum} — Story Bible Drift</div>
+                <div style={{fontSize:11,color:"var(--text-muted)",fontFamily:"'DM Sans',sans-serif"}}>Chapter {driftResult.chapterNum}: Story Bible Drift</div>
               </div>
             </div>
             <p style={{fontFamily:"'Cormorant Garamond',serif",fontSize:15,color:"var(--text-primary)",lineHeight:1.75,margin:0}}>This chapter appears to be moving in a different direction than your Story Bible on {driftResult.drifts.length} point{driftResult.drifts.length>1?"s":""}. Review each one and tell me what's true now.</p>
@@ -3973,7 +4144,7 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
               return <div key={i} style={{background:"var(--bg-card)",border:"1px solid "+(resolution==="evolving"?"var(--accent-40)":"var(--border)"),borderRadius:10,padding:"16px 18px",opacity:resolution&&!contextNote?0.75:1,transition:"all .2s"}}>
                 <div style={{fontSize:9,textTransform:"uppercase",letterSpacing:"0.14em",color:"var(--accent-80)",fontWeight:500,marginBottom:12,fontFamily:"'DM Sans',sans-serif",display:"flex",alignItems:"center",gap:8}}>
                   {drift.fieldLabel}
-                  {resolution&&<span style={{color:resolution==="evolving"?"var(--accent)":resolution==="intentional"?"var(--text-muted)":resolution==="keep"?"var(--text-dim)":"var(--text-dim)",fontWeight:400}}>{resolution==="evolving"?"— Story is evolving":resolution==="intentional"?"— Intentional":resolution==="keep"?"— Keeping original":"— Taking to Finn"}</span>}
+                  {resolution&&<span style={{color:resolution==="evolving"?"var(--accent)":resolution==="intentional"?"var(--text-muted)":resolution==="keep"?"var(--text-dim)":"var(--text-dim)",fontWeight:400}}>{resolution==="evolving"?"Story is evolving":resolution==="intentional"?"Intentional":resolution==="keep"?"Keeping original":"Taking to Finn"}</span>}
                 </div>
                 <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:12}}>
                   <div style={{background:"var(--bg-base)",borderRadius:8,padding:"10px 12px"}}>
@@ -3991,7 +4162,7 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
                 </div>
                 {/* Add Context field */}
                 <div style={{marginBottom:12}}>
-                  <div style={{fontSize:9,color:"var(--text-dim)",fontFamily:"'DM Sans',sans-serif",marginBottom:5,fontStyle:"italic"}}>Add context for Agnes — saved when you resolve below</div>
+                  <div style={{fontSize:9,color:"var(--text-dim)",fontFamily:"'DM Sans',sans-serif",marginBottom:5,fontStyle:"italic"}}>Add context for Agnes, saved when you resolve below</div>
                   <textarea value={contextNote} onChange={e=>setDriftResolutions(prev=>({...prev,[`${i}_context`]:e.target.value}))} placeholder="What you know about why the story moved here, what's intentional, what's still evolving." rows={contextNote?3:2} style={{width:"100%",background:"var(--bg-base)",border:"1px solid var(--border)",borderRadius:6,padding:"8px 10px",outline:"none",resize:"vertical",fontFamily:"'Cormorant Garamond',serif",fontSize:13,color:"var(--text-primary)",lineHeight:1.6,fontStyle:contextNote?"normal":"italic"}}/>
                 </div>
                 {/* Finn responds specifically to context note after resolution */}
@@ -4003,7 +4174,7 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
                       // Fire API call to get Finn's specific response to the context
                       if(!driftFinnResponses[`${i}_loading`]){
                         setDriftFinnResponses(prev=>({...prev,[`${i}_loading`]:true}));
-                        const prompt=`The writer added context about a Story Bible drift Agnes flagged.\n\nField: ${drift.fieldLabel}\nBible says: ${drift.existing}\nChapter shows: ${drift.incoming}\nWriter's context: "${contextNote}"\nResolution: ${resolution==="evolving"?"Story is evolving":"Keeping original"}\n\nRespond in one or two sentences in Finn's voice. Read what the writer actually wrote and respond to the specific content — what they said about their character or story choice. Don't be generic. Don't say "noted." Don't say "great." Find the one thing in their context worth pointing at. Be direct, warm underneath, dry wit if it fits. No em dashes.`;
+                        const prompt=`The writer added context about a Story Bible drift Agnes flagged.\n\nField: ${drift.fieldLabel}\nBible says: ${drift.existing}\nChapter shows: ${drift.incoming}\nWriter's context: "${contextNote}"\nResolution: ${resolution==="evolving"?"Story is evolving":"Keeping original"}\n\nRespond in one or two sentences in Finn's voice. Read what the writer actually wrote and respond to the specific content: what they said about their character or story choice. Don't be generic. Don't say "noted." Don't say "great." Find the one thing in their context worth pointing at. Be direct, warm underneath, dry wit if it fits. No em dashes.`;
                         fetch("/api/chat",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({
                           system:FINN,
                           messages:[{role:"user",content:prompt}]
@@ -4107,7 +4278,7 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
                 const remaining=driftResult.drifts.length-resolved;
                 const nextChapters=driftQueue.filter(e=>e.driftResult.chapterNum!==driftResult.chapterNum);
                 if(remaining>0) return `${remaining} left to resolve`;
-                if(nextChapters.length>0) return `Done — next: Chapter ${nextChapters[0].driftResult.chapterNum}`;
+                if(nextChapters.length>0) return `Done. Next: Chapter ${nextChapters[0].driftResult.chapterNum}`;
                 return "Done";
               })()}
             </button>
@@ -4172,7 +4343,7 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
           </div>
           <div style={{padding:"14px 24px",background:"var(--bg-card-alt)",borderBottom:"1px solid var(--border)"}}>
             <p style={{fontFamily:"'Cormorant Garamond',serif",fontSize:14,fontStyle:"italic",color:"var(--text-muted)",lineHeight:1.65}}>"{profileEditMode?"Update anything that's changed. I'll adjust how I work with you.":"The more I know about how you think, work, and write, the better I can coach you. Everything here stays inside Forged Pen. Always."}"</p>
-            <p style={{fontSize:11,color:"var(--text-dim)",marginTop:5,fontFamily:"'DM Sans',sans-serif"}}>— Finn</p>
+            <p style={{fontSize:11,color:"var(--text-dim)",marginTop:5,fontFamily:"'DM Sans',sans-serif"}}>Finn</p>
           </div>
           <div style={{padding:"20px 24px"}}>
             <div style={{marginBottom:20,paddingBottom:20,borderBottom:"1px solid var(--border)"}}>
