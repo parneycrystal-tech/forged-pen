@@ -687,7 +687,7 @@ export default function App() {
   const [flipped, setFlipped] = useState(false);
   const [loadMsg, setLoadMsg] = useState(LOAD[Math.floor(Math.random()*LOAD.length)]);
   const [project, setProject] = useState(null);
-  const [pForm, setPForm] = useState({title:"",genre:"",synopsis:"",protagonist:"",protagonistGoal:"",protagonistDream:"",protagonistFear:"",protagonistWound:"",protagonistBackstory:"",protagonistMisbelief:"",supporting:"",antagonist:"",worldSetting:"",worldRules:"",worldMythology:"",worldBeliefs:"",worldDanger:"",worldTone:"",chapters:[{num:1,summary:""}],where:"",stuck:"",excites:"",currentChapter:""});
+  const [pForm, setPForm] = useState({title:"",genre:"",synopsis:"",protagonist:"",protagonistGoal:"",protagonistDream:"",protagonistFear:"",protagonistWound:"",protagonistBackstory:"",protagonistMisbelief:"",supporting:"",antagonist:"",worldSetting:"",worldRules:"",worldMythology:"",worldBeliefs:"",worldDanger:"",worldTone:"",themes:"",chapters:[{num:1,summary:""}],where:"",stuck:"",excites:"",currentChapter:""});
   const [sparks, setSparks] = useState([]);
   const [flaggedIdx, setFlaggedIdx] = useState(null);
   const [ideaLabSparked, setIdeaLabSparked] = useState(false);
@@ -748,6 +748,7 @@ export default function App() {
   const [driftOpen, setDriftOpen] = useState(false);
   const [driftLoading, setDriftLoading] = useState(false);
   const [driftResolutions, setDriftResolutions] = useState({});
+  const [driftOriginalValues, setDriftOriginalValues] = useState({});
   const [driftFinnResponses, setDriftFinnResponses] = useState({});
   const [driftQueue, setDriftQueue] = useState([]);
   const [forgeMode, setForgeMode] = useState("manuscript");
@@ -761,6 +762,23 @@ export default function App() {
   const [ideaLabText, setIdeaLabText] = useState("");
   const [ideaLabBuckets, setIdeaLabBuckets] = useState({characters:[],plot:[],world:[],questions:[],fragments:[]});
   const [highlightPopup, setHighlightPopup] = useState({visible:false,x:0,y:0,text:""});
+  // Universal textarea selection detection. window.getSelection() is unreliable inside <textarea>
+  // (unsupported in Firefox entirely), so this reads selectionStart/selectionEnd directly off the
+  // element instead, which works the same in every browser and for both mouse drags and keyboard
+  // selection (Select All included). Popup position is anchored to the container, not the selection
+  // itself, since textareas don't expose selection pixel coordinates natively.
+  const handleIdeaLabSelect=()=>{
+    const el=ideaLabRef.current;
+    if(!el)return;
+    const start=el.selectionStart, end=el.selectionEnd;
+    const text=(el.value||"").substring(start,end).trim();
+    if(text.length>3){
+      const rect=ideaLabContainerRef.current?.getBoundingClientRect();
+      setHighlightPopup({visible:true,x:rect?rect.right-176:0,y:rect?rect.top+12:0,text});
+    }else{
+      setHighlightPopup({visible:false,x:0,y:0,text:""});
+    }
+  };
   const [organizeOpen, setOrganizeOpen] = useState(false);
   const [organizeLoading, setOrganizeLoading] = useState(false);
   const [organizeResult, setOrganizeResult] = useState(null);
@@ -769,6 +787,8 @@ export default function App() {
   const endRef = useRef(null);
   const taRef = useRef(null);
   const writeRef = useRef(null);
+  const ideaLabRef = useRef(null);
+  const ideaLabContainerRef = useRef(null);
   const cEndRef = useRef(null);
   const abortRef = useRef(null);
   const isPopStateRef = useRef(false);
@@ -875,6 +895,7 @@ export default function App() {
       if(queue.length>0){
         setDriftResult(queue[0].driftResult);
         setDriftResolutions(queue[0].driftResolutions||{});
+        setDriftOriginalValues(queue[0].originalValues||{});
         setDriftQueue(queue);
       }
     }
@@ -1017,7 +1038,7 @@ export default function App() {
       :""
       :currentScene?`\n\nCURRENT SCENE (Chapter ${currentScene.chapter}):\n${currentScene.text||"(empty, writer hasn't started yet)"}`:""
     const chapStr=project?.chapters?(Array.isArray(project.chapters)?project.chapters.filter(c=>c.summary).map(c=>`Ch${c.num}: ${c.summary}`).join(". "):project.chapters):"";
-    const pCtx=project?`\n\nPROJECT: "${project.title}". Genre: ${project.genre}. Synopsis: ${project.synopsis}. Protagonist: ${project.protagonist}. Goal: ${project.protagonistGoal||"not yet captured"}. Dream: ${project.protagonistDream||"not yet captured"}. Fear: ${project.protagonistFear||"not yet captured"}. Wound: ${project.protagonistWound||"not yet captured"}. Backstory: ${project.protagonistBackstory||"not yet captured"}. Misbelief: ${project.protagonistMisbelief||"not yet captured"}. Supporting: ${project.supporting}. Antagonist: ${project.antagonist}. Setting: ${project.worldSetting}. Rules: ${project.worldRules}. Mythology & Paranormal Rules: ${project.worldMythology||"not yet captured"}. Beliefs vs Reality: ${project.worldBeliefs}. Danger: ${project.worldDanger}. Tone: ${project.worldTone}. Chapters (these summaries are the authoritative record established by Agnes — treat them as ground truth, do not re-interpret or contradict them): ${chapStr}. Position: ${project.where}. Stuck: ${project.stuck}. Excites: ${project.excites}.`:"";
+    const pCtx=project?`\n\nPROJECT: "${project.title}". Genre: ${project.genre}. Synopsis: ${project.synopsis}. Themes: ${project.themes||"not yet captured"}. Protagonist: ${project.protagonist}. Goal: ${project.protagonistGoal||"not yet captured"}. Dream: ${project.protagonistDream||"not yet captured"}. Fear: ${project.protagonistFear||"not yet captured"}. Wound: ${project.protagonistWound||"not yet captured"}. Backstory: ${project.protagonistBackstory||"not yet captured"}. Misbelief: ${project.protagonistMisbelief||"not yet captured"}. Supporting: ${project.supporting}. Antagonist: ${project.antagonist}. Setting: ${project.worldSetting}. Rules: ${project.worldRules}. Mythology & Paranormal Rules: ${project.worldMythology||"not yet captured"}. Beliefs vs Reality: ${project.worldBeliefs}. Danger: ${project.worldDanger}. Tone: ${project.worldTone}. Chapters (these summaries are the authoritative record established by Agnes — treat them as ground truth, do not re-interpret or contradict them): ${chapStr}. Position: ${project.where}. Stuck: ${project.stuck}. Excites: ${project.excites}.`:"";
     const sparkCtx=sparks.length>0?`\n\nDOPAMINE MAP: ${sparks.map(s=>s.text).join(" | ")}`:"";
     // Different Finn framing for Embers vs manuscript
     const containerSys=forgeMode==="embers"
@@ -1252,7 +1273,12 @@ Misbelief: ${project?.protagonistMisbelief||"none"}
 Supporting characters: ${project?.supporting||"none"}
 Antagonist: ${project?.antagonist||"none"}
 Setting: ${project?.worldSetting||"none"}
-Tone: ${project?.worldTone||"none"}`;
+World rules: ${project?.worldRules||"none"}
+Mythology & paranormal rules: ${project?.worldMythology||"none"}
+Beliefs vs reality: ${project?.worldBeliefs||"none"}
+What makes it dangerous: ${project?.worldDanger||"none"}
+Tone: ${project?.worldTone||"none"}
+Themes: ${project?.themes||"none"}`;
 
     try{
       const r=await fetch("/api/chat",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({
@@ -1274,10 +1300,19 @@ Respond with ONLY this JSON:
   "chapterSummary": "2-3 sentence summary of what happens in this chapter. What changes? What does the reader now know that they didn't before?",
   "protagonistReveal": "anything new revealed about the protagonist's psychology, behavior, or inner life that wasn't in the existing Bible. Empty string if nothing new.",
   "protagonistGoalUpdate": "did this chapter reveal or develop the protagonist's goal? Empty string if nothing new.",
+  "protagonistDreamUpdate": "did this chapter reveal the protagonist's deepest, often unspoken want? Empty string if nothing new.",
   "protagonistFearUpdate": "did this chapter show the protagonist's fear in action? Empty string if nothing new.",
+  "protagonistWoundUpdate": "did this chapter reveal the specific experience or pattern that created the fear? Empty string if nothing new.",
+  "protagonistBackstoryUpdate": "did this chapter reveal childhood, family, or psychological history? Empty string if nothing new.",
   "protagonistMisbeliefUpdate": "did this chapter show the misbelief operating? Empty string if nothing new.",
-  "characterReveal": "new details about supporting characters or antagonist revealed in this chapter. Empty string if nothing new.",
-  "worldReveal": "new setting details, world rules, or atmosphere established in this chapter. Empty string if nothing new.",
+  "characterReveal": "new details about supporting characters (not the antagonist) revealed in this chapter. Empty string if nothing new.",
+  "antagonistReveal": "new details specifically about the antagonist or opposing force revealed in this chapter. Empty string if nothing new.",
+  "worldReveal": "new setting details or atmosphere established in this chapter. Empty string if nothing new.",
+  "worldRulesUpdate": "did this chapter establish or clarify what can and cannot happen in this world? Empty string if nothing new.",
+  "worldMythologyUpdate": "did this chapter reveal mythology, ritual mechanics, or supernatural/paranormal rules? Empty string if nothing new.",
+  "worldBeliefsUpdate": "did this chapter show what characters assume that isn't true? Empty string if nothing new.",
+  "worldDangerUpdate": "did this chapter reveal what creates real stakes or danger in this world? Empty string if nothing new.",
+  "worldToneUpdate": "did this chapter establish or shift the emotional tone or atmosphere of the world? Empty string if nothing new.",
   "themeReveal": "themes or ideas that surfaced clearly in this chapter. Empty string if nothing clear.",
   "craftNote": "one observation about what is working well in this chapter, specific and precise, that Finn would point out as a coach. Not generic praise.",
   "openQuestion": "the most important unresolved question this chapter raises for the story going forward."
@@ -1307,27 +1342,41 @@ Respond with ONLY this JSON:
 
   const applyExtractToBible=(result)=>{
     if(!result)return;
-    // Capture the pre-merge Bible so Agnes can compare what WAS there vs what the chapter shows
+    // Capture the pre-merge Bible so Agnes can compare what WAS there vs what the chapter shows,
+    // and so drift resolution can revert to the true original if the writer chooses "keep original"
     const projectBeforeMerge={...project};
-    const updated={...pForm};
-    // Update chapter summary — always read from project.chapters (live source) not pForm.chapters
+    // CRITICAL: merge onto the live project, never onto pForm. pForm is only populated when the
+    // writer visits the Story Bible "Edit" screen, and resets to blank on every fresh page load.
+    // Merging onto pForm here would silently replace the entire Bible with a near-empty object
+    // any time a chapter gets extracted without Edit having been opened first in that session.
+    const updated={...project};
+    // Update chapter summary — always read from project.chapters (live source)
     if(result.chapterSummary){
-      // Use project.chapters as the authoritative source to avoid losing previously captured chapters
       const existingChapters=Array.isArray(project.chapters)?[...project.chapters]:[{num:1,summary:""}];
       const idx=existingChapters.findIndex(c=>c.num===result.chapterNum);
       if(idx>=0){existingChapters[idx]={...existingChapters[idx],summary:result.chapterSummary};}
       else{existingChapters.push({num:result.chapterNum||existingChapters.length+1,summary:result.chapterSummary});}
-      // Sort chapters numerically so they stay in order
       existingChapters.sort((a,b)=>a.num-b.num);
       updated.chapters=existingChapters;
     }
     // Merge new details into existing fields (append rather than replace)
-    if(result.protagonistReveal&&result.protagonistReveal.trim()) updated.protagonist=(updated.protagonist?updated.protagonist+"\n\n"+result.protagonistReveal:result.protagonistReveal);
-    if(result.protagonistGoalUpdate&&result.protagonistGoalUpdate.trim()) updated.protagonistGoal=(updated.protagonistGoal?updated.protagonistGoal+"\n\n"+result.protagonistGoalUpdate:result.protagonistGoalUpdate);
-    if(result.protagonistFearUpdate&&result.protagonistFearUpdate.trim()) updated.protagonistFear=(updated.protagonistFear?updated.protagonistFear+"\n\n"+result.protagonistFearUpdate:result.protagonistFearUpdate);
-    if(result.protagonistMisbeliefUpdate&&result.protagonistMisbeliefUpdate.trim()) updated.protagonistMisbelief=(updated.protagonistMisbelief?updated.protagonistMisbelief+"\n\n"+result.protagonistMisbeliefUpdate:result.protagonistMisbeliefUpdate);
-    if(result.characterReveal&&result.characterReveal.trim()) updated.supporting=(updated.supporting?updated.supporting+"\n\n"+result.characterReveal:result.characterReveal);
-    if(result.worldReveal&&result.worldReveal.trim()) updated.worldSetting=(updated.worldSetting?updated.worldSetting+"\n\n"+result.worldReveal:result.worldReveal);
+    const appendField=(key,value)=>{if(value&&value.trim())updated[key]=(updated[key]?updated[key]+"\n\n"+value:value);};
+    appendField("protagonist",result.protagonistReveal);
+    appendField("protagonistGoal",result.protagonistGoalUpdate);
+    appendField("protagonistDream",result.protagonistDreamUpdate);
+    appendField("protagonistFear",result.protagonistFearUpdate);
+    appendField("protagonistWound",result.protagonistWoundUpdate);
+    appendField("protagonistBackstory",result.protagonistBackstoryUpdate);
+    appendField("protagonistMisbelief",result.protagonistMisbeliefUpdate);
+    appendField("supporting",result.characterReveal);
+    appendField("antagonist",result.antagonistReveal);
+    appendField("worldSetting",result.worldReveal);
+    appendField("worldRules",result.worldRulesUpdate);
+    appendField("worldMythology",result.worldMythologyUpdate);
+    appendField("worldBeliefs",result.worldBeliefsUpdate);
+    appendField("worldDanger",result.worldDangerUpdate);
+    appendField("worldTone",result.worldToneUpdate);
+    appendField("themes",result.themeReveal);
     setPForm(updated);
     const proj={...updated,updated:Date.now()};
     setProject(proj);
@@ -1346,10 +1395,20 @@ Respond with ONLY this JSON:
     const comparisons=[
       {field:"protagonist",label:"Protagonist",existing:projectBeforeMerge.protagonist,incoming:extractResult.protagonistReveal},
       {field:"protagonistGoal",label:"Goal",existing:projectBeforeMerge.protagonistGoal,incoming:extractResult.protagonistGoalUpdate},
+      {field:"protagonistDream",label:"Dream",existing:projectBeforeMerge.protagonistDream,incoming:extractResult.protagonistDreamUpdate},
       {field:"protagonistFear",label:"Fear",existing:projectBeforeMerge.protagonistFear,incoming:extractResult.protagonistFearUpdate},
+      {field:"protagonistWound",label:"Wound",existing:projectBeforeMerge.protagonistWound,incoming:extractResult.protagonistWoundUpdate},
+      {field:"protagonistBackstory",label:"Backstory",existing:projectBeforeMerge.protagonistBackstory,incoming:extractResult.protagonistBackstoryUpdate},
       {field:"protagonistMisbelief",label:"Misbelief",existing:projectBeforeMerge.protagonistMisbelief,incoming:extractResult.protagonistMisbeliefUpdate},
       {field:"supporting",label:"Supporting Characters",existing:projectBeforeMerge.supporting,incoming:extractResult.characterReveal},
+      {field:"antagonist",label:"Antagonist",existing:projectBeforeMerge.antagonist,incoming:extractResult.antagonistReveal},
       {field:"worldSetting",label:"World & Setting",existing:projectBeforeMerge.worldSetting,incoming:extractResult.worldReveal},
+      {field:"worldRules",label:"World Rules",existing:projectBeforeMerge.worldRules,incoming:extractResult.worldRulesUpdate},
+      {field:"worldMythology",label:"Mythology & Paranormal Rules",existing:projectBeforeMerge.worldMythology,incoming:extractResult.worldMythologyUpdate},
+      {field:"worldBeliefs",label:"Beliefs vs Reality",existing:projectBeforeMerge.worldBeliefs,incoming:extractResult.worldBeliefsUpdate},
+      {field:"worldDanger",label:"What Makes It Dangerous",existing:projectBeforeMerge.worldDanger,incoming:extractResult.worldDangerUpdate},
+      {field:"worldTone",label:"Tone",existing:projectBeforeMerge.worldTone,incoming:extractResult.worldToneUpdate},
+      {field:"themes",label:"Themes",existing:projectBeforeMerge.themes,incoming:extractResult.themeReveal},
     ].filter(c=>c.existing&&c.existing.trim()&&c.incoming&&c.incoming.trim());
     // Need at least one field with both existing and incoming content to check
     if(comparisons.length===0)return;
@@ -1366,7 +1425,7 @@ Respond with ONLY this JSON:
 {
   "drifts": [
     {
-      "field": "the field key exactly as given (protagonist, protagonistGoal, protagonistFear, protagonistMisbelief, supporting, worldSetting)",
+      "field": "the field key exactly as given (protagonist, protagonistGoal, protagonistDream, protagonistFear, protagonistWound, protagonistBackstory, protagonistMisbelief, supporting, antagonist, worldSetting, worldRules, worldMythology, worldBeliefs, worldDanger, worldTone, themes)",
       "fieldLabel": "human readable label",
       "existing": "the existing Bible entry, quoted briefly",
       "incoming": "the new chapter evidence, quoted briefly",
@@ -1385,7 +1444,11 @@ If there is no genuine drift, only additions or elaborations, return: {"drifts":
         try{
           const result=JSON.parse(cleaned);
           if(result.drifts&&result.drifts.length>0){
-            const newDriftEntry={driftResult:{drifts:result.drifts,chapterNum:extractResult.chapterNum},driftResolutions:{}};
+            // Store the TRUE original field values (not the LLM's paraphrased "existing" quote) so
+            // "keep original" can revert precisely instead of reconstructing from a lossy summary.
+            const originalValues={};
+            result.drifts.forEach(dr=>{originalValues[dr.field]=projectBeforeMerge[dr.field];});
+            const newDriftEntry={driftResult:{drifts:result.drifts,chapterNum:extractResult.chapterNum},driftResolutions:{},originalValues};
             // Append to queue instead of overwriting — each chapter's drifts get their own slot
             setDriftQueue(prev=>{
               const existing=Array.isArray(prev)?prev:[];
@@ -1397,6 +1460,7 @@ If there is no genuine drift, only additions or elaborations, return: {"drifts":
             });
             setDriftResult({drifts:result.drifts,chapterNum:extractResult.chapterNum});
             setDriftResolutions({});
+            setDriftOriginalValues(originalValues);
             // Agnes always finishes the read regardless of mode. Involvement only gates whether
             // she interrupts you with it automatically. Quiet/Off still queue it for the badge/manual review.
             if(agnesInvolvement==="full"){
@@ -1437,6 +1501,7 @@ If there is no genuine drift, only additions or elaborations, return: {"drifts":
 
 PROJECT: "${proj.title||"Untitled"}" - ${proj.genre||""}
 SYNOPSIS: ${proj.synopsis||"not yet written"}
+THEMES: ${proj.themes||"not specified"}
 SETTING: ${proj.worldSetting||"not specified"}
 WORLD RULES: ${proj.worldRules||"not specified"}
 WORLD TONE: ${proj.worldTone||"not specified"}
@@ -1890,7 +1955,7 @@ After 8-10 exchanges, or when you sense the writer is ready, close warmly. Summa
 Never rush. Never overwhelm. Never tell the writer they have enough. They decide when they're ready.
 Under 120 words per response.
 
-After every response, add a JSON capture block on its own line starting with CAPTURE: followed by a JSON object with any of these fields you learned in this exchange: protagonist, protagonistGoal, protagonistDream, protagonistFear, protagonistWound, protagonistBackstory, protagonistMisbelief, supporting, antagonist, worldSetting, worldTone, synopsis, themes (array), excites. Only include fields you actually learned. Leave others out.`;
+After every response, add a JSON capture block on its own line starting with CAPTURE: followed by a JSON object with any of these fields you learned in this exchange: protagonist, protagonistGoal, protagonistDream, protagonistFear, protagonistWound, protagonistBackstory, protagonistMisbelief, supporting, antagonist, worldSetting, worldTone, synopsis, themes, excites. Only include fields you actually learned. Leave others out.`;
 
     try{
       const msgs=history[0]?.role==="assistant"
@@ -2109,7 +2174,7 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
     const userText=input.trim();
     setLastThought(userText);saveStored("tt-lastthought",userText);
     const chapStr = project?.chapters ? (Array.isArray(project.chapters) ? project.chapters.filter(c=>c.summary).map(c=>`Ch${c.num}: ${c.summary}`).join(". ") : project.chapters) : "";
-    const pCtx = project ? `\n\nPROJECT: "${project.title}". Genre: ${project.genre}. Synopsis: ${project.synopsis}. Protagonist: ${project.protagonist}. Supporting Characters: ${project.supporting}. Antagonist: ${project.antagonist}. Core Setting: ${project.worldSetting}. World Rules: ${project.worldRules}. Mythology & Paranormal Rules: ${project.worldMythology||"not yet captured"}. What People Believe vs Reality: ${project.worldBeliefs}. What Makes This World Dangerous: ${project.worldDanger}. World Tone: ${project.worldTone}. Chapters so far (these summaries are the authoritative record established by Agnes — treat them as ground truth, do not re-interpret or contradict them): ${chapStr}. Current point: ${project.where}. Focused on: ${project.stuck}. What excites them: ${project.excites}.${project.currentChapter?` CURRENT CHAPTER TEXT (use this for line-level craft coaching only — for story facts and character psychology, defer to the chapter summaries above): ${project.currentChapter}`:""}` : "";
+    const pCtx = project ? `\n\nPROJECT: "${project.title}". Genre: ${project.genre}. Synopsis: ${project.synopsis}. Themes: ${project.themes||"not yet captured"}. Protagonist: ${project.protagonist}. Supporting Characters: ${project.supporting}. Antagonist: ${project.antagonist}. Core Setting: ${project.worldSetting}. World Rules: ${project.worldRules}. Mythology & Paranormal Rules: ${project.worldMythology||"not yet captured"}. What People Believe vs Reality: ${project.worldBeliefs}. What Makes This World Dangerous: ${project.worldDanger}. World Tone: ${project.worldTone}. Chapters so far (these summaries are the authoritative record established by Agnes — treat them as ground truth, do not re-interpret or contradict them): ${chapStr}. Current point: ${project.where}. Focused on: ${project.stuck}. What excites them: ${project.excites}.${project.currentChapter?` CURRENT CHAPTER TEXT (use this for line-level craft coaching only — for story facts and character psychology, defer to the chapter summaries above): ${project.currentChapter}`:""}` : "";
     const sparkCtx = sparks.length > 0 ? `\n\nDOPAMINE MAP (moments the writer flagged as exciting): ${sparks.map(s=>s.text).join(" | ")}` : "";
     const userCtx = userName ? `\n\nThe writer's name is ${userName}. Use their name naturally throughout your response, the way a good coach would. Not in every sentence, but enough to feel personal.` : "";
     const profileCtx = userProfile ? `\n\nWriter's profile — use this to calibrate your coaching approach:\n- Experience: ${userProfile.q1?.selected?.join(", ")||"not specified"}\n- Working style: ${userProfile.q2?.selected?.join(", ")||"not specified"}\n- Current goal: ${userProfile.q3?.selected?.join(", ")||"not specified"}\n- Coaching preference: ${userProfile.q4?.selected?.join(", ")||"not specified"}\n- Genres / what they write: ${userProfile.q5?.selected?.join(", ")||"not specified"}\n- Relationship with finishing: ${userProfile.q6?.selected?.join(", ")||"not specified"}${userProfile.q2?.text?`\nStyle notes: ${userProfile.q2.text}`:""}${userProfile.q4?.text?`\nCoaching notes: ${userProfile.q4.text}`:""}${userProfile.q5?.text?`\nWriting notes: ${userProfile.q5.text}`:""}${userProfile.q6?.text?`\nFinishing notes: ${userProfile.q6.text}`:""}` : "";
@@ -2966,6 +3031,7 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
           <FormField label="Project title" k="title" ph="My Novel" value={pForm.title} onChange={updateField}/>
           <FormField label="Genre" k="genre" ph="Contemporary fiction, fantasy, memoir..." value={pForm.genre} onChange={updateField}/>
           <FormField label="What is your story about?" k="synopsis" ph="One sentence is enough to start..." value={pForm.synopsis} onChange={updateField} multi/>
+          <FormField label="Themes" k="themes" ph="What ideas keep surfacing? Agnes will add to this as chapters reveal them..." value={pForm.themes} onChange={updateField} multi/>
 
           {!bibExpanded&&<div onClick={()=>setBibExpanded(true)} style={{background:"none",border:"1px dashed var(--border-mid)",borderRadius:8,padding:"10px 16px",color:"var(--text-dim)",fontSize:12,cursor:"pointer",textAlign:"left",marginBottom:14,fontFamily:"'DM Sans',sans-serif"}}>
             <span style={{color:"var(--accent)",marginRight:8}}>+</span>Add more detail: characters, world, what excites you
@@ -3020,7 +3086,7 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
         </div>}
         {bibleSearch&&<div>
           {(()=>{
-            const allFields=[["Genre",project.genre,false],["Synopsis",project.synopsis,true],["Protagonist",project.protagonist,true],["Goal",project.protagonistGoal,true],["Dream",project.protagonistDream,true],["Fear",project.protagonistFear,true],["Wound",project.protagonistWound,true],["Backstory",project.protagonistBackstory,true],["Misbelief",project.protagonistMisbelief,true],["Supporting Characters",project.supporting,true],["Antagonist",project.antagonist,true],["Core Setting",project.worldSetting,true],["World Rules",project.worldRules,true],["Beliefs vs Reality",project.worldBeliefs,true],["What Makes It Dangerous",project.worldDanger,true],["Tone",project.worldTone,false],["Where you are",project.where,false],["Focused on",project.stuck,false],["What excites you",project.excites,true]];
+            const allFields=[["Genre",project.genre,false],["Synopsis",project.synopsis,true],["Protagonist",project.protagonist,true],["Goal",project.protagonistGoal,true],["Dream",project.protagonistDream,true],["Fear",project.protagonistFear,true],["Wound",project.protagonistWound,true],["Backstory",project.protagonistBackstory,true],["Misbelief",project.protagonistMisbelief,true],["Supporting Characters",project.supporting,true],["Antagonist",project.antagonist,true],["Core Setting",project.worldSetting,true],["World Rules",project.worldRules,true],["Beliefs vs Reality",project.worldBeliefs,true],["What Makes It Dangerous",project.worldDanger,true],["Tone",project.worldTone,false],["Themes",project.themes,false],["Where you are",project.where,false],["Focused on",project.stuck,false],["What excites you",project.excites,true]];
             const matches=allFields.filter(([l,v])=>v&&(l.toLowerCase().includes(bibleSearch.toLowerCase())||v.toLowerCase().includes(bibleSearch.toLowerCase())));
             if(matches.length===0)return <p style={{fontFamily:"'Cormorant Garamond',serif",fontSize:14,color:"var(--text-dim)",fontStyle:"italic"}}>Nothing found for "{bibleSearch}"</p>;
             return matches.map(([l,v,multi])=><ReadField key={l} label={l} value={v} multi={multi}/>);
@@ -3074,6 +3140,7 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
           <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:22,fontWeight:500,color:"var(--text-primary)",marginBottom:16}}>{project.title||"Untitled"}</div>
           <ReadField label="Genre" value={project.genre}/>
           <ReadField label="What this story is about" value={project.synopsis} multi/>
+          <ReadField label="Themes" value={project.themes} multi/>
           <ReadField label="What excites you most" value={project.excites} multi/>
         </div>}
         {!bibleSearch&&bibViewTab==="characters"&&<div>
@@ -3403,18 +3470,11 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
                   }
                 </div>
               </div>
-              <div style={{flex:1,overflow:"auto",padding:"24px 40px 0"}} onMouseUp={()=>{
-                const sel=window.getSelection();
-                const text=sel?sel.toString().trim():"";
-                if(text.length>3){
-                  const range=sel.getRangeAt(0);
-                  const rect=range.getBoundingClientRect();
-                  setHighlightPopup({visible:true,x:rect.left,y:rect.bottom+8,text});
-                } else {
-                  setHighlightPopup({visible:false,x:0,y:0,text:""});
-                }
-              }}>
-                <textarea value={ideaLabText} onChange={e=>{setIdeaLabText(e.target.value);saveStored("tt-idealab-text",e.target.value);}} placeholder="Pour everything out. Characters, questions, fragments, feelings. No structure needed. Finn will help you make sense of it." style={{width:"100%",minHeight:300,background:"none",border:"none",outline:"none",resize:"none",fontFamily:"'Cormorant Garamond',serif",fontSize:18,color:"var(--text-primary)",lineHeight:2}}/>
+              <div style={{padding:"0 40px",marginTop:2}}>
+                <div style={{fontSize:11,color:"var(--text-dim)",fontStyle:"italic",fontFamily:"'DM Sans',sans-serif"}}>Tip: highlight any part of what you wrote to sort it into a bucket below.</div>
+              </div>
+              <div ref={ideaLabContainerRef} style={{flex:1,overflow:"auto",padding:"12px 40px 0",position:"relative"}}>
+                <textarea ref={ideaLabRef} value={ideaLabText} onChange={e=>{setIdeaLabText(e.target.value);saveStored("tt-idealab-text",e.target.value);}} onSelect={handleIdeaLabSelect} onMouseUp={handleIdeaLabSelect} onKeyUp={handleIdeaLabSelect} placeholder="Pour everything out. Characters, questions, fragments, feelings. No structure needed. Finn will help you make sense of it." style={{width:"100%",minHeight:300,background:"none",border:"none",outline:"none",resize:"none",fontFamily:"'Cormorant Garamond',serif",fontSize:18,color:"var(--text-primary)",lineHeight:2}}/>
               </div>
 
               {/* Buckets */}
@@ -3446,7 +3506,7 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
                     const updated={...ideaLabBuckets,[key]:[...(ideaLabBuckets[key]||[]),newItem]};
                     setIdeaLabBuckets(updated);saveStored("tt-idealab-buckets",updated);
                     setHighlightPopup({visible:false,x:0,y:0,text:""});
-                    window.getSelection()?.removeAllRanges();
+                    if(ideaLabRef.current){const p=ideaLabRef.current.selectionEnd;ideaLabRef.current.setSelectionRange(p,p);}
                   }} style={{display:"flex",alignItems:"center",gap:8,padding:"6px 10px",borderRadius:5,cursor:"pointer",fontFamily:"'DM Sans',sans-serif"}}>
                     <div style={{width:6,height:6,borderRadius:"50%",background:color,flexShrink:0}}/>
                     <span style={{fontSize:12,color:"var(--text-primary)"}}>{label}</span>
@@ -3974,7 +4034,7 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
                 ))}
                 <div style={{display:"flex",gap:8,marginTop:14}}>
                   <div onClick={()=>{
-                    const updated={...pForm,...firstSessionCapture};
+                    const updated={...project,...firstSessionCapture};
                     setPForm(updated);
                     const proj={...updated,updated:Date.now()};
                     setProject(proj);
@@ -4081,10 +4141,19 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
             {[
               {key:"protagonistReveal",label:"Protagonist"},
               {key:"protagonistGoalUpdate",label:"Goal"},
+              {key:"protagonistDreamUpdate",label:"Dream"},
               {key:"protagonistFearUpdate",label:"Fear"},
+              {key:"protagonistWoundUpdate",label:"Wound"},
+              {key:"protagonistBackstoryUpdate",label:"Backstory"},
               {key:"protagonistMisbeliefUpdate",label:"Misbelief"},
               {key:"characterReveal",label:"Characters"},
+              {key:"antagonistReveal",label:"Antagonist"},
               {key:"worldReveal",label:"World & Setting"},
+              {key:"worldRulesUpdate",label:"World Rules"},
+              {key:"worldMythologyUpdate",label:"Mythology & Paranormal Rules"},
+              {key:"worldBeliefsUpdate",label:"Beliefs vs Reality"},
+              {key:"worldDangerUpdate",label:"What Makes It Dangerous"},
+              {key:"worldToneUpdate",label:"Tone"},
               {key:"themeReveal",label:"Themes"},
             ].filter(f=>extractResult[f.key]&&extractResult[f.key].trim()).map(f=>(
               <div key={f.key} style={{marginBottom:10,padding:10,background:"var(--bg-card)",borderRadius:8,border:"1px solid var(--border)"}}>
@@ -4191,24 +4260,20 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
                 </div>}
                 {!resolution&&<div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
                   <button onClick={()=>{
-                    // Update the Bible field with the incoming content
-                    setProject(prev=>{
-                      const updated={...prev,[drift.field]:(prev[drift.field]?prev[drift.field]+"\n\n"+drift.incoming:drift.incoming),updated:Date.now()};
-                      // If writer added context, append it as a writer's note to the same field
-                      if(contextNote&&contextNote.trim()){
-                        updated[drift.field]=updated[drift.field]+"\n\n[Writer's note on "+new Date().toLocaleDateString()+"]: "+contextNote.trim();
-                      }
-                      saveStored("tt-project",updated);
-                      cloudSave("tt-project",updated);
-                      return updated;
-                    });
-                    setPForm(prev=>{
-                      const updated={...prev,[drift.field]:(prev[drift.field]?prev[drift.field]+"\n\n"+drift.incoming:drift.incoming)};
-                      if(contextNote&&contextNote.trim()){
-                        updated[drift.field]=updated[drift.field]+"\n\n[Writer's note on "+new Date().toLocaleDateString()+"]: "+contextNote.trim();
-                      }
-                      return updated;
-                    });
+                    // The incoming content was already merged into the Bible when the writer clicked
+                    // "Save to Story Bible" — drift detection runs AFTER that write, not before it.
+                    // So "evolving" only needs to record the writer's context, never re-append the
+                    // same content a second time.
+                    if(contextNote&&contextNote.trim()){
+                      const note="\n\n[Writer's note on "+new Date().toLocaleDateString()+"]: "+contextNote.trim();
+                      setProject(prev=>{
+                        const updated={...prev,[drift.field]:(prev[drift.field]||"")+note,updated:Date.now()};
+                        saveStored("tt-project",updated);
+                        cloudSave("tt-project",updated);
+                        return updated;
+                      });
+                      setPForm(prev=>({...prev,[drift.field]:(prev[drift.field]||"")+note}));
+                    }
                     setDriftResolutions(prev=>({...prev,[i]:"evolving"}));
                   }} style={{background:"var(--accent)",border:"none",borderRadius:6,padding:"7px 14px",fontSize:12,color:"var(--bg-deepest)",cursor:"pointer",fontFamily:"'DM Sans',sans-serif",fontWeight:500}}>Story is evolving</button>
                   <button onClick={()=>{
@@ -4216,27 +4281,29 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
                     setDriftResolutions(prev=>({...prev,[i]:"intentional"}));
                   }} style={{background:"none",border:"1px solid var(--border)",borderRadius:6,padding:"7px 14px",fontSize:12,color:"var(--text-muted)",cursor:"pointer",fontFamily:"'DM Sans',sans-serif"}}>This is intentional</button>
                   <button onClick={()=>{
-                    // Keep original but save the writer's reasoning so Agnes doesn't flag this again
-                    if(contextNote&&contextNote.trim()){
-                      setProject(prev=>{
-                        // Append the writer's decision note to the field so it's on record
-                        const decisionNote="\n\n[Writer kept original on "+new Date().toLocaleDateString()+" re: Chapter "+driftResult.chapterNum+" drift]: "+contextNote.trim();
-                        const updated={...prev,[drift.field]:(prev[drift.field]||"")+decisionNote,updated:Date.now()};
-                        saveStored("tt-project",updated);
-                        cloudSave("tt-project",updated);
-                        return updated;
-                      });
-                      setPForm(prev=>{
-                        const decisionNote="\n\n[Writer kept original on "+new Date().toLocaleDateString()+" re: Chapter "+driftResult.chapterNum+" drift]: "+contextNote.trim();
-                        return {...prev,[drift.field]:(prev[drift.field]||"")+decisionNote};
-                      });
-                    }
+                    // Actually restore the field to its true pre-merge value (not the LLM's paraphrased
+                    // "existing" quote) since the incoming content was already merged in at save time.
+                    // Without this, "Keep original" only added a note while the disputed new content
+                    // stayed in the field, which contradicted what the button promised.
+                    const trueOriginal=driftOriginalValues[drift.field];
+                    const decisionNote=contextNote&&contextNote.trim()?"\n\n[Writer kept original on "+new Date().toLocaleDateString()+" re: Chapter "+driftResult.chapterNum+" drift]: "+contextNote.trim():"";
+                    setProject(prev=>{
+                      const updated={...prev,[drift.field]:(trueOriginal!==undefined?trueOriginal:prev[drift.field])+decisionNote,updated:Date.now()};
+                      saveStored("tt-project",updated);
+                      cloudSave("tt-project",updated);
+                      return updated;
+                    });
+                    setPForm(prev=>({...prev,[drift.field]:(trueOriginal!==undefined?trueOriginal:prev[drift.field])+decisionNote}));
                     setDriftResolutions(prev=>({...prev,[i]:"keep"}));
                   }} style={{background:"none",border:"1px solid var(--border)",borderRadius:6,padding:"7px 14px",fontSize:12,color:"var(--text-muted)",cursor:"pointer",fontFamily:"'DM Sans',sans-serif"}}>Keep original</button>
                   <button onClick={()=>{
                     setDriftResolutions(prev=>{
                       const updated={...prev,[i]:"finn"};
-                      saveStored("tt-pending-drift",{driftResult,driftResolutions:updated});
+                      // Update this chapter's entry within the queue array — don't replace the whole
+                      // stored queue with a bare object, which would drop other queued chapters
+                      const updatedQueue=driftQueue.map(e=>e.driftResult.chapterNum===driftResult.chapterNum?{...e,driftResolutions:updated}:e);
+                      setDriftQueue(updatedQueue);
+                      saveStored("tt-pending-drift",updatedQueue);
                       return updated;
                     });
                     // Find the scene that corresponds to the drifted chapter and pre-set it
@@ -4263,6 +4330,7 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
                 const next=newQueue[0];
                 setDriftResult(next.driftResult);
                 setDriftResolutions(next.driftResolutions||{});
+                setDriftOriginalValues(next.originalValues||{});
                 setDriftFinnResponses({});
                 saveStored("tt-pending-drift",newQueue);
               } else {
@@ -4270,6 +4338,7 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
                 setDriftOpen(false);
                 setDriftResult(null);
                 setDriftResolutions({});
+                setDriftOriginalValues({});
                 setDriftFinnResponses({});
                 saveStored("tt-pending-drift",null);
               }
