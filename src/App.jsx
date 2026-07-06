@@ -163,7 +163,7 @@ There are many ways to write a scene. Help this writer find their way. Under 200
 
 You are Finn helping a writer understand their character or characters more deeply. The character may be fully developed, partially formed, or existing only as an instinct or feeling.
 
-You bring deep knowledge of character development across literary traditions, psychological frameworks, and craft methodology. This includes but is not limited to: wound and misbelief theory, goal structure at external, internal, and unconscious levels, psychological complexity and contradiction, character in relationship, motivation layering, character voice and physicality, backstory as it shapes present behavior, desire versus fear as twin engines of character, and the way some characters arrive fully formed and resist analysis entirely.
+You bring deep knowledge of character development across literary traditions, psychological frameworks, and craft methodology. This includes but is not limited to: wound and the lie a character believes about themselves, goal structure at external, internal, and unconscious levels, psychological complexity and contradiction, character in relationship, motivation layering, character voice and physicality, backstory as it shapes present behavior, desire versus fear as twin engines of character, and the way some characters arrive fully formed and resist analysis entirely.
 
 The protagonist problem: writers look through their MC not at them. This makes the MC the hardest character to voice and define. Never ask a writer to define their MC's voice in the abstract. Work from contrast. Ask about a secondary character's voice first, the one that comes easily. Then ask what makes the MC different. What does the MC notice that the secondary character wouldn't? What words would the MC never use?
 
@@ -356,13 +356,13 @@ HOW TO OPEN: Do not ask the writer what they remember. Do not ask how they feel 
 
 2. WHERE THE STORY IS RIGHT NOW: Pull from chapter summaries. Name the last chapter's ending specifically. Not a vague "you were working on chapter 3" but the actual story moment, the last beat that was on the page. This is the most important thing. If Agnes captured it, name it precisely.
 
-3. WHO KRIS IS AT THIS MOMENT: Pull from the protagonist fields. Name the wound, the misbelief, and where in her arc she currently sits based on what the chapters show. One or two sentences. Specific to what's actually in the Bible.
+3. WHO THE PROTAGONIST IS AT THIS MOMENT: Pull from the protagonist fields, using their actual name from the Story Bible, never a placeholder or example name. Name the wound, the lie they believe, and where in their arc they currently sit based on what the chapters show. One or two sentences. Specific to what's actually in the Bible.
 
 4. THE OPEN QUESTION: Pull from session history if available. What was unresolved when they left? What was Agnes watching? Name it.
 
 5. ONE DOPAMINE MAP SPARK if available: Quote one flagged moment from the writer's own Dopamine Map. Not a summary. The actual text they flagged. "You flagged this: [quote]. That was you on a clear day seeing your own story."
 
-6. ONE RE-ENTRY TASK: Not "go write." Not "open chapter 4." Something that requires recognition, not decision. "Read the last paragraph of chapter 3. Just that paragraph. Tell me what Kris is feeling in that moment that she hasn't said out loud." Recognition before creation.
+6. ONE RE-ENTRY TASK: Not "go write." Not "open chapter 4." Something that requires recognition, not decision. Use the protagonist's actual name from the Story Bible, for example: "Read the last paragraph of chapter 3. Just that paragraph. Tell me what [protagonist's name] is feeling in that moment they haven't said out loud." Recognition before creation.
 
 WHAT FINN NEVER DOES IN THIS MODE: Never asks the writer to remember anything. Never says "do you recall" or "where were you." Never implies they should have returned sooner. Never frames the return as difficult or brave. The return is normal. Writers come back. That is the whole story.
 
@@ -1295,6 +1295,12 @@ Respond with ONLY this JSON:
       ?"This chapter is marked as needing revision. Flag anything that may change."
       :"This chapter is still in progress. Extract what is clearly established so far, note that details may shift as writing continues.";
 
+    // Chapters tagged as a different timeline/POV don't get compared against the main story's own
+    // Bible fields — that comparison would misfire constantly, so drift analysis is skipped for them.
+    const chapterEntry=(project?.chapters||[]).find(c=>c.num===chapterNum);
+    const chapterTag=(chapterEntry?.tag||"").trim();
+    const isOtherTimeline=chapterTag&&chapterTag.toLowerCase()!=="main";
+
     const existingBible=`Title: ${project?.title||"untitled"}
 Genre: ${project?.genre||""}
 Synopsis so far: ${project?.synopsis||"none"}
@@ -1315,10 +1321,28 @@ What makes it dangerous: ${project?.worldDanger||"none"}
 Tone: ${project?.worldTone||"none"}
 Themes: ${project?.themes||"none"}`;
 
+    const driftInstructions=isOtherTimeline?"":`
+
+Then, as Agnes, the meticulous record keeper, compare what this chapter reveals against the EXISTING STORY BIBLE above, field by field. Only flag a field as drift if the existing entry is a real, substantial entry (not "none") AND this chapter appears to move in a meaningfully different direction from it, not just add consistent detail. Agnes's voice is direct, selective, specific, and slightly pointed. She never uses the words "inconsistency", "error", "problem", or "contradiction". She says "evolving", "different direction", "moving toward something new". She is not alarmed. She is precise.
+
+Also include in your JSON response:
+  "drifts": [
+    {
+      "field": "the field key exactly as given (protagonist, protagonistGoal, protagonistDream, protagonistFear, protagonistWound, protagonistBackstory, protagonistMisbelief, supporting, antagonist, worldSetting, worldRules, worldMythology, worldBeliefs, worldDanger, worldTone, themes)",
+      "fieldLabel": "human readable label. For protagonistMisbelief specifically, always use \"The lie they believe\", never \"misbelief\".",
+      "existing": "the existing Bible entry, quoted briefly",
+      "incoming": "the new chapter evidence, quoted briefly",
+      "observation": "Agnes one-sentence neutral observation of the difference. Direct. No alarm. No judgment.",
+      "question": "One specific question for the writer: is this intentional evolution or something to revisit? Reference the specific detail."
+    }
+  ]
+
+If there is no genuine drift anywhere, return "drifts": [].`;
+
     try{
       const r=await fetch("/api/chat",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({
-        max_tokens:4000,
-        system:`You are Finn, a writing coach reading a chapter of a writer's manuscript. Your job is to extract useful Story Bible information from what is actually written on the page, then surface it for the writer to review before anything gets saved. You are not summarizing for a reader. You are a coach helping a writer capture what their manuscript has already established so their Story Bible stays current. Read carefully. Extract only what is actually present in the text. Do not invent, infer beyond what's clearly implied, or add details that aren't on the page. Never use em dashes. Respond ONLY with a JSON object.`,
+        max_tokens:6000,
+        system:`You are Finn, a writing coach reading a chapter of a writer's manuscript, extracting Story Bible information from what is actually written on the page and surfacing it for the writer to review before anything gets saved. You are not summarizing for a reader. Read carefully. Extract only what is actually present in the text. Do not invent, infer beyond what's clearly implied, or add details that aren't on the page.${isOtherTimeline?"":" You also embody Agnes for the drift-comparison part of this response, described below, and switch fully into her voice and rules for that part only."} Never use em dashes. Respond ONLY with a JSON object.`,
         messages:[{role:"user",content:`Read this chapter excerpt and extract Story Bible information from what is actually written.
 
 EXISTING STORY BIBLE (for context, do not repeat what's already captured well):
@@ -1329,7 +1353,7 @@ CHAPTER DRAFT STATUS: ${draftNote}
 CHAPTER ${chapterNum||"??"} TEXT:
 ${sceneText.substring(0,20000)}
 
-Extract what this chapter actually establishes. Only include fields where you found something meaningful that isn't already well-captured in the existing Bible. Leave fields as empty string if nothing new or significant was found. Paraphrase what you find in your own words rather than quoting dialogue directly, since direct quotes containing quotation marks can break the JSON format.
+Extract what this chapter actually establishes. Only include fields where you found something meaningful that isn't already well-captured in the existing Bible. Leave fields as empty string if nothing new or significant was found. Paraphrase what you find in your own words rather than quoting dialogue directly, since direct quotes containing quotation marks can break the JSON format.${driftInstructions}
 
 Respond with ONLY this JSON:
 {
@@ -1340,7 +1364,7 @@ Respond with ONLY this JSON:
   "protagonistFearUpdate": "did this chapter show the protagonist's fear in action? Empty string if nothing new.",
   "protagonistWoundUpdate": "did this chapter reveal the specific experience or pattern that created the fear? Empty string if nothing new.",
   "protagonistBackstoryUpdate": "did this chapter reveal childhood, family, or psychological history? Empty string if nothing new.",
-  "protagonistMisbeliefUpdate": "did this chapter show the misbelief operating? Empty string if nothing new.",
+  "protagonistMisbeliefUpdate": "did this chapter show the lie the protagonist believes about themselves operating? Empty string if nothing new.",
   "characterReveal": "new details about supporting characters (not the antagonist) revealed in this chapter. Empty string if nothing new.",
   "antagonistReveal": "new details specifically about the antagonist or opposing force revealed in this chapter. Empty string if nothing new.",
   "worldReveal": "new setting details or atmosphere established in this chapter. Empty string if nothing new.",
@@ -1351,7 +1375,7 @@ Respond with ONLY this JSON:
   "worldToneUpdate": "did this chapter establish or shift the emotional tone or atmosphere of the world? Empty string if nothing new.",
   "themeReveal": "themes or ideas that surfaced clearly in this chapter. Empty string if nothing clear.",
   "craftNote": "one observation about what is working well in this chapter, specific and precise, that Finn would point out as a coach. Not generic praise.",
-  "openQuestion": "the most important unresolved question this chapter raises for the story going forward."
+  "openQuestion": "the most important unresolved question this chapter raises for the story going forward."${isOtherTimeline?"":',\n  "drifts": []'}
 }`}]
       })});
       const d=await r.json();
@@ -1361,6 +1385,7 @@ Respond with ONLY this JSON:
         try{
           const result=JSON.parse(cleaned);
           result.chapterNum=chapterNum;
+          if(!Array.isArray(result.drifts))result.drifts=[];
           setExtractResult(result);
           // Persist so it survives navigation
           saveStored("tt-pending-extract",result);
@@ -1411,7 +1436,7 @@ Respond with ONLY this JSON:
         ["Fear",result.protagonistFearUpdate],
         ["Wound",result.protagonistWoundUpdate],
         ["Backstory",result.protagonistBackstoryUpdate],
-        ["Misbelief",result.protagonistMisbeliefUpdate],
+        ["The lie they believe",result.protagonistMisbeliefUpdate],
         ["Characters",result.characterReveal],
         ["Antagonist",result.antagonistReveal],
         ["World/setting",result.worldReveal],
@@ -1456,95 +1481,37 @@ Respond with ONLY this JSON:
     setExtractOpen(false);
     setExtractResult(null);
     saveStored("tt-pending-extract",null);
-    // Drift detection only makes sense against the main timeline's own established facts — comparing
-    // a different POV/timeline's content against Emma's fields would misfire constantly.
-    if(!isOtherTimeline){
-      detectBibleDrift(result,projectBeforeMerge);
+    // Drift data now arrives already computed as part of the same extraction response — Agnes reads
+    // the full chapter alongside Finn in one call instead of a second, separate API round trip.
+    if(!isOtherTimeline&&result.drifts&&result.drifts.length>0){
+      processDrifts(result,projectBeforeMerge);
     }
   };
 
-  const detectBibleDrift=async(extractResult,projectBeforeMerge)=>{
-    if(!extractResult||!projectBeforeMerge)return;
-    // Only compare fields that both existed in the Bible AND were touched by this extraction
-    const comparisons=[
-      {field:"protagonist",label:"Protagonist",existing:projectBeforeMerge.protagonist,incoming:extractResult.protagonistReveal},
-      {field:"protagonistGoal",label:"Goal",existing:projectBeforeMerge.protagonistGoal,incoming:extractResult.protagonistGoalUpdate},
-      {field:"protagonistDream",label:"Dream",existing:projectBeforeMerge.protagonistDream,incoming:extractResult.protagonistDreamUpdate},
-      {field:"protagonistFear",label:"Fear",existing:projectBeforeMerge.protagonistFear,incoming:extractResult.protagonistFearUpdate},
-      {field:"protagonistWound",label:"Wound",existing:projectBeforeMerge.protagonistWound,incoming:extractResult.protagonistWoundUpdate},
-      {field:"protagonistBackstory",label:"Backstory",existing:projectBeforeMerge.protagonistBackstory,incoming:extractResult.protagonistBackstoryUpdate},
-      {field:"protagonistMisbelief",label:"Misbelief",existing:projectBeforeMerge.protagonistMisbelief,incoming:extractResult.protagonistMisbeliefUpdate},
-      {field:"supporting",label:"Supporting Characters",existing:projectBeforeMerge.supporting,incoming:extractResult.characterReveal},
-      {field:"antagonist",label:"Antagonist",existing:projectBeforeMerge.antagonist,incoming:extractResult.antagonistReveal},
-      {field:"worldSetting",label:"World & Setting",existing:projectBeforeMerge.worldSetting,incoming:extractResult.worldReveal},
-      {field:"worldRules",label:"World Rules",existing:projectBeforeMerge.worldRules,incoming:extractResult.worldRulesUpdate},
-      {field:"worldMythology",label:"Mythology & Paranormal Rules",existing:projectBeforeMerge.worldMythology,incoming:extractResult.worldMythologyUpdate},
-      {field:"worldBeliefs",label:"Beliefs vs Reality",existing:projectBeforeMerge.worldBeliefs,incoming:extractResult.worldBeliefsUpdate},
-      {field:"worldDanger",label:"What Makes It Dangerous",existing:projectBeforeMerge.worldDanger,incoming:extractResult.worldDangerUpdate},
-      {field:"worldTone",label:"Tone",existing:projectBeforeMerge.worldTone,incoming:extractResult.worldToneUpdate},
-      {field:"themes",label:"Themes",existing:projectBeforeMerge.themes,incoming:extractResult.themeReveal},
-    ].filter(c=>c.existing&&c.existing.trim()&&c.incoming&&c.incoming.trim());
-    // Need at least one field with both existing and incoming content to check
-    if(comparisons.length===0)return;
-    setDriftLoading(true);
-    const comparisonText=comparisons.map(c=>`FIELD: ${c.label}\nEXISTING BIBLE ENTRY: ${c.existing.substring(0,400)}\nNEW CHAPTER EVIDENCE: ${c.incoming.substring(0,400)}`).join("\n\n---\n\n");
-    try{
-      const r=await fetch("/api/chat",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({
-        system:`You are Agnes, the record keeper behind Forged Pen. You read manuscripts and maintain Story Bibles. You are not a coach. You do not give craft opinions. You notice when a story appears to be moving in a different direction than what was previously recorded, and you surface it for the writer to decide. Your voice is direct, selective, specific, and slightly pointed. Never use the word "inconsistency", "error", "problem", or "contradiction". Say "evolving", "different direction", "moving toward something new". You are not alarmed. You are precise. Respond ONLY with JSON. No markdown. No backticks. Never use em dashes.`,
-        messages:[{role:"user",content:`Chapter ${extractResult.chapterNum||"?"} was just captured. Compare the existing Bible entries against the new chapter evidence and identify only genuine drift, where the story appears to be moving in a meaningfully different direction. Ignore minor additions or elaborations that are consistent with the existing entry. Only flag real divergence.
-
-${comparisonText}
-
-Respond with ONLY this JSON:
-{
-  "drifts": [
-    {
-      "field": "the field key exactly as given (protagonist, protagonistGoal, protagonistDream, protagonistFear, protagonistWound, protagonistBackstory, protagonistMisbelief, supporting, antagonist, worldSetting, worldRules, worldMythology, worldBeliefs, worldDanger, worldTone, themes)",
-      "fieldLabel": "human readable label",
-      "existing": "the existing Bible entry, quoted briefly",
-      "incoming": "the new chapter evidence, quoted briefly",
-      "observation": "Agnes one-sentence neutral observation of the difference. Direct. No alarm. No judgment.",
-      "question": "One specific question for the writer: is this intentional evolution or something to revisit? Reference the specific detail."
+  const processDrifts=(extractResult,projectBeforeMerge)=>{
+    const drifts=extractResult.drifts;
+    if(!drifts||drifts.length===0)return;
+    // Store the TRUE original field values (not the LLM's paraphrased "existing" quote) so
+    // "keep original" can revert precisely instead of reconstructing from a lossy summary.
+    const originalValues={};
+    drifts.forEach(dr=>{originalValues[dr.field]=projectBeforeMerge[dr.field];});
+    const newDriftEntry={driftResult:{drifts,chapterNum:extractResult.chapterNum},driftResolutions:{},originalValues};
+    setDriftQueue(prev=>{
+      const existing=Array.isArray(prev)?prev:[];
+      // Don't add duplicate entry for same chapter
+      const filtered=existing.filter(e=>e.driftResult.chapterNum!==extractResult.chapterNum);
+      const newQueue=[...filtered,newDriftEntry];
+      saveStored("tt-pending-drift",newQueue);
+      return newQueue;
+    });
+    setDriftResult({drifts,chapterNum:extractResult.chapterNum});
+    setDriftResolutions({});
+    setDriftOriginalValues(originalValues);
+    // Agnes always finishes the read regardless of mode. Involvement only gates whether
+    // she interrupts you with it automatically. Quiet/Off still queue it for the badge/manual review.
+    if(agnesInvolvement==="full"){
+      setDriftOpen(true);
     }
-  ]
-}
-
-If there is no genuine drift, only additions or elaborations, return: {"drifts": []}`}]
-      })});
-      const d=await r.json();
-      if(!d.error){
-        const raw=finnClean(d.content?.filter(b=>b.type==="text").map(b=>b.text).join(""))||"";
-        const cleaned=raw.replace(/```json\s*/g,"").replace(/```\s*/g,"").trim();
-        try{
-          const result=JSON.parse(cleaned);
-          if(result.drifts&&result.drifts.length>0){
-            // Store the TRUE original field values (not the LLM's paraphrased "existing" quote) so
-            // "keep original" can revert precisely instead of reconstructing from a lossy summary.
-            const originalValues={};
-            result.drifts.forEach(dr=>{originalValues[dr.field]=projectBeforeMerge[dr.field];});
-            const newDriftEntry={driftResult:{drifts:result.drifts,chapterNum:extractResult.chapterNum},driftResolutions:{},originalValues};
-            // Append to queue instead of overwriting — each chapter's drifts get their own slot
-            setDriftQueue(prev=>{
-              const existing=Array.isArray(prev)?prev:[];
-              // Don't add duplicate entry for same chapter
-              const filtered=existing.filter(e=>e.driftResult.chapterNum!==extractResult.chapterNum);
-              const newQueue=[...filtered,newDriftEntry];
-              saveStored("tt-pending-drift",newQueue);
-              return newQueue;
-            });
-            setDriftResult({drifts:result.drifts,chapterNum:extractResult.chapterNum});
-            setDriftResolutions({});
-            setDriftOriginalValues(originalValues);
-            // Agnes always finishes the read regardless of mode. Involvement only gates whether
-            // she interrupts you with it automatically. Quiet/Off still queue it for the badge/manual review.
-            if(agnesInvolvement==="full"){
-              setDriftOpen(true);
-            }
-          }
-        }catch(e){console.log("Drift parse error:",e);}
-      }
-    }catch(e){console.log("Drift detection error:",e);}
-    setDriftLoading(false);
   };
 
   const updateOrganizeItem=(section,idx,status)=>{
@@ -2015,7 +1982,7 @@ Under 120 words.`;
 
     const FIRST_SESSION_SYSTEM=`You are Finn opening your very first session with this writer. Your goal is to learn their story through natural conversation so every session after this gets smarter.
 
-You are trying to capture: protagonist name and description, protagonist goal (surface want), protagonist dream (deepest unspoken want), protagonist fear, protagonist wound (the experience that created the fear), protagonist backstory (childhood, family, psychological history, the wallpaper), protagonist misbelief (the false story they tell themselves), supporting characters, world and setting, core conflict, and themes.
+You are trying to capture: protagonist name and description, protagonist goal (surface want), protagonist dream (deepest unspoken want), protagonist fear, protagonist wound (the experience that created the fear), protagonist backstory (childhood, family, psychological history, the wallpaper), the lie they believe about themselves (born from the wound), supporting characters, world and setting, core conflict, and themes.
 
 ${profileCtxStr}
 ${userName?`The writer's name is ${userName}.`:""}
@@ -3191,7 +3158,7 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
             <FormField label="Fear" k="protagonistFear" ph="What are they most afraid of..." value={pForm.protagonistFear} onChange={updateField} multi/>
             <FormField label="Wound" k="protagonistWound" ph="The specific experience or pattern that created the fear..." value={pForm.protagonistWound} onChange={updateField} multi/>
             <FormField label="Backstory" k="protagonistBackstory" ph="Childhood, family, formative relationships. The wallpaper that lives in the background..." value={pForm.protagonistBackstory} onChange={updateField} multi/>
-            <FormField label="Misbelief" k="protagonistMisbelief" ph="The false story they tell themselves born from the wound. The thing the story will test..." value={pForm.protagonistMisbelief} onChange={updateField} multi/>
+            <FormField label="The lie they believe" k="protagonistMisbelief" ph="The false story they tell themselves born from the wound. The thing the story will test..." value={pForm.protagonistMisbelief} onChange={updateField} multi/>
           </div>
 
           <div style={{marginTop:4,marginBottom:14}}>
@@ -3280,7 +3247,7 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
         </div>}
         {bibleSearch&&<div>
           {(()=>{
-            const allFields=[["Genre",project.genre,false],["Synopsis",project.synopsis,true],["Protagonist",project.protagonist,true],["Goal",project.protagonistGoal,true],["Dream",project.protagonistDream,true],["Fear",project.protagonistFear,true],["Wound",project.protagonistWound,true],["Backstory",project.protagonistBackstory,true],["Misbelief",project.protagonistMisbelief,true],["Supporting Characters",project.supporting,true],["Antagonist",project.antagonist,true],["Core Setting",project.worldSetting,true],["World Rules",project.worldRules,true],["Beliefs vs Reality",project.worldBeliefs,true],["What Makes It Dangerous",project.worldDanger,true],["Tone",project.worldTone,false],["Themes",project.themes,false],["Where you are",project.where,false],["Focused on",project.stuck,false],["What excites you",project.excites,true]];
+            const allFields=[["Genre",project.genre,false],["Synopsis",project.synopsis,true],["Protagonist",project.protagonist,true],["Goal",project.protagonistGoal,true],["Dream",project.protagonistDream,true],["Fear",project.protagonistFear,true],["Wound",project.protagonistWound,true],["Backstory",project.protagonistBackstory,true],["The lie they believe",project.protagonistMisbelief,true],["Supporting Characters",project.supporting,true],["Antagonist",project.antagonist,true],["Core Setting",project.worldSetting,true],["World Rules",project.worldRules,true],["Beliefs vs Reality",project.worldBeliefs,true],["What Makes It Dangerous",project.worldDanger,true],["Tone",project.worldTone,false],["Themes",project.themes,false],["Where you are",project.where,false],["Focused on",project.stuck,false],["What excites you",project.excites,true]];
             const matches=allFields.filter(([l,v])=>v&&(l.toLowerCase().includes(bibleSearch.toLowerCase())||v.toLowerCase().includes(bibleSearch.toLowerCase())));
             if(matches.length===0)return <p style={{fontFamily:"'Cormorant Garamond',serif",fontSize:14,color:"var(--text-dim)",fontStyle:"italic"}}>Nothing found for "{bibleSearch}"</p>;
             return matches.map(([l,v,multi])=><ReadField key={l} label={l} value={v} multi={multi}/>);
@@ -3355,7 +3322,7 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
             <ReadField label="Fear" value={project.protagonistFear} multi/>
             <ReadField label="Wound" value={project.protagonistWound} multi/>
             <ReadField label="Backstory" value={project.protagonistBackstory} multi/>
-            <ReadField label="Misbelief" value={project.protagonistMisbelief} multi/>
+            <ReadField label="The lie they believe" value={project.protagonistMisbelief} multi/>
           </>}
           {(project.characters||[]).length>0&&<>
             <div style={{fontSize:9,textTransform:"uppercase",letterSpacing:"0.14em",color:"var(--accent-70)",fontWeight:500,marginBottom:10,marginTop:8,paddingTop:8,borderTop:"1px solid var(--border)"}}>Characters</div>
@@ -4307,7 +4274,7 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
                     ? <><div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:14,fontWeight:500,color:"var(--text-primary)"}}>{firstSessionCapture.protagonist}</div>
                         {firstSessionCapture.protagonistGoal&&<div style={{marginTop:8,paddingTop:8,borderTop:"1px solid var(--border)"}}><div style={{fontSize:9,color:"var(--text-dim)",fontFamily:"'DM Sans',sans-serif",marginBottom:3}}>Goal</div><div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:13,color:"var(--text-muted)",fontStyle:"italic",lineHeight:1.5}}>{firstSessionCapture.protagonistGoal}</div></div>}
                         {firstSessionCapture.protagonistFear&&<div style={{marginTop:8}}><div style={{fontSize:9,color:"var(--text-dim)",fontFamily:"'DM Sans',sans-serif",marginBottom:3}}>Fear</div><div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:13,color:"var(--text-muted)",fontStyle:"italic",lineHeight:1.5}}>{firstSessionCapture.protagonistFear}</div></div>}
-                        {firstSessionCapture.protagonistMisbelief&&<div style={{marginTop:8}}><div style={{fontSize:9,color:"var(--text-dim)",fontFamily:"'DM Sans',sans-serif",marginBottom:3}}>Misbelief</div><div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:13,color:"var(--text-muted)",fontStyle:"italic",lineHeight:1.5}}>{firstSessionCapture.protagonistMisbelief}</div></div>}
+                        {firstSessionCapture.protagonistMisbelief&&<div style={{marginTop:8}}><div style={{fontSize:9,color:"var(--text-dim)",fontFamily:"'DM Sans',sans-serif",marginBottom:3}}>The lie they believe</div><div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:13,color:"var(--text-muted)",fontStyle:"italic",lineHeight:1.5}}>{firstSessionCapture.protagonistMisbelief}</div></div>}
                       </>
                     : <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:13,color:"var(--text-dim)",fontStyle:"italic"}}>Waiting for you to tell me...</div>}
                 </div>
@@ -4383,7 +4350,7 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
               {key:"protagonistFearUpdate",label:"Fear"},
               {key:"protagonistWoundUpdate",label:"Wound"},
               {key:"protagonistBackstoryUpdate",label:"Backstory"},
-              {key:"protagonistMisbeliefUpdate",label:"Misbelief"},
+              {key:"protagonistMisbeliefUpdate",label:"The lie they believe"},
               {key:"characterReveal",label:"Characters"},
               {key:"antagonistReveal",label:"Antagonist"},
               {key:"worldReveal",label:"World & Setting"},
