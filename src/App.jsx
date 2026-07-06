@@ -772,6 +772,18 @@ export default function App() {
   const [ideaLabText, setIdeaLabText] = useState("");
   const [ideaLabBuckets, setIdeaLabBuckets] = useState({characters:[],plot:[],world:[],questions:[],fragments:[]});
   const [highlightPopup, setHighlightPopup] = useState({visible:false,x:0,y:0,text:""});
+  // Marginalia: writer/Agnes/Finn notes anchored to a specific passage in the manuscript, or general
+  // to a chapter. The manuscript editor is a plain textarea, so notes can't render inline as marks in
+  // the text itself — they live in the collected Scene Notes list, each showing the snippet it's about.
+  const [writeSelectPopup, setWriteSelectPopup] = useState({visible:false,x:0,y:0,text:""});
+  const [noteFormOpen, setNoteFormOpen] = useState(false); // writer typing their own note
+  const [noteFormText, setNoteFormText] = useState("");
+  const [noteFormSnippet, setNoteFormSnippet] = useState("");
+  const [noteFormAnchor, setNoteFormAnchor] = useState({start:null,end:null});
+  const [askFinnNoteLoading, setAskFinnNoteLoading] = useState(false);
+  const [askFinnNoteDraft, setAskFinnNoteDraft] = useState(null); // {snippet,text,start,end} pending confirmation
+  const [noteFilter, setNoteFilter] = useState("all"); // all | writer | agnes | finn
+  const [chatNoteThis, setChatNoteThis] = useState(null); // {msgIdx, loading, snippet, text} for "Note this" in the coaching panel
   // Universal textarea selection detection. window.getSelection() is unreliable inside <textarea>
   // (unsupported in Firefox entirely), so this reads selectionStart/selectionEnd directly off the
   // element instead, which works the same in every browser and for both mouse drags and keyboard
@@ -799,6 +811,7 @@ export default function App() {
   const writeRef = useRef(null);
   const ideaLabRef = useRef(null);
   const ideaLabContainerRef = useRef(null);
+  const writeContainerRef = useRef(null);
   const cEndRef = useRef(null);
   const abortRef = useRef(null);
   const isPopStateRef = useRef(false);
@@ -1026,6 +1039,82 @@ export default function App() {
     }
   };
 
+  // MARGINALIA: writer (◊), Agnes (A), Finn (F) notes attached to a scene, anchored to a specific
+  // passage. addMarginaliaNote is the single entry point every creation path funnels through.
+  const addMarginaliaNote=(sceneId,type,text,snippet,anchorStart,anchorEnd)=>{
+    if(!text||!text.trim())return;
+    const newNote={id:"note_"+Date.now(),type,text:text.trim(),snippet:snippet||"",anchorStart:typeof anchorStart==="number"?anchorStart:null,anchorEnd:typeof anchorEnd==="number"?anchorEnd:null,createdAt:Date.now()};
+    const updated=scenes.map(s=>s.id===sceneId?{...s,marginalia:[...(s.marginalia||[]),newNote]}:s);
+    saveScenes(updated);
+  };
+  const removeMarginaliaNote=(sceneId,noteId)=>{
+    const updated=scenes.map(s=>s.id===sceneId?{...s,marginalia:(s.marginalia||[]).filter(n=>n.id!==noteId)}:s);
+    saveScenes(updated);
+  };
+  const [noteJumpFailed,setNoteJumpFailed]=useState(null); // note id, briefly flashes "can't find this passage"
+  // This is the actual point of a note: get back to the exact passage it's about. The stored anchor
+  // offsets are the fast, precise path (still correct if nothing changed nearby). If the writer has
+  // edited elsewhere and the offsets no longer match the snippet, fall back to searching for the
+  // snippet text wherever it now sits. If neither works, the passage itself was likely edited or
+  // removed, so this says so honestly instead of jumping to the wrong place.
+  const jumpToNote=(note)=>{
+    const el=writeRef.current;
+    const currentScene=scenes.find(s=>s.id===activeScene);
+    if(!el||!currentScene||!note.snippet)return;
+    const text=currentScene.text||"";
+    let start=-1;
+    if(typeof note.anchorStart==="number"&&text.substring(note.anchorStart,note.anchorEnd)===note.snippet){
+      start=note.anchorStart;
+    }else{
+      start=text.indexOf(note.snippet);
+    }
+    if(start===-1){
+      setNoteJumpFailed(note.id);
+      setTimeout(()=>setNoteJumpFailed(null),2500);
+      return;
+    }
+    const end=start+note.snippet.length;
+    el.focus();
+    el.setSelectionRange(start,end);
+    const linesBefore=text.substring(0,start).split("\n").length-1;
+    const approxLineHeight=36; // fontSize 18, line-height 2
+    el.scrollTop=Math.max(0,linesBefore*approxLineHeight-100);
+  };
+
+  // Universal textarea selection detection for the manuscript editor, same robust pattern already
+  // used in Idea Lab: reads selectionStart/selectionEnd directly rather than window.getSelection(),
+  // so it works identically across mouse drags, keyboard selection, and every browser including Firefox.
+  const handleWriteSelect=()=>{
+    const el=writeRef.current;
+    if(!el)return;
+    const start=el.selectionStart, end=el.selectionEnd;
+    const text=(el.value||"").substring(start,end).trim();
+    if(text.length>3){
+      const rect=writeContainerRef.current?.getBoundingClientRect();
+      setWriteSelectPopup({visible:true,x:rect?rect.right-176:0,y:rect?rect.top+12:0,text,start,end});
+    }else{
+      setWriteSelectPopup({visible:false,x:0,y:0,text:"",start:0,end:0});
+    }
+  };
+
+  const askFinnAboutPassage=async(sceneChapter,passageText,anchorStart,anchorEnd)=>{
+    setAskFinnNoteLoading(true);
+    setAskFinnNoteDraft(null);
+    try{
+      const r=await fetch("/api/chat",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({
+        max_tokens:300,
+        system:`${FINN}\n\nThe writer has highlighted one specific passage from Chapter ${sceneChapter} and wants your take on it, to save as a note attached to that exact passage. Respond in one or two sentences, direct and specific to this passage, not generic. Never use em dashes.`,
+        messages:[{role:"user",content:`The highlighted passage: "${passageText}"\n\nWhat do you think of it?`}]
+      })});
+      const d=await r.json();
+      if(!d.error){
+        const txt=finnClean(d.content?.filter(b=>b.type==="text").map(b=>b.text).join(""))||"";
+        setAskFinnNoteDraft({snippet:passageText,text:txt||"Worth a closer look here.",start:anchorStart,end:anchorEnd});
+      }
+    }catch(e){console.log("Ask Finn note error:",e);}
+    setAskFinnNoteLoading(false);
+  };
+
   // Auto-save every 3 seconds when writing
   useEffect(()=>{
     if(screen!=="container")return;
@@ -1035,6 +1124,26 @@ export default function App() {
 
   // Container Finn
   const CONTAINER_FINN=`${FINN}\n\nMODE: CONTAINER COACHING. You are coaching the writer WHILE they write. They are mid-scene. Be quick and precise. Read their current scene text and Story Bible. You can do anything the regular coaching modes do: diagnose blocks, do scene surgery, deep-dive characters, check plot, analyze voice. The writer doesn't need to leave the container. Adapt to what they ask. If they say "this scene needs surgery," do scene surgery. If they say "I'm stuck," diagnose the block. If they say "break this down," go comprehensive. Default: short, sharp, actionable. Get them back to writing fast. Under 150 words unless they ask for more.`;
+
+  // "Note this" on a coaching message: Finn proposes a specific, concise note rather than saving the
+  // raw message verbatim, and the writer can edit it before confirming. Nothing saves silently.
+  const handleNoteThis=async(msgIdx,msgContent)=>{
+    setChatNoteThis({msgIdx,loading:true,text:""});
+    const currentScene=scenes.find(s=>s.id===activeScene);
+    const chapterNum=currentScene?.chapter;
+    try{
+      const r=await fetch("/api/chat",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({
+        max_tokens:200,
+        system:`You are condensing a coaching note for a writer to save to their manuscript. Read what Finn just said and write ONE precise sentence capturing the specific, useful point, in Finn's voice. Not a summary of the whole message, the one thing worth keeping. Never use em dashes. Respond with just the sentence, nothing else.`,
+        messages:[{role:"user",content:`Finn said: "${msgContent}"\n\nWrite the one-sentence note.`}]
+      })});
+      const d=await r.json();
+      const proposed=!d.error?finnClean(d.content?.filter(b=>b.type==="text").map(b=>b.text).join(""))?.trim():"";
+      setChatNoteThis({msgIdx,loading:false,text:proposed||msgContent.substring(0,150),chapterNum});
+    }catch(e){
+      setChatNoteThis({msgIdx,loading:false,text:msgContent.substring(0,150),chapterNum});
+    }
+  };
 
   const sendContainer=async()=>{
     if(!containerInput.trim()||loading)return;
@@ -3971,15 +4080,41 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
                 <div style={{fontSize:9,color:"var(--accent-70)",letterSpacing:"0.12em",textTransform:"uppercase",marginBottom:4}}>CHAPTER REFERENCE</div>
                 <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:13,color:"var(--text-muted)",lineHeight:1.6,maxWidth:640}}>{currentScene.notes}</div>
               </div>}
-              {/* Scene Notes - editable, excluded from export */}
+              {/* Scene Notes — collected marginalia: writer, Agnes, and Finn notes, filterable by type */}
               <div style={{borderBottom:"1px solid var(--border)"}}>
                 <div onClick={()=>setSceneNotesOpen(o=>!o)} style={{padding:"6px 40px",display:"flex",alignItems:"center",gap:8,cursor:"pointer",background:"var(--bg-card-alt)"}}>
                   <span style={{fontSize:9,color:"var(--text-dim)",letterSpacing:"0.12em",textTransform:"uppercase"}}>Scene Notes</span>
                   <span style={{fontSize:9,color:"var(--text-dim)",opacity:.5}}>{sceneNotesOpen?"▲":"▼"}</span>
-                  {currentScene.sceneNotes&&<span style={{fontSize:9,color:"var(--accent-70)",marginLeft:"auto"}}>has notes</span>}
+                  {(currentScene.marginalia||[]).length>0&&<span style={{fontSize:9,color:"var(--accent-70)",marginLeft:"auto"}}>{(currentScene.marginalia||[]).length} note{(currentScene.marginalia||[]).length!==1?"s":""}</span>}
                 </div>
-                {sceneNotesOpen&&<div style={{padding:"8px 40px 10px",background:"var(--bg-card-alt)"}}>
-                  <textarea value={currentScene.sceneNotes||""} onChange={e=>{const updated=scenes.map(s=>s.id===currentScene.id?{...s,sceneNotes:e.target.value}:s);setScenes(updated);}} placeholder="Click here to add editing reminders, craft notes, things to fix later. Not exported with manuscript." rows={2} style={{width:"100%",background:"var(--bg-base)",border:"1px solid var(--border)",borderRadius:6,padding:"6px 10px",outline:"none",resize:"vertical",fontFamily:"'Cormorant Garamond',serif",fontSize:13,color:"var(--text-primary)",lineHeight:1.6}}/>
+                {sceneNotesOpen&&<div style={{padding:"10px 40px 14px",background:"var(--bg-card-alt)"}}>
+                  <div style={{display:"flex",gap:6,marginBottom:10}}>
+                    {[["all","All"],["writer","\u25CA Mine"],["agnes","A Agnes"],["finn","F Finn"]].map(([key,label])=>(
+                      <span key={key} onClick={()=>setNoteFilter(key)} style={{fontSize:11,padding:"4px 10px",borderRadius:8,cursor:"pointer",fontFamily:"'DM Sans',sans-serif",background:noteFilter===key?"var(--text-primary)":"var(--bg-card)",color:noteFilter===key?"var(--bg-deepest)":"var(--text-muted)",border:"1px solid "+(noteFilter===key?"var(--text-primary)":"var(--border)")}}>{label}</span>
+                    ))}
+                  </div>
+                  {(()=>{
+                    const notes=(currentScene.marginalia||[]).filter(n=>noteFilter==="all"||n.type===noteFilter);
+                    if(notes.length===0)return <p style={{fontFamily:"'Cormorant Garamond',serif",fontSize:12,color:"var(--text-dim)",fontStyle:"italic",marginBottom:10}}>{noteFilter==="all"?"No notes yet. Highlight text above to add one, or ask Finn to note something.":"Nothing here yet."}</p>;
+                    const typeInfo={writer:{badge:"\u25CA",color:"#5A6B3A",bg:"#5A6B3A20"},agnes:{badge:"A",color:"#A8884A",bg:"#A8884A20"},finn:{badge:"F",color:"#7A6EA0",bg:"#7A6EA020"}};
+                    return <div style={{display:"flex",flexDirection:"column",gap:6,marginBottom:10}}>
+                      {notes.map(n=>{
+                        const ti=typeInfo[n.type]||typeInfo.writer;
+                        return <div key={n.id} style={{background:"var(--bg-card)",border:"1px solid var(--border)",borderRadius:8,padding:"8px 10px"}}>
+                          <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:4}}>
+                            <span style={{width:16,height:16,borderRadius:"50%",background:ti.bg,color:ti.color,fontSize:9,fontWeight:600,display:"flex",alignItems:"center",justifyContent:"center"}}>{ti.badge}</span>
+                            <span onClick={()=>removeMarginaliaNote(currentScene.id,n.id)} style={{fontSize:10,color:"var(--text-dim)",cursor:"pointer"}}>Remove</span>
+                          </div>
+                          {n.snippet&&<div onClick={()=>jumpToNote(n)} style={{fontSize:11,fontStyle:"italic",color:noteJumpFailed===n.id?"#B06848":"var(--text-dim)",marginBottom:3,cursor:"pointer",textDecoration:"underline",textDecorationStyle:"dotted"}}>{noteJumpFailed===n.id?"Can't find this passage anymore, it may have changed":<>"{n.snippet.substring(0,80)}{n.snippet.length>80?"...":""}"</>}</div>}
+                          <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:13,color:"var(--text-primary)",lineHeight:1.6}}>{n.text}</div>
+                        </div>;
+                      })}
+                    </div>;
+                  })()}
+                  <div style={{borderTop:"1px solid var(--border)",paddingTop:8,marginTop:2}}>
+                    <div style={{fontSize:9,color:"var(--text-dim)",fontStyle:"italic",fontFamily:"'DM Sans',sans-serif",marginBottom:4}}>Other notes</div>
+                    <textarea value={currentScene.sceneNotes||""} onChange={e=>{const updated=scenes.map(s=>s.id===currentScene.id?{...s,sceneNotes:e.target.value}:s);setScenes(updated);}} placeholder="Anything not tied to a specific passage. Not exported with manuscript." rows={2} style={{width:"100%",background:"var(--bg-base)",border:"1px solid var(--border)",borderRadius:6,padding:"6px 10px",outline:"none",resize:"vertical",fontFamily:"'Cormorant Garamond',serif",fontSize:13,color:"var(--text-primary)",lineHeight:1.6}}/>
+                  </div>
                 </div>}
               </div>
               {/* Mode Data - coaching notes from sessions */}
@@ -4007,9 +4142,47 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
                   {md.suggestedAction&&<div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:13,color:"var(--text-secondary)",fontStyle:"italic",marginTop:8,paddingTop:8,borderTop:"1px solid var(--border)"}}>{md.suggestedAction}</div>}
                 </div>)}
               </div>}
-              <div style={{flex:1,overflow:"auto",padding:"24px 40px"}}>
-                <textarea ref={writeRef} value={currentScene.text||""} onChange={e=>updateSceneText(currentScene.id,e.target.value)} placeholder="Start writing..." style={{width:"100%",height:"100%",minHeight:400,background:"none",border:"none",outline:"none",resize:"none",fontFamily:"'Cormorant Garamond',serif",fontSize:18,color:"var(--text-primary)",lineHeight:2,letterSpacing:"0.01em"}}/>
+              <div ref={writeContainerRef} style={{flex:1,overflow:"auto",padding:"24px 40px",position:"relative"}}>
+                <textarea ref={writeRef} value={currentScene.text||""} onChange={e=>updateSceneText(currentScene.id,e.target.value)} onSelect={handleWriteSelect} onMouseUp={handleWriteSelect} onKeyUp={handleWriteSelect} placeholder="Start writing..." style={{width:"100%",height:"100%",minHeight:400,background:"none",border:"none",outline:"none",resize:"none",fontFamily:"'Cormorant Garamond',serif",fontSize:18,color:"var(--text-primary)",lineHeight:2,letterSpacing:"0.01em"}}/>
               </div>
+
+              {/* Selection toolbar: highlight text above to attach a note or ask Finn about it */}
+              {writeSelectPopup.visible&&!noteFormOpen&&!askFinnNoteLoading&&!askFinnNoteDraft&&<div style={{position:"fixed",left:writeSelectPopup.x,top:writeSelectPopup.y,background:"var(--bg-deepest)",border:"1px solid var(--border)",borderRadius:10,padding:6,zIndex:250,display:"flex",flexDirection:"column",gap:2,minWidth:160,boxShadow:"0 4px 20px rgba(0,0,0,0.3)"}}>
+                <div style={{fontSize:9,color:"var(--text-dim)",letterSpacing:"0.15em",textTransform:"uppercase",padding:"3px 8px 5px",borderBottom:"1px solid var(--border)",marginBottom:2,fontFamily:"'DM Sans',sans-serif"}}>Note this passage</div>
+                <div onClick={()=>{setNoteFormSnippet(writeSelectPopup.text);setNoteFormAnchor({start:writeSelectPopup.start,end:writeSelectPopup.end});setNoteFormText("");setNoteFormOpen(true);}} style={{display:"flex",alignItems:"center",gap:8,padding:"6px 10px",borderRadius:5,cursor:"pointer",fontFamily:"'DM Sans',sans-serif"}}>
+                  <span style={{fontSize:12,fontWeight:600,color:"#5A6B3A"}}>&#9674;</span>
+                  <span style={{fontSize:12,color:"var(--text-primary)"}}>Add my note</span>
+                </div>
+                <div onClick={()=>{const snippet=writeSelectPopup.text;const{start,end}=writeSelectPopup;setWriteSelectPopup({visible:false,x:0,y:0,text:""});askFinnAboutPassage(currentScene.chapter,snippet,start,end);}} style={{display:"flex",alignItems:"center",gap:8,padding:"6px 10px",borderRadius:5,cursor:"pointer",fontFamily:"'DM Sans',sans-serif"}}>
+                  <span style={{fontSize:12,fontWeight:600,color:"var(--accent)"}}>F</span>
+                  <span style={{fontSize:12,color:"var(--text-primary)"}}>Ask Finn</span>
+                </div>
+              </div>}
+
+              {/* Writer's own note form */}
+              {noteFormOpen&&<div style={{position:"fixed",left:writeSelectPopup.x,top:writeSelectPopup.y,background:"var(--bg-deepest)",border:"1px solid #5A6B3A60",borderRadius:10,padding:12,zIndex:250,width:260,boxShadow:"0 4px 20px rgba(0,0,0,0.3)"}}>
+                <div style={{fontSize:10,color:"var(--text-dim)",fontStyle:"italic",fontFamily:"'DM Sans',sans-serif",marginBottom:8}}>"{noteFormSnippet.substring(0,60)}{noteFormSnippet.length>60?"...":""}"</div>
+                <textarea autoFocus value={noteFormText} onChange={e=>setNoteFormText(e.target.value)} placeholder="What do you want to remember about this?" rows={3} style={{width:"100%",background:"var(--bg-base)",border:"1px solid var(--border)",borderRadius:6,padding:"6px 8px",fontFamily:"'Cormorant Garamond',serif",fontSize:13,color:"var(--text-primary)",outline:"none",resize:"vertical",marginBottom:8}}/>
+                <div style={{display:"flex",gap:6}}>
+                  <span onClick={()=>{addMarginaliaNote(currentScene.id,"writer",noteFormText,noteFormSnippet,noteFormAnchor.start,noteFormAnchor.end);setNoteFormOpen(false);setNoteFormText("");setWriteSelectPopup({visible:false,x:0,y:0,text:""});}} style={{fontSize:11,fontWeight:500,padding:"5px 12px",borderRadius:5,background:noteFormText.trim()?"#5A6B3A":"var(--bg-card)",color:noteFormText.trim()?"#F0EAE0":"var(--text-dim)",cursor:noteFormText.trim()?"pointer":"default",fontFamily:"'DM Sans',sans-serif"}}>Save</span>
+                  <span onClick={()=>{setNoteFormOpen(false);setNoteFormText("");}} style={{fontSize:11,padding:"5px 12px",borderRadius:5,border:"1px solid var(--border)",color:"var(--text-dim)",cursor:"pointer",fontFamily:"'DM Sans',sans-serif"}}>Cancel</span>
+                </div>
+              </div>}
+
+              {/* Ask Finn about a passage — loading, then confirm before saving as an F note */}
+              {(askFinnNoteLoading||askFinnNoteDraft)&&<div style={{position:"fixed",top:"50%",left:"50%",transform:"translate(-50%,-50%)",background:"var(--bg-dark)",border:"1px solid var(--border)",borderRadius:10,padding:16,zIndex:260,width:340,boxShadow:"0 8px 30px rgba(0,0,0,0.4)"}}>
+                {askFinnNoteLoading?<div style={{textAlign:"center",padding:"10px 0"}}>
+                  <span style={{fontSize:13,color:"var(--text-dim)",fontStyle:"italic",fontFamily:"'Cormorant Garamond',serif"}}>Finn is reading that passage...</span>
+                </div>:<>
+                  <div style={{fontSize:10,color:"var(--text-dim)",fontStyle:"italic",fontFamily:"'DM Sans',sans-serif",marginBottom:8}}>"{askFinnNoteDraft.snippet.substring(0,70)}{askFinnNoteDraft.snippet.length>70?"...":""}"</div>
+                  <div style={{fontSize:9,color:"var(--accent-80)",fontFamily:"'DM Sans',sans-serif",marginBottom:5}}>Finn</div>
+                  <textarea value={askFinnNoteDraft.text} onChange={e=>setAskFinnNoteDraft(prev=>({...prev,text:e.target.value}))} rows={3} style={{width:"100%",background:"var(--bg-base)",border:"1px solid var(--border)",borderRadius:6,padding:"6px 8px",fontFamily:"'Cormorant Garamond',serif",fontSize:13,color:"var(--text-primary)",outline:"none",resize:"vertical",marginBottom:10}}/>
+                  <div style={{display:"flex",gap:6}}>
+                    <span onClick={()=>{addMarginaliaNote(currentScene.id,"finn",askFinnNoteDraft.text,askFinnNoteDraft.snippet,askFinnNoteDraft.start,askFinnNoteDraft.end);setAskFinnNoteDraft(null);}} style={{fontSize:11,fontWeight:500,padding:"5px 12px",borderRadius:5,background:"var(--accent)",color:"var(--bg-deepest)",cursor:"pointer",fontFamily:"'DM Sans',sans-serif"}}>Save note</span>
+                    <span onClick={()=>setAskFinnNoteDraft(null)} style={{fontSize:11,padding:"5px 12px",borderRadius:5,border:"1px solid var(--border)",color:"var(--text-dim)",cursor:"pointer",fontFamily:"'DM Sans',sans-serif"}}>Discard</span>
+                  </div>
+                </>}
+              </div>}
               <div style={{padding:"10px 40px 14px",borderTop:"1px solid var(--border)",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
                 <div style={{fontSize:10,color:"var(--text-dim)"}}>Auto-saved</div>
                 <div style={{display:"flex",gap:10}}>
@@ -4038,7 +4211,24 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
               {containerMsgs.map((m,i)=><div key={i} style={{background:m.role==="assistant"?"var(--bg-card)":"var(--bg-card-alt)",border:"1px solid "+(m.role==="assistant"?"var(--border)":"var(--border-mid)"),borderRadius:10,padding:"10px 12px",alignSelf:m.role==="user"?"flex-end":"flex-start",maxWidth:"95%"}}>
                 {m.role==="assistant"&&<div style={{fontSize:9,color:"var(--accent-80)",textTransform:"uppercase",letterSpacing:"0.1em",marginBottom:5}}>Finn</div>}
                 <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:15,color:"var(--text-primary)",lineHeight:1.7}}>{m.content.split("\n").map((l,j)=><p key={j} style={{marginBottom:l?8:3}}>{l}</p>)}</div>
-                {m.role==="assistant"&&<span onClick={()=>{const ns=[...sparks,{text:m.content.substring(0,200),date:new Date().toLocaleDateString(),mode:"The Forge"}];setSparks(ns);saveStored("tt-sparks",ns)}} style={{fontSize:9,color:"var(--text-dim)",border:"1px solid var(--border)",borderRadius:4,padding:"2px 6px",marginTop:6,display:"inline-block",cursor:"pointer"}}>This excites me</span>}
+                {m.role==="assistant"&&<div style={{display:"flex",gap:6,marginTop:6}}>
+                  <span onClick={()=>{const ns=[...sparks,{text:m.content.substring(0,200),date:new Date().toLocaleDateString(),mode:"The Forge"}];setSparks(ns);saveStored("tt-sparks",ns)}} style={{fontSize:9,color:"var(--text-dim)",border:"1px solid var(--border)",borderRadius:4,padding:"2px 6px",display:"inline-block",cursor:"pointer"}}>This excites me</span>
+                  {forgeMode!=="embers"&&<span onClick={()=>handleNoteThis(i,m.content)} style={{fontSize:9,color:"var(--text-dim)",border:"1px solid var(--border)",borderRadius:4,padding:"2px 6px",display:"inline-block",cursor:"pointer"}}>Note this</span>}
+                </div>}
+                {chatNoteThis&&chatNoteThis.msgIdx===i&&<div style={{marginTop:8,padding:"8px 10px",background:"var(--bg-card-alt)",border:"1px solid var(--accent-30)",borderRadius:6}}>
+                  {chatNoteThis.loading?<span style={{fontSize:11,color:"var(--text-dim)",fontStyle:"italic",fontFamily:"'DM Sans',sans-serif"}}>Finn is finding the note...</span>:<>
+                    <div style={{fontSize:9,color:"var(--accent-80)",fontFamily:"'DM Sans',sans-serif",marginBottom:5}}>Save to Chapter {chatNoteThis.chapterNum||"?"}</div>
+                    <textarea value={chatNoteThis.text} onChange={e=>setChatNoteThis(prev=>({...prev,text:e.target.value}))} rows={2} style={{width:"100%",background:"var(--bg-base)",border:"1px solid var(--border)",borderRadius:5,padding:"6px 8px",fontFamily:"'Cormorant Garamond',serif",fontSize:13,color:"var(--text-primary)",outline:"none",resize:"vertical",marginBottom:8}}/>
+                    <div style={{display:"flex",gap:6}}>
+                      <span onClick={()=>{
+                        const currentScene=scenes.find(s=>s.id===activeScene);
+                        if(currentScene)addMarginaliaNote(currentScene.id,"finn",chatNoteThis.text,"");
+                        setChatNoteThis(null);
+                      }} style={{fontSize:11,fontWeight:500,padding:"4px 10px",borderRadius:5,background:"var(--accent)",color:"var(--bg-deepest)",cursor:"pointer",fontFamily:"'DM Sans',sans-serif"}}>Save note</span>
+                      <span onClick={()=>setChatNoteThis(null)} style={{fontSize:11,padding:"4px 10px",borderRadius:5,border:"1px solid var(--border)",color:"var(--text-dim)",cursor:"pointer",fontFamily:"'DM Sans',sans-serif"}}>Cancel</span>
+                    </div>
+                  </>}
+                </div>}
               </div>)}
               {loading&&<div style={{background:"var(--bg-card)",border:"1px solid var(--border)",borderRadius:10,padding:"10px 12px"}}><div style={{fontSize:9,color:"var(--accent-80)",marginBottom:5}}>Finn</div><span style={{fontSize:13,color:"var(--text-dim)",fontStyle:"italic"}}>Thinking...</span></div>}
               <div ref={cEndRef}/>
@@ -4410,7 +4600,7 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
                 <div style={{fontSize:11,color:"var(--text-muted)",fontFamily:"'DM Sans',sans-serif"}}>Chapter {driftResult.chapterNum}: Story Bible Drift</div>
               </div>
             </div>
-            <p style={{fontFamily:"'Cormorant Garamond',serif",fontSize:15,color:"var(--text-primary)",lineHeight:1.75,margin:0}}>This chapter appears to be moving in a different direction than your Story Bible on {driftResult.drifts.length} point{driftResult.drifts.length>1?"s":""}. Review each one and tell me what's true now.</p>
+            <p style={{fontFamily:"'Cormorant Garamond',serif",fontSize:15,color:"var(--text-primary)",lineHeight:1.75,margin:0}}>Chapter {driftResult.chapterNum} shows something different than your Story Bible on {driftResult.drifts.length} point{driftResult.drifts.length>1?"s":""}. Take a look and tell me what's true now.</p>
             {lastSavedChapterNum!==null&&driftResult.chapterNum!==lastSavedChapterNum&&<p style={{fontSize:11,color:"var(--text-dim)",fontFamily:"'DM Sans',sans-serif",fontStyle:"italic",marginTop:8}}>This was flagged earlier and left for later. It's not related to what you just saved.</p>}
           </div>
           <div style={{display:"flex",flexDirection:"column",gap:14,marginBottom:20}}>
