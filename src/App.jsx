@@ -1142,7 +1142,11 @@ export default function App() {
 
   // Real DOM selection in the rendered notes view, mapped back to an exact character offset in the
   // underlying scene text via the data-start attribute carried by whichever run the selection sits in.
-  const handleNotesViewSelect=()=>{
+  const handleNotesViewSelect=(e)=>{
+    // A click on the toolbar's own buttons is a mouseup too, and bubbles up into this same handler.
+    // Without this guard, clicking "My note" would immediately clear the selection this exact click
+    // needs, since clicking a button collapses the text selection at the same moment.
+    if(e?.target?.closest?.("[data-note-toolbar]"))return;
     const sel=window.getSelection();
     const text=sel?sel.toString().trim():"";
     if(!text||text.length<=3||!notesViewContainerRef.current||!notesViewContainerRef.current.contains(sel.anchorNode)){
@@ -4245,7 +4249,7 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
               {writeViewMode==="notes"&&<div ref={notesViewContainerRef} onMouseUp={handleNotesViewSelect} style={{flex:1,overflow:"auto",padding:"24px 40px",position:"relative",background:"#EDE6DA"}}>
                 {!currentScene.text?<p style={{fontFamily:"'Cormorant Garamond',serif",fontSize:15,color:"#8A7A60",fontStyle:"italic"}}>Nothing written yet. Switch to Write to get started, then come back here to see and add notes in context.</p>
                 :<div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:18,color:"#1E1C14",lineHeight:2,letterSpacing:"0.01em",whiteSpace:"pre-wrap"}}>{renderChapterWithNotes(currentScene.text,currentScene.marginalia||[])}</div>}
-                {notesViewSelectPopup.visible&&!noteFormOpen&&!askFinnNoteLoading&&!askFinnNoteDraft&&<div style={{position:"fixed",left:notesViewSelectPopup.x,top:notesViewSelectPopup.y,background:"#F5EEE4",border:"1px solid #D8CEB0",borderRadius:8,padding:5,zIndex:250,display:"flex",boxShadow:"0 4px 16px rgba(0,0,0,0.2)"}}>
+                {notesViewSelectPopup.visible&&!noteFormOpen&&!askFinnNoteLoading&&!askFinnNoteDraft&&<div data-note-toolbar="true" style={{position:"fixed",left:notesViewSelectPopup.x,top:notesViewSelectPopup.y,background:"#F5EEE4",border:"1px solid #D8CEB0",borderRadius:8,padding:5,zIndex:250,display:"flex",boxShadow:"0 4px 16px rgba(0,0,0,0.2)"}}>
                   <span onClick={()=>{setNoteFormSnippet(notesViewSelectPopup.text);setNoteFormAnchor({start:notesViewSelectPopup.start,end:notesViewSelectPopup.end});setNoteFormType("writer");setNoteFormPos({x:notesViewSelectPopup.x,y:notesViewSelectPopup.y});setNoteFormText("");setNoteFormOpen(true);}} style={{fontSize:11,color:"#5A6B3A",padding:"5px 10px",cursor:"pointer",fontFamily:"'DM Sans',sans-serif"}}>&#9674; My note</span>
                   <span onClick={()=>{const anchor=notesViewSelectPopup;setNoteFormSnippet(anchor.text);setNoteFormAnchor({start:anchor.start,end:anchor.end});setNoteFormType("agnes");setNoteFormPos({x:anchor.x,y:anchor.y});setNoteFormText("");setNoteFormOpen(true);}} style={{fontSize:11,color:"#907860",padding:"5px 10px",cursor:"pointer",fontFamily:"'DM Sans',sans-serif",borderLeft:"1px solid #D8CEB0"}}>A Agnes</span>
                   <span onClick={()=>{const{text,start,end}=notesViewSelectPopup;setNotesViewSelectPopup({visible:false,x:0,y:0,text:"",start:0,end:0});setAskFinnQuestionText("");setAskFinnPrompt({snippet:text,start,end});}} style={{fontSize:11,color:"#A8884A",padding:"5px 10px",cursor:"pointer",fontFamily:"'DM Sans',sans-serif",borderLeft:"1px solid #D8CEB0"}}>F Ask Finn</span>
