@@ -784,6 +784,8 @@ export default function App() {
   const [noteFormPos, setNoteFormPos] = useState({x:0,y:0}); // screen position, since the form can open from either the Write popup or the notes view popup
   const [askFinnNoteLoading, setAskFinnNoteLoading] = useState(false);
   const [askFinnNoteDraft, setAskFinnNoteDraft] = useState(null); // {snippet,text,start,end} pending confirmation
+  const [askFinnPrompt, setAskFinnPrompt] = useState(null); // {snippet,start,end} — the passage waiting for the writer's actual question before Finn responds
+  const [askFinnQuestionText, setAskFinnQuestionText] = useState("");
   const [noteFilter, setNoteFilter] = useState("all"); // all | writer | agnes | finn
   const [chatNoteThis, setChatNoteThis] = useState(null); // {msgIdx, loading, snippet, text} for "Note this" in the coaching panel
   // Universal textarea selection detection. window.getSelection() is unreliable inside <textarea>
@@ -1172,14 +1174,14 @@ export default function App() {
     }
   };
 
-  const askFinnAboutPassage=async(sceneChapter,passageText,anchorStart,anchorEnd)=>{
+  const askFinnAboutPassage=async(sceneChapter,passageText,anchorStart,anchorEnd,question)=>{
     setAskFinnNoteLoading(true);
     setAskFinnNoteDraft(null);
     try{
       const r=await fetch("/api/chat",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({
         max_tokens:300,
-        system:`${FINN}\n\nThe writer has highlighted one specific passage from Chapter ${sceneChapter} and wants your take on it, to save as a note attached to that exact passage. Respond in one or two sentences, direct and specific to this passage, not generic. Never use em dashes.`,
-        messages:[{role:"user",content:`The highlighted passage: "${passageText}"\n\nWhat do you think of it?`}]
+        system:`${FINN}\n\nThe writer has highlighted one specific passage from Chapter ${sceneChapter} and asked you something specific about it, to save as a note attached to that exact passage. Answer their actual question directly, specific to this passage, not generic. Never use em dashes.`,
+        messages:[{role:"user",content:`The highlighted passage: "${passageText}"\n\n${question&&question.trim()?`The writer asked: "${question.trim()}"`:"The writer didn't ask anything specific, just wants your reaction to this passage."}`}]
       })});
       const d=await r.json();
       if(!d.error){
@@ -1712,10 +1714,15 @@ Respond with ONLY this JSON:
     });
   };
 
-  const generateDefaultSidebarCtx=async(proj,ideaLabContent,sceneContent)=>{
+  const generateDefaultSidebarCtx=async(proj,ideaLabContent,sceneContent,chapterTag)=>{
     if(!proj)return;
+    // If this scene belongs to a different timeline/POV (tagged), Emma's own Protagonist/Supporting/
+    // Antagonist fields don't apply to it at all — including them here is exactly what was blending
+    // Eva's 1899 chapters with Emma's world in the atmosphere sidebar. Use that timeline's own tracked
+    // context instead, if any exists yet.
+    const isOtherTimeline=chapterTag&&chapterTag.trim()&&chapterTag.trim().toLowerCase()!=="main";
     try{
-      const protagonistDetail=[
+      const protagonistDetail=isOtherTimeline?"":[
         proj.protagonist?`Name/description: ${proj.protagonist}`:"",
         proj.protagonistGoal?`Goal: ${proj.protagonistGoal}`:"",
         proj.protagonistDream?`Dream: ${proj.protagonistDream}`:"",
@@ -1724,15 +1731,16 @@ Respond with ONLY this JSON:
         proj.protagonistBackstory?`Backstory: ${proj.protagonistBackstory}`:"",
         proj.protagonistMisbelief?`Misbelief: ${proj.protagonistMisbelief}`:"",
       ].filter(Boolean).join("\n");
+      const otherTimelineContext=isOtherTimeline?(proj.timelineCaptures?.[chapterTag]||""):"";
 
       const r=await fetch("/api/chat",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({
-        system:`You are a writing session analyzer. CRITICAL RULE: A sensory anchor must be a detail that was ACTUALLY WRITTEN by the writer in their Story Bible fields, Idea Lab, or manuscript below, word for word or extremely close to it. Do not take a real noun (a place, a character name) and invent an elaborate sensory scene around it that the writer never actually wrote. Most Story Bible setups contain little or no actual sensory prose. In that case sensoryAnchors should be an EMPTY ARRAY. Only populate it if the writer's own text already contains real sensory description you can quote or closely paraphrase. An empty array is the normal, expected, correct result. Fabricating a sensory detail is a serious failure. The toneWord must come directly from the writer's own tone field or be inferred from their actual words, not invented. The hook must reference something the writer actually named or described, never invented. Respond ONLY with a JSON object. No markdown. No backticks. No explanation. Just the JSON.`,
+        system:`You are a writing session analyzer. CRITICAL RULE: A sensory anchor must be a detail that was ACTUALLY WRITTEN by the writer in their Story Bible fields, Idea Lab, or manuscript below, word for word or extremely close to it. Do not take a real noun (a place, a character name) and invent an elaborate sensory scene around it that the writer never actually wrote. Most Story Bible setups contain little or no actual sensory prose. In that case sensoryAnchors should be an EMPTY ARRAY. Only populate it if the writer's own text already contains real sensory description you can quote or closely paraphrase. An empty array is the normal, expected, correct result. Fabricating a sensory detail is a serious failure. The toneWord must come directly from the writer's own tone field or be inferred from their actual words, not invented. The hook must reference something the writer actually named or described, never invented.${isOtherTimeline?` This scene belongs to a separate timeline/POV tagged "${chapterTag}", not the main story. Ground everything ONLY in the current manuscript scene text and any other-timeline context given below. Do not use anything from the main protagonist's own established world, since it belongs to a different character and era entirely.`:""} Respond ONLY with a JSON object. No markdown. No backticks. No explanation. Just the JSON.`,
         messages:[{role:"user",content:`Generate atmosphere sidebar content using ONLY what is explicitly written below.
 
 PROJECT: "${proj.title||"Untitled"}" - ${proj.genre||""}
 SYNOPSIS: ${proj.synopsis||"not yet written"}
 THEMES: ${proj.themes||"not specified"}
-SETTING: ${proj.worldSetting||"not specified"}
+${isOtherTimeline?`\nTHIS SCENE'S TIMELINE: ${chapterTag}\nOTHER-TIMELINE CONTEXT TRACKED SO FAR: ${otherTimelineContext||"none yet"}\n`:`SETTING: ${proj.worldSetting||"not specified"}
 WORLD RULES: ${proj.worldRules||"not specified"}
 WORLD TONE: ${proj.worldTone||"not specified"}
 WHAT MAKES IT DANGEROUS: ${proj.worldDanger||"not specified"}
@@ -1742,8 +1750,8 @@ SUPPORTING CHARACTERS: ${proj.supporting||"not specified"}
 ANTAGONIST: ${proj.antagonist||"not specified"}
 WHERE THEY ARE IN THE STORY: ${proj.where||"not specified"}
 WHAT THEY'RE FOCUSED ON: ${proj.stuck||"not specified"}
-WHAT EXCITES THEM: ${proj.excites||"not specified"}
-${ideaLabContent?`IDEA LAB CONTENT:\n${ideaLabContent.substring(0,600)}`:""}
+WHAT EXCITES THEM: ${proj.excites||"not specified"}`}
+${ideaLabContent&&!isOtherTimeline?`IDEA LAB CONTENT:\n${ideaLabContent.substring(0,600)}`:""}
 ${sceneContent?`CURRENT MANUSCRIPT SCENE:\n${sceneContent.substring(0,600)}`:""}
 
 Respond with ONLY this JSON (no markdown, no backticks):
@@ -1780,7 +1788,8 @@ If the fields above don't contain actual sensory description, return sensoryAnch
         const msLength=mostRecent?.text?.length||0;
         // Send end of most recent chapter for sensory grounding (where writer left off)
         const sceneContent=msLength>800?mostRecent.text.substring(msLength-800):mostRecent?.text||"";
-        generateDefaultSidebarCtx(project, ideaLabText, sceneContent);
+        const chapterTag=mostRecent?(project?.chapters||[]).find(c=>c.num===mostRecent.chapter)?.tag:null;
+        generateDefaultSidebarCtx(project, ideaLabText, sceneContent, chapterTag);
       }
     }
   },[screen,project]);
@@ -1850,7 +1859,8 @@ Respond ONLY with a JSON object. No markdown. No backticks.
       const mostRecent=[...scenes].sort((a,b)=>(b.lastEdited||0)-(a.lastEdited||0))[0];
       const msLength=mostRecent?.text?.length||0;
       const sceneContent=msLength>800?mostRecent.text.substring(msLength-800):mostRecent?.text||"";
-      generateDefaultSidebarCtx(project, ideaLabText, sceneContent);
+      const chapterTag=mostRecent?(project?.chapters||[]).find(c=>c.num===mostRecent.chapter)?.tag:null;
+      generateDefaultSidebarCtx(project, ideaLabText, sceneContent, chapterTag);
     }
   },[project?.protagonist,project?.worldSetting,project?.protagonistFear,project?.protagonistMisbelief]);
 
@@ -2006,8 +2016,9 @@ Respond ONLY with a JSON object. No markdown. No backticks. No explanation.
     }
   },[screen,project?.updated,agnesInvolvement]);
 
-  const generateSidebarContext=async(sessionMsgs,sessionMode,sceneText,sessionModeId)=>{
+  const generateSidebarContext=async(sessionMsgs,sessionMode,sceneText,sessionModeId,chapterTag)=>{
     if(!project||sessionMsgs.length<2)return;
+    const isOtherTimeline=chapterTag&&chapterTag.trim()&&chapterTag.trim().toLowerCase()!=="main";
     const recentMsgs=sessionMsgs.slice(-6).map(m=>`${m.role}: ${m.content.substring(0,200)}`).join("\n");
     const sceneSnippet=sceneText?sceneText.substring(0,500):"";
     try{
@@ -2016,7 +2027,7 @@ Respond ONLY with a JSON object. No markdown. No backticks. No explanation.
         messages:[{role:"user",content:`A writer just finished a session. Generate sidebar context using ONLY what is explicitly present below. Do not add specifics that aren't here.
 
 PROJECT: "${project.title||"Untitled"}" - ${project.genre||""}
-PROTAGONIST: ${project.protagonist||""}${project.protagonistGoal?`\nGoal: ${project.protagonistGoal}`:""}${project.protagonistFear?`\nFear: ${project.protagonistFear}`:""}${project.protagonistMisbelief?`\nMisbelief: ${project.protagonistMisbelief}`:""}
+${isOtherTimeline?`THIS SCENE'S TIMELINE: ${chapterTag}\nOTHER-TIMELINE CONTEXT TRACKED SO FAR: ${project.timelineCaptures?.[chapterTag]||"none yet"}`:`PROTAGONIST: ${project.protagonist||""}${project.protagonistGoal?`\nGoal: ${project.protagonistGoal}`:""}${project.protagonistFear?`\nFear: ${project.protagonistFear}`:""}${project.protagonistMisbelief?`\nMisbelief: ${project.protagonistMisbelief}`:""}`}
 MODE USED: ${sessionMode||"The Forge"}
 RECENT CONVERSATION:\n${recentMsgs}
 ${sceneSnippet?`SCENE TEXT SNIPPET:\n${sceneSnippet}`:""}
@@ -2044,10 +2055,11 @@ If there are no concrete sensory details actually present in the conversation (f
   const goHome=()=>{
     const prevMode=mode;const prevMsgs=[...msgs];const prevContainerMsgs=[...containerMsgs];
     const activeScn=scenes.find(s=>s.id===activeScene);
+    const activeScnTag=activeScn?(project?.chapters||[]).find(c=>c.num===activeScn.chapter)?.tag:null;
     cancelReq();setMode(null);setScreen("home");setSubMenu(null);setMsgs([]);setInput("");setFinnOpen(false);setContainerMsgs([]);setContainerInput("");setTriageActive(false);setTriageInput("");setTriageResult(null);
     if(scenes.length>0)saveStored("tt-scenes",scenes);
-    if(prevMsgs.length>=2&&prevMode){generateSidebarContext(prevMsgs,prevMode.label,activeScn?.text||"",prevMode.id)}
-    else if(prevContainerMsgs.length>=2){generateSidebarContext(prevContainerMsgs,"The Forge",activeScn?.text||"","forge")}
+    if(prevMsgs.length>=2&&prevMode){generateSidebarContext(prevMsgs,prevMode.label,activeScn?.text||"",prevMode.id,activeScnTag)}
+    else if(prevContainerMsgs.length>=2){generateSidebarContext(prevContainerMsgs,"The Forge",activeScn?.text||"","forge",activeScnTag)}
   };
   const clearStuck=()=>{
     const updated={...project,stuck:""};
@@ -4236,7 +4248,7 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
                 {notesViewSelectPopup.visible&&!noteFormOpen&&!askFinnNoteLoading&&!askFinnNoteDraft&&<div style={{position:"fixed",left:notesViewSelectPopup.x,top:notesViewSelectPopup.y,background:"#F5EEE4",border:"1px solid #D8CEB0",borderRadius:8,padding:5,zIndex:250,display:"flex",boxShadow:"0 4px 16px rgba(0,0,0,0.2)"}}>
                   <span onClick={()=>{setNoteFormSnippet(notesViewSelectPopup.text);setNoteFormAnchor({start:notesViewSelectPopup.start,end:notesViewSelectPopup.end});setNoteFormType("writer");setNoteFormPos({x:notesViewSelectPopup.x,y:notesViewSelectPopup.y});setNoteFormText("");setNoteFormOpen(true);}} style={{fontSize:11,color:"#5A6B3A",padding:"5px 10px",cursor:"pointer",fontFamily:"'DM Sans',sans-serif"}}>&#9674; My note</span>
                   <span onClick={()=>{const anchor=notesViewSelectPopup;setNoteFormSnippet(anchor.text);setNoteFormAnchor({start:anchor.start,end:anchor.end});setNoteFormType("agnes");setNoteFormPos({x:anchor.x,y:anchor.y});setNoteFormText("");setNoteFormOpen(true);}} style={{fontSize:11,color:"#907860",padding:"5px 10px",cursor:"pointer",fontFamily:"'DM Sans',sans-serif",borderLeft:"1px solid #D8CEB0"}}>A Agnes</span>
-                  <span onClick={()=>{const{text,start,end}=notesViewSelectPopup;setNotesViewSelectPopup({visible:false,x:0,y:0,text:"",start:0,end:0});askFinnAboutPassage(currentScene.chapter,text,start,end);}} style={{fontSize:11,color:"#A8884A",padding:"5px 10px",cursor:"pointer",fontFamily:"'DM Sans',sans-serif",borderLeft:"1px solid #D8CEB0"}}>F Ask Finn</span>
+                  <span onClick={()=>{const{text,start,end}=notesViewSelectPopup;setNotesViewSelectPopup({visible:false,x:0,y:0,text:"",start:0,end:0});setAskFinnQuestionText("");setAskFinnPrompt({snippet:text,start,end});}} style={{fontSize:11,color:"#A8884A",padding:"5px 10px",cursor:"pointer",fontFamily:"'DM Sans',sans-serif",borderLeft:"1px solid #D8CEB0"}}>F Ask Finn</span>
                 </div>}
               </div>}
 
@@ -4251,7 +4263,7 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
                   <span style={{fontSize:12,fontWeight:600,color:"#907860"}}>A</span>
                   <span style={{fontSize:12,color:"var(--text-primary)"}}>Note for Agnes</span>
                 </div>
-                <div onClick={()=>{const snippet=writeSelectPopup.text;const{start,end}=writeSelectPopup;setWriteSelectPopup({visible:false,x:0,y:0,text:""});askFinnAboutPassage(currentScene.chapter,snippet,start,end);}} style={{display:"flex",alignItems:"center",gap:8,padding:"6px 10px",borderRadius:5,cursor:"pointer",fontFamily:"'DM Sans',sans-serif"}}>
+                <div onClick={()=>{const snippet=writeSelectPopup.text;const{start,end}=writeSelectPopup;setWriteSelectPopup({visible:false,x:0,y:0,text:""});setAskFinnQuestionText("");setAskFinnPrompt({snippet,start,end});}} style={{display:"flex",alignItems:"center",gap:8,padding:"6px 10px",borderRadius:5,cursor:"pointer",fontFamily:"'DM Sans',sans-serif"}}>
                   <span style={{fontSize:12,fontWeight:600,color:"var(--accent)"}}>F</span>
                   <span style={{fontSize:12,color:"var(--text-primary)"}}>Ask Finn</span>
                 </div>
@@ -4265,6 +4277,17 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
                 <div style={{display:"flex",gap:6}}>
                   <span onClick={()=>{addMarginaliaNote(currentScene.id,noteFormType,noteFormText,noteFormSnippet,noteFormAnchor.start,noteFormAnchor.end);setNoteFormOpen(false);setNoteFormText("");setWriteSelectPopup({visible:false,x:0,y:0,text:""});setNotesViewSelectPopup({visible:false,x:0,y:0,text:"",start:0,end:0});}} style={{fontSize:11,fontWeight:500,padding:"5px 12px",borderRadius:5,background:noteFormText.trim()?(noteFormType==="agnes"?"#907860":"#5A6B3A"):"var(--bg-card)",color:noteFormText.trim()?"#F0EAE0":"var(--text-dim)",cursor:noteFormText.trim()?"pointer":"default",fontFamily:"'DM Sans',sans-serif"}}>Save</span>
                   <span onClick={()=>{setNoteFormOpen(false);setNoteFormText("");}} style={{fontSize:11,padding:"5px 12px",borderRadius:5,border:"1px solid var(--border)",color:"var(--text-dim)",cursor:"pointer",fontFamily:"'DM Sans',sans-serif"}}>Cancel</span>
+                </div>
+              </div>}
+
+              {/* Ask what, specifically — the writer's actual question, before Finn responds */}
+              {askFinnPrompt&&<div style={{position:"fixed",top:"50%",left:"50%",transform:"translate(-50%,-50%)",background:"var(--bg-dark)",border:"1px solid var(--border)",borderRadius:10,padding:16,zIndex:260,width:340,boxShadow:"0 8px 30px rgba(0,0,0,0.4)"}}>
+                <div style={{fontSize:10,color:"var(--text-dim)",fontStyle:"italic",fontFamily:"'DM Sans',sans-serif",marginBottom:10}}>"{askFinnPrompt.snippet.substring(0,80)}{askFinnPrompt.snippet.length>80?"...":""}"</div>
+                <div style={{fontSize:9,color:"var(--accent-80)",fontFamily:"'DM Sans',sans-serif",marginBottom:6}}>What do you want to ask Finn about this?</div>
+                <textarea autoFocus value={askFinnQuestionText} onChange={e=>setAskFinnQuestionText(e.target.value)} placeholder="e.g. does this line land, or does it feel like too much? Leave blank for his general reaction." rows={3} style={{width:"100%",background:"var(--bg-base)",border:"1px solid var(--border)",borderRadius:6,padding:"6px 8px",fontFamily:"'Cormorant Garamond',serif",fontSize:13,color:"var(--text-primary)",outline:"none",resize:"vertical",marginBottom:10}}/>
+                <div style={{display:"flex",gap:6}}>
+                  <span onClick={()=>{const{snippet,start,end}=askFinnPrompt;const q=askFinnQuestionText;setAskFinnPrompt(null);askFinnAboutPassage(currentScene.chapter,snippet,start,end,q);}} style={{fontSize:11,fontWeight:500,padding:"5px 12px",borderRadius:5,background:"var(--accent)",color:"var(--bg-deepest)",cursor:"pointer",fontFamily:"'DM Sans',sans-serif"}}>{askFinnQuestionText.trim()?"Ask Finn":"Get his reaction"}</span>
+                  <span onClick={()=>setAskFinnPrompt(null)} style={{fontSize:11,padding:"5px 12px",borderRadius:5,border:"1px solid var(--border)",color:"var(--text-dim)",cursor:"pointer",fontFamily:"'DM Sans',sans-serif"}}>Cancel</span>
                 </div>
               </div>}
 
