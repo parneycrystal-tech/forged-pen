@@ -1548,7 +1548,9 @@ CHAPTER DRAFT STATUS: ${draftNote}
 CHAPTER ${chapterNum||"??"} TEXT:
 ${sceneText.substring(0,20000)}
 
-Extract what this chapter actually establishes. Only include fields where you found something meaningful that isn't already well-captured in the existing Bible. Leave fields as empty string if nothing new or significant was found. Paraphrase what you find in your own words rather than quoting dialogue directly, since direct quotes containing quotation marks can break the JSON format.${driftInstructions}
+Extract what this chapter actually establishes. Only include fields where you found something meaningful that isn't already well-captured in the existing Bible. Leave fields as empty string if nothing new or significant was found. Paraphrase what you find in your own words rather than quoting dialogue directly, since direct quotes containing quotation marks can break the JSON format.
+
+Also identify the beats in this chapter. A beat is one unit of change: something enters a state, something happens, it exits in a different state. If a passage could be cut and nothing about where the character stands, emotionally or tactically, would be different, it is not a beat, it is setup or texture. Only list genuine shifts, not every scene or moment. A short chapter might have two or three. A dense one might have five or six. Do not pad the list to hit a number.${driftInstructions}
 
 Respond with ONLY this JSON:
 {
@@ -1569,6 +1571,7 @@ Respond with ONLY this JSON:
   "worldDangerUpdate": "did this chapter reveal what creates real stakes or danger in this world? Empty string if nothing new.",
   "worldToneUpdate": "did this chapter establish or shift the emotional tone or atmosphere of the world? Empty string if nothing new.",
   "themeReveal": "themes or ideas that surfaced clearly in this chapter. Empty string if nothing clear.",
+  "beats": [{"beat": "a short label for the shift, a few words", "shift": "one sentence naming what specifically changed because of it, not what happened in general"}],
   "craftNote": "one observation about what is working well in this chapter, specific and precise, that Finn would point out as a coach. Not generic praise.",
   "openQuestion": "the most important unresolved question this chapter raises for the story going forward."${isOtherTimeline?"":',\n  "drifts": []'}
 }`}]
@@ -1581,6 +1584,7 @@ Respond with ONLY this JSON:
           const result=JSON.parse(cleaned);
           result.chapterNum=chapterNum;
           if(!Array.isArray(result.drifts))result.drifts=[];
+          if(!Array.isArray(result.beats))result.beats=[];
           setExtractResult(result);
           // Persist so it survives navigation
           saveStored("tt-pending-extract",result);
@@ -1612,8 +1616,9 @@ Respond with ONLY this JSON:
     if(result.chapterSummary){
       const existingChapters=Array.isArray(project.chapters)?[...project.chapters]:[{num:1,summary:""}];
       const idx=existingChapters.findIndex(c=>c.num===result.chapterNum);
-      if(idx>=0){existingChapters[idx]={...existingChapters[idx],summary:result.chapterSummary};}
-      else{existingChapters.push({num:result.chapterNum||existingChapters.length+1,summary:result.chapterSummary});}
+      const beats=Array.isArray(result.beats)?result.beats:[];
+      if(idx>=0){existingChapters[idx]={...existingChapters[idx],summary:result.chapterSummary,beats};}
+      else{existingChapters.push({num:result.chapterNum||existingChapters.length+1,summary:result.chapterSummary,beats});}
       existingChapters.sort((a,b)=>a.num-b.num);
       updated.chapters=existingChapters;
     }
@@ -3562,6 +3567,20 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
               {c.tag&&c.tag.trim()&&c.tag.toLowerCase()!=="main"&&<span style={{fontSize:9,fontWeight:500,color:"#7A6EA0",background:"#7A6EA020",padding:"2px 8px",borderRadius:8,fontFamily:"'DM Sans',sans-serif"}}>{c.tag}</span>}
             </div>
             <div style={{background:"var(--bg-card)",border:"1px solid var(--border)",borderRadius:8,padding:"10px 14px",fontFamily:"'Cormorant Garamond',serif",fontSize:14,color:"var(--text-primary)",lineHeight:1.7}}>{c.summary}</div>
+            {Array.isArray(c.beats)&&c.beats.length>0&&<div style={{background:"var(--bg-card-alt)",border:"1px solid var(--border)",borderTop:"none",borderRadius:"0 0 8px 8px",padding:"10px 14px",marginTop:-1}}>
+              <div style={{fontSize:9,textTransform:"uppercase",letterSpacing:"0.12em",color:"var(--accent-70)",fontFamily:"'DM Sans',sans-serif",marginBottom:7}}>Beats</div>
+              <div style={{display:"flex",flexDirection:"column",gap:6}}>
+                {c.beats.map((b,bi)=>(
+                  <div key={bi} style={{display:"flex",gap:8}}>
+                    <span style={{fontSize:10,color:"var(--accent)",fontWeight:600,flexShrink:0,width:12}}>{bi+1}</span>
+                    <div>
+                      <span style={{fontFamily:"'Cormorant Garamond',serif",fontSize:12,color:"var(--text-primary)"}}>{b.beat}</span>
+                      <span style={{fontSize:11,color:"var(--text-dim)"}}> &middot; {b.shift}</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>}
           </div>):<p style={{fontFamily:"'Cormorant Garamond',serif",fontSize:14,color:"var(--text-dim)",fontStyle:"italic"}}>No chapters added yet. Tap Edit to add them.</p>}
           {project.timelineCaptures&&Object.keys(project.timelineCaptures).length>0&&<div style={{marginTop:20,paddingTop:16,borderTop:"1px solid var(--border)"}}>
             <div style={{fontSize:10,textTransform:"uppercase",letterSpacing:"0.14em",color:"var(--text-dim)",fontFamily:"'DM Sans',sans-serif",marginBottom:10}}>Other timelines Agnes is tracking separately</div>
@@ -4657,6 +4676,21 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
             {extractResult.chapterSummary&&<div style={{marginBottom:14,padding:14,background:"var(--bg-card)",borderRadius:8,border:"1px solid var(--border)"}}>
               <div style={{fontSize:9,textTransform:"uppercase",letterSpacing:"0.14em",color:"var(--accent-80)",fontFamily:"'DM Sans',sans-serif",marginBottom:6}}>Chapter {extractResult.chapterNum||"?"} Summary</div>
               <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:14,color:"var(--text-primary)",lineHeight:1.75}}>{extractResult.chapterSummary}</div>
+            </div>}
+
+            {Array.isArray(extractResult.beats)&&extractResult.beats.length>0&&<div style={{marginBottom:14,padding:14,background:"var(--bg-card)",borderRadius:8,border:"1px solid var(--border)"}}>
+              <div style={{fontSize:9,textTransform:"uppercase",letterSpacing:"0.14em",color:"var(--accent-80)",fontFamily:"'DM Sans',sans-serif",marginBottom:10}}>Beats Agnes found</div>
+              <div style={{display:"flex",flexDirection:"column",gap:9}}>
+                {extractResult.beats.map((b,bi)=>(
+                  <div key={bi} style={{display:"flex",gap:10}}>
+                    <span style={{fontSize:11,color:"var(--accent)",fontWeight:600,flexShrink:0,width:14}}>{bi+1}</span>
+                    <div>
+                      <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:13,color:"var(--text-primary)"}}>{b.beat}</div>
+                      <div style={{fontSize:11,color:"var(--text-dim)"}}>{b.shift}</div>
+                    </div>
+                  </div>
+                ))}
+              </div>
             </div>}
 
             {[
