@@ -3323,7 +3323,7 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
         <div style={{fontSize:8,textTransform:"uppercase",letterSpacing:"0.25em",color:"#5A7A8A",fontWeight:500,marginBottom:8}}>Story Bible</div>
         <p style={{fontSize:13,color:"var(--text-muted)",marginBottom:10,lineHeight:1.6}}>Fill in what you can. Skip what you can't. Come back later. None of this has to be perfect.</p>
         <div onClick={openFirstSession} style={{display:"inline-block",fontSize:12,color:"var(--accent)",cursor:"pointer",marginBottom:16,fontFamily:"'DM Sans',sans-serif",borderBottom:"1px solid var(--accent-40)"}}>Or let Finn help you build this &#8594;</div>
-        <div style={{display:"flex",gap:6,marginBottom:16,flexWrap:"wrap"}}><BibTab id="overview" label="Overview" active={bibTab==="overview"} onClick={setBibTab}/><BibTab id="characters" label="Characters" active={bibTab==="characters"} onClick={setBibTab}/><BibTab id="world" label="World" active={bibTab==="world"} onClick={setBibTab}/><BibTab id="chapters" label="Chapters" active={bibTab==="chapters"} onClick={setBibTab}/><BibTab id="current" label="Current Chapter" active={bibTab==="current"} onClick={setBibTab}/></div>
+        <div style={{display:"flex",gap:6,marginBottom:16,flexWrap:"wrap"}}><BibTab id="overview" label="Overview" active={bibTab==="overview"} onClick={setBibTab}/><BibTab id="characters" label="Characters" active={bibTab==="characters"} onClick={setBibTab}/><BibTab id="world" label="World" active={bibTab==="world"} onClick={setBibTab}/><BibTab id="plot" label="Plot & Structure" active={bibTab==="plot"} onClick={setBibTab}/><BibTab id="chapters" label="Chapters" active={bibTab==="chapters"} onClick={setBibTab}/><BibTab id="current" label="Current Chapter" active={bibTab==="current"} onClick={setBibTab}/></div>
 
         {bibTab==="overview"&&<>
           {/* SESSION FOCUS — top of overview, most time-sensitive fields */}
@@ -3412,6 +3412,34 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
           <FormField label="Other notes on the antagonist" k="antagonist" ph="Anything not captured in a character card above..." value={pForm.antagonist} onChange={updateField} multi/>
         </>}
         {bibTab==="world"&&<><WorldField label="Core Setting" helper="When and where does this story take place?" example="A small coastal town in present-day Maine..." k="worldSetting" value={pForm.worldSetting} onChange={updateField}/><WorldField label="World Rules" helper="What can and cannot happen here?" example="Time can be observed but never changed..." k="worldRules" value={pForm.worldRules} onChange={updateField}/><WorldField label="Mythology & Paranormal Rules" helper="The internal logic of anything that operates outside ordinary reality. Ritual mechanics, supernatural rules, entity limitations, protective systems. Agnes cross-references this during drift detection." example="The ritual requires three components and cannot be reversed once fractured..." k="worldMythology" value={pForm.worldMythology} onChange={updateField}/><WorldField label="Beliefs vs. Reality" helper="What do characters assume that isn't true?" example="Everyone believes the disappearances were accidents..." k="worldBeliefs" value={pForm.worldBeliefs} onChange={updateField}/><WorldField label="What Makes This World Dangerous" helper="What creates real stakes?" example="The closer you get to the truth, the more you risk losing..." k="worldDanger" value={pForm.worldDanger} onChange={updateField}/><WorldField label="Tone" helper="What does this world feel like?" example="Warm but uneasy..." k="worldTone" value={pForm.worldTone} onChange={updateField}/></>}
+        {bibTab==="plot"&&<div>
+          <p style={{fontSize:12,color:"var(--text-muted)",marginBottom:14,lineHeight:1.5}}>Agnes finds these automatically when you Capture to Bible. Nothing to type here yet, this is where Threads and the Story Spine will live too.</p>
+          {(()=>{
+            const chaptersWithBeats=(project?.chapters||[]).filter(c=>Array.isArray(c.beats)&&c.beats.length>0);
+            if(chaptersWithBeats.length===0)return <p style={{fontFamily:"'Cormorant Garamond',serif",fontSize:14,color:"var(--text-dim)",fontStyle:"italic"}}>Nothing here yet. Beats show up here once Agnes reads a chapter.</p>;
+            return chaptersWithBeats.map(c=>(
+              <div key={c.num} style={{marginBottom:16}}>
+                <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:8}}>
+                  <span style={{fontSize:12,color:"var(--accent)",fontWeight:600,fontFamily:"'DM Sans',sans-serif"}}>Chapter {c.num}</span>
+                  {c.tag&&c.tag.trim()&&c.tag.toLowerCase()!=="main"&&<span style={{fontSize:9,fontWeight:500,color:"#7A6EA0",background:"#7A6EA020",padding:"2px 8px",borderRadius:8,fontFamily:"'DM Sans',sans-serif"}}>{c.tag}</span>}
+                </div>
+                <div style={{background:"var(--bg-card)",border:"1px solid var(--border)",borderRadius:8,padding:"12px 14px"}}>
+                  <div style={{display:"flex",flexDirection:"column",gap:8}}>
+                    {c.beats.map((b,bi)=>(
+                      <div key={bi} style={{display:"flex",gap:10}}>
+                        <span style={{fontSize:11,color:"var(--accent)",fontWeight:600,flexShrink:0,width:14}}>{bi+1}</span>
+                        <div>
+                          <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:13,color:"var(--text-primary)"}}>{b.beat}</div>
+                          <div style={{fontSize:11,color:"var(--text-dim)"}}>{b.shift}</div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            ));
+          })()}
+        </div>}
         {bibTab==="chapters"&&<><p style={{fontSize:12,color:"var(--text-muted)",marginBottom:14,lineHeight:1.5}}>One field per chapter. Keep summaries short. Most books only need one timeline. If yours shifts between different points of view or time periods, tag those chapters here so Agnes keeps them separate.</p>{pForm.chapters.map((ch,idx)=><div key={idx} style={{marginBottom:14}}>
           <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:5}}>
             <label style={{fontSize:13,color:"var(--accent)",fontWeight:600}}>Chapter {ch.num}</label>
@@ -3453,6 +3481,7 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
           <BibTab id="overview" label="Overview" active={bibViewTab==="overview"} onClick={setBibViewTab}/>
           <BibTab id="characters" label="Characters" active={bibViewTab==="characters"} onClick={setBibViewTab}/>
           <BibTab id="world" label="World" active={bibViewTab==="world"} onClick={setBibViewTab}/>
+          <BibTab id="plot" label="Plot & Structure" active={bibViewTab==="plot"} onClick={setBibViewTab}/>
           <BibTab id="chapters" label="Chapters" active={bibViewTab==="chapters"} onClick={setBibViewTab}/>
         </div>}
         {bibleSearch&&<div>
@@ -3560,6 +3589,33 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
           <ReadField label="Tone" value={project.worldTone}/>
           {!project.worldSetting&&!project.worldRules&&!project.worldTone&&<p style={{fontFamily:"'Cormorant Garamond',serif",fontSize:14,color:"var(--text-dim)",fontStyle:"italic"}}>No world details added yet. Tap Edit to add them.</p>}
         </div>}
+        {!bibleSearch&&bibViewTab==="plot"&&<div>
+          {(()=>{
+            const chaptersWithBeats=(project.chapters||[]).filter(c=>Array.isArray(c.beats)&&c.beats.length>0);
+            if(chaptersWithBeats.length===0)return <p style={{fontFamily:"'Cormorant Garamond',serif",fontSize:14,color:"var(--text-dim)",fontStyle:"italic"}}>Nothing here yet. Beats show up here once Agnes reads a chapter during Capture to Bible.</p>;
+            return chaptersWithBeats.map(c=>(
+              <div key={c.num} style={{marginBottom:16}}>
+                <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:8}}>
+                  <span style={{fontSize:12,color:"var(--accent)",fontWeight:600,fontFamily:"'DM Sans',sans-serif"}}>Chapter {c.num}</span>
+                  {c.tag&&c.tag.trim()&&c.tag.toLowerCase()!=="main"&&<span style={{fontSize:9,fontWeight:500,color:"#7A6EA0",background:"#7A6EA020",padding:"2px 8px",borderRadius:8,fontFamily:"'DM Sans',sans-serif"}}>{c.tag}</span>}
+                </div>
+                <div style={{background:"var(--bg-card)",border:"1px solid var(--border)",borderRadius:8,padding:"12px 14px"}}>
+                  <div style={{display:"flex",flexDirection:"column",gap:8}}>
+                    {c.beats.map((b,bi)=>(
+                      <div key={bi} style={{display:"flex",gap:10}}>
+                        <span style={{fontSize:11,color:"var(--accent)",fontWeight:600,flexShrink:0,width:14}}>{bi+1}</span>
+                        <div>
+                          <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:13,color:"var(--text-primary)"}}>{b.beat}</div>
+                          <div style={{fontSize:11,color:"var(--text-dim)"}}>{b.shift}</div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            ));
+          })()}
+        </div>}
         {!bibleSearch&&bibViewTab==="chapters"&&<div>
           {project.chapters&&Array.isArray(project.chapters)&&project.chapters.some(c=>c.summary)?project.chapters.filter(c=>c.summary).map((c,i)=><div key={i} style={{marginBottom:12}}>
             <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:4}}>
@@ -3567,20 +3623,6 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
               {c.tag&&c.tag.trim()&&c.tag.toLowerCase()!=="main"&&<span style={{fontSize:9,fontWeight:500,color:"#7A6EA0",background:"#7A6EA020",padding:"2px 8px",borderRadius:8,fontFamily:"'DM Sans',sans-serif"}}>{c.tag}</span>}
             </div>
             <div style={{background:"var(--bg-card)",border:"1px solid var(--border)",borderRadius:8,padding:"10px 14px",fontFamily:"'Cormorant Garamond',serif",fontSize:14,color:"var(--text-primary)",lineHeight:1.7}}>{c.summary}</div>
-            {Array.isArray(c.beats)&&c.beats.length>0&&<div style={{background:"var(--bg-card-alt)",border:"1px solid var(--border)",borderTop:"none",borderRadius:"0 0 8px 8px",padding:"10px 14px",marginTop:-1}}>
-              <div style={{fontSize:9,textTransform:"uppercase",letterSpacing:"0.12em",color:"var(--accent-70)",fontFamily:"'DM Sans',sans-serif",marginBottom:7}}>Beats</div>
-              <div style={{display:"flex",flexDirection:"column",gap:6}}>
-                {c.beats.map((b,bi)=>(
-                  <div key={bi} style={{display:"flex",gap:8}}>
-                    <span style={{fontSize:10,color:"var(--accent)",fontWeight:600,flexShrink:0,width:12}}>{bi+1}</span>
-                    <div>
-                      <span style={{fontFamily:"'Cormorant Garamond',serif",fontSize:12,color:"var(--text-primary)"}}>{b.beat}</span>
-                      <span style={{fontSize:11,color:"var(--text-dim)"}}> &middot; {b.shift}</span>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>}
           </div>):<p style={{fontFamily:"'Cormorant Garamond',serif",fontSize:14,color:"var(--text-dim)",fontStyle:"italic"}}>No chapters added yet. Tap Edit to add them.</p>}
           {project.timelineCaptures&&Object.keys(project.timelineCaptures).length>0&&<div style={{marginTop:20,paddingTop:16,borderTop:"1px solid var(--border)"}}>
             <div style={{fontSize:10,textTransform:"uppercase",letterSpacing:"0.14em",color:"var(--text-dim)",fontFamily:"'DM Sans',sans-serif",marginBottom:10}}>Other timelines Agnes is tracking separately</div>
