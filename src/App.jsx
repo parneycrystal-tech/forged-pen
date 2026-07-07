@@ -780,6 +780,8 @@ export default function App() {
   const [noteFormText, setNoteFormText] = useState("");
   const [noteFormSnippet, setNoteFormSnippet] = useState("");
   const [noteFormAnchor, setNoteFormAnchor] = useState({start:null,end:null});
+  const [noteFormType, setNoteFormType] = useState("writer"); // "writer" | "agnes" — which type the shared note form is currently creating
+  const [noteFormPos, setNoteFormPos] = useState({x:0,y:0}); // screen position, since the form can open from either the Write popup or the notes view popup
   const [askFinnNoteLoading, setAskFinnNoteLoading] = useState(false);
   const [askFinnNoteDraft, setAskFinnNoteDraft] = useState(null); // {snippet,text,start,end} pending confirmation
   const [noteFilter, setNoteFilter] = useState("all"); // all | writer | agnes | finn
@@ -1052,6 +1054,12 @@ export default function App() {
     saveScenes(updated);
   };
   const [noteJumpFailed,setNoteJumpFailed]=useState(null); // note id, briefly flashes "can't find this passage"
+  const [writeViewMode,setWriteViewMode]=useState("edit"); // "edit" | "notes" — Write stays a plain textarea always; "notes" is a read-only rendered companion view
+  const [notesViewOpenPanel,setNotesViewOpenPanel]=useState(null); // id of the currently expanded note panel
+  const [notesViewEditId,setNotesViewEditId]=useState(null); // id of note currently being edited inline
+  const [notesViewEditText,setNotesViewEditText]=useState("");
+  const [notesViewSelectPopup,setNotesViewSelectPopup]=useState({visible:false,x:0,y:0,text:"",start:0,end:0});
+  const notesViewContainerRef=useRef(null);
   // This is the actual point of a note: get back to the exact passage it's about. The stored anchor
   // offsets are the fast, precise path (still correct if nothing changed nearby). If the writer has
   // edited elsewhere and the offsets no longer match the snippet, fall back to searching for the
@@ -1079,6 +1087,73 @@ export default function App() {
     const linesBefore=text.substring(0,start).split("\n").length-1;
     const approxLineHeight=36; // fontSize 18, line-height 2
     el.scrollTop=Math.max(0,linesBefore*approxLineHeight-100);
+  };
+
+  // Renders chapter text as real DOM text (not a textarea), with each valid note's passage highlighted
+  // inline and a small clickable marker sitting right before it. Real rendered text means the browser's
+  // native selection works properly here, unlike the plain textarea, so new notes can be anchored with
+  // exact precision. Each plain-text run carries the raw-string offset it starts at (dataStart), so a
+  // live selection can be mapped back to an exact character position in the underlying scene text.
+  const renderChapterWithNotes=(text,notes)=>{
+    const valid=(notes||[]).filter(n=>typeof n.anchorStart==="number"&&text.substring(n.anchorStart,n.anchorEnd)===n.snippet).sort((a,b)=>a.anchorStart-b.anchorStart);
+    const placed=[];
+    let lastEnd=-1;
+    valid.forEach(n=>{if(n.anchorStart>=lastEnd){placed.push(n);lastEnd=n.anchorEnd;}});
+    const typeInfo={writer:{color:"#5A6B3A",badge:"\u25CA"},agnes:{color:"#907860",badge:"A"},finn:{color:"#A8884A",badge:"F"}};
+    const nodes=[];
+    let cursor=0;
+    placed.forEach((n,i)=>{
+      if(n.anchorStart>cursor)nodes.push(<span key={"t"+i} data-start={cursor}>{text.substring(cursor,n.anchorStart)}</span>);
+      const ti=typeInfo[n.type]||typeInfo.writer;
+      const isOpen=notesViewOpenPanel===n.id;
+      nodes.push(
+        <span key={"m"+i}>
+          <span onClick={()=>setNotesViewOpenPanel(isOpen?null:n.id)} style={{display:"inline-flex",alignItems:"center",justifyContent:"center",width:15,height:15,borderRadius:"50%",background:ti.color+"25",color:ti.color,fontSize:8,fontWeight:700,cursor:"pointer",marginRight:2,verticalAlign:"middle"}}>{ti.badge}</span>
+          <span data-start={n.anchorStart} style={{background:ti.color+"20",borderRadius:2,cursor:"pointer"}} onClick={()=>setNotesViewOpenPanel(isOpen?null:n.id)}>{text.substring(n.anchorStart,n.anchorEnd)}</span>
+        </span>
+      );
+      if(isOpen){
+        nodes.push(
+          <div key={"p"+i} style={{display:"block",background:"#F5EEE4",border:"1px solid #D8CEB0",borderLeft:"3px solid "+ti.color,borderRadius:8,padding:"11px 13px",margin:"10px 0",maxWidth:440}}>
+            <div style={{fontSize:9,letterSpacing:"0.12em",textTransform:"uppercase",fontWeight:600,color:ti.color,marginBottom:6}}>{n.type==="writer"?"Writer note":n.type==="agnes"?"Agnes context":"Finn"}</div>
+            {notesViewEditId===n.id?<>
+              <textarea autoFocus value={notesViewEditText} onChange={e=>setNotesViewEditText(e.target.value)} rows={3} style={{width:"100%",background:"#FFFFFF",border:"1px solid #D8CEB0",borderRadius:6,padding:"6px 8px",fontFamily:"'Cormorant Garamond',serif",fontSize:13,color:"#1E1C14",outline:"none",resize:"vertical",marginBottom:8}}/>
+              <div style={{display:"flex",gap:6}}>
+                <span onClick={()=>{const sc=scenes.find(s=>s.id===activeScene);if(sc){const updated=scenes.map(s=>s.id===sc.id?{...s,marginalia:(s.marginalia||[]).map(nn=>nn.id===n.id?{...nn,text:notesViewEditText}:nn)}:s);saveScenes(updated);}setNotesViewEditId(null);}} style={{fontSize:10,padding:"3px 9px",borderRadius:4,background:ti.color,color:"#fff8f0",cursor:"pointer",fontFamily:"'DM Sans',sans-serif"}}>Save</span>
+                <span onClick={()=>setNotesViewEditId(null)} style={{fontSize:10,padding:"3px 9px",borderRadius:4,border:"1px solid #D8CEB0",color:"#7A6E60",cursor:"pointer",fontFamily:"'DM Sans',sans-serif"}}>Cancel</span>
+              </div>
+            </>:<>
+              <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:13,color:"#1E1C14",lineHeight:1.65,marginBottom:9}}>{n.text}</div>
+              <div style={{display:"flex",gap:6}}>
+                <span onClick={()=>{setNotesViewEditId(n.id);setNotesViewEditText(n.text);}} style={{fontSize:10,padding:"3px 9px",borderRadius:4,border:"1px solid #D8CEB0",color:"#7A6E60",cursor:"pointer",fontFamily:"'DM Sans',sans-serif"}}>Edit</span>
+                <span onClick={()=>{const sc=scenes.find(s=>s.id===activeScene);if(sc)removeMarginaliaNote(sc.id,n.id);}} style={{fontSize:10,padding:"3px 9px",borderRadius:4,border:"1px solid #D8CEB0",color:"#7A6E60",cursor:"pointer",fontFamily:"'DM Sans',sans-serif"}}>Delete</span>
+              </div>
+            </>}
+          </div>
+        );
+      }
+      cursor=n.anchorEnd;
+    });
+    if(cursor<text.length)nodes.push(<span key="tail" data-start={cursor}>{text.substring(cursor)}</span>);
+    return nodes;
+  };
+
+  // Real DOM selection in the rendered notes view, mapped back to an exact character offset in the
+  // underlying scene text via the data-start attribute carried by whichever run the selection sits in.
+  const handleNotesViewSelect=()=>{
+    const sel=window.getSelection();
+    const text=sel?sel.toString().trim():"";
+    if(!text||text.length<=3||!notesViewContainerRef.current||!notesViewContainerRef.current.contains(sel.anchorNode)){
+      setNotesViewSelectPopup({visible:false,x:0,y:0,text:"",start:0,end:0});
+      return;
+    }
+    const range=sel.getRangeAt(0);
+    const rect=range.getBoundingClientRect();
+    const startEl=range.startContainer.parentElement?.closest("[data-start]");
+    const base=startEl?parseInt(startEl.getAttribute("data-start"),10):null;
+    if(base===null){setNotesViewSelectPopup({visible:false,x:0,y:0,text:"",start:0,end:0});return;}
+    const start=base+range.startOffset;
+    setNotesViewSelectPopup({visible:true,x:rect.left,y:rect.bottom+6,text,start,end:start+text.length});
   };
 
   // Universal textarea selection detection for the manuscript editor, same robust pattern already
@@ -1430,9 +1505,14 @@ What makes it dangerous: ${project?.worldDanger||"none"}
 Tone: ${project?.worldTone||"none"}
 Themes: ${project?.themes||"none"}`;
 
+    // Any writer-authored Agnes-context notes on this chapter get fed directly into drift detection,
+    // so intentional choices the writer already flagged never get mistaken for drift in the first place.
+    const agnesContextNotes=(currentScn?.marginalia||[]).filter(n=>n.type==="agnes").map(n=>`On "${n.snippet}": ${n.text}`).join("\n");
+
     const driftInstructions=isOtherTimeline?"":`
 
 Then, as Agnes, the meticulous record keeper, compare what this chapter reveals against the EXISTING STORY BIBLE above, field by field. Only flag a field as drift if the existing entry is a real, substantial entry (not "none") AND this chapter appears to move in a meaningfully different direction from it, not just add consistent detail. Agnes's voice is direct, selective, specific, and slightly pointed. She never uses the words "inconsistency", "error", "problem", or "contradiction". She says "evolving", "different direction", "moving toward something new". She is not alarmed. She is precise.
+${agnesContextNotes?`\nThe writer has left the following context for you about specific passages in this chapter. Trust it completely. Do not flag drift on anything these notes cover, even if it would otherwise look like a meaningful shift.\n${agnesContextNotes}`:""}
 
 Also include in your JSON response:
   "drifts": [
@@ -4042,6 +4122,10 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
                 <div style={{display:"flex",alignItems:"center",gap:12}}>
                   <span style={{fontSize:11,color:"var(--text-muted)"}}>Chapter {currentScene.chapter}</span>
                   <span style={{fontSize:10,color:"var(--text-dim)",marginLeft:4}}>{getWordCount(currentScene.text)} words</span>
+                  <div style={{display:"flex",gap:2,background:"var(--bg-deepest)",borderRadius:6,padding:2,marginLeft:8}}>
+                    <span onClick={()=>setWriteViewMode("edit")} style={{fontSize:10,padding:"4px 10px",borderRadius:4,cursor:"pointer",fontFamily:"'DM Sans',sans-serif",background:writeViewMode==="edit"?"var(--bg-card-alt)":"transparent",color:writeViewMode==="edit"?"var(--accent)":"var(--text-dim)"}}>Write</span>
+                    <span onClick={()=>setWriteViewMode("notes")} style={{fontSize:10,padding:"4px 10px",borderRadius:4,cursor:"pointer",fontFamily:"'DM Sans',sans-serif",background:writeViewMode==="notes"?"var(--bg-card-alt)":"transparent",color:writeViewMode==="notes"?"var(--accent)":"var(--text-dim)"}}>View with notes{(currentScene.marginalia||[]).length>0?` (${(currentScene.marginalia||[]).length})`:""}</span>
+                  </div>
                 </div>
                 <div style={{display:"flex",gap:8,alignItems:"center"}}>
                   <span onClick={()=>{if(currentScene.text){const t=currentScene.text.substring(0,200);const ns=[...sparks,{text:t,date:new Date().toLocaleDateString(),mode:"The Forge"}];setSparks(ns);saveStored("tt-sparks",ns)}}} style={{fontSize:10,color:"var(--text-dim)",background:"var(--bg-card)",border:"1px solid var(--border)",borderRadius:4,padding:"3px 8px",cursor:"pointer"}}>This excites me</span>
@@ -4096,7 +4180,7 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
                   {(()=>{
                     const notes=(currentScene.marginalia||[]).filter(n=>noteFilter==="all"||n.type===noteFilter);
                     if(notes.length===0)return <p style={{fontFamily:"'Cormorant Garamond',serif",fontSize:12,color:"var(--text-dim)",fontStyle:"italic",marginBottom:10}}>{noteFilter==="all"?"No notes yet. Highlight text above to add one, or ask Finn to note something.":"Nothing here yet."}</p>;
-                    const typeInfo={writer:{badge:"\u25CA",color:"#5A6B3A",bg:"#5A6B3A20"},agnes:{badge:"A",color:"#A8884A",bg:"#A8884A20"},finn:{badge:"F",color:"#7A6EA0",bg:"#7A6EA020"}};
+                    const typeInfo={writer:{badge:"\u25CA",color:"#5A6B3A",bg:"#5A6B3A20"},agnes:{badge:"A",color:"#907860",bg:"#90786020"},finn:{badge:"F",color:"#A8884A",bg:"#A8884A20"}};
                     return <div style={{display:"flex",flexDirection:"column",gap:6,marginBottom:10}}>
                       {notes.map(n=>{
                         const ti=typeInfo[n.type]||typeInfo.writer;
@@ -4142,16 +4226,30 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
                   {md.suggestedAction&&<div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:13,color:"var(--text-secondary)",fontStyle:"italic",marginTop:8,paddingTop:8,borderTop:"1px solid var(--border)"}}>{md.suggestedAction}</div>}
                 </div>)}
               </div>}
-              <div ref={writeContainerRef} style={{flex:1,overflow:"auto",padding:"24px 40px",position:"relative"}}>
+              {writeViewMode==="edit"&&<div ref={writeContainerRef} style={{flex:1,overflow:"auto",padding:"24px 40px",position:"relative"}}>
                 <textarea ref={writeRef} value={currentScene.text||""} onChange={e=>updateSceneText(currentScene.id,e.target.value)} onSelect={handleWriteSelect} onMouseUp={handleWriteSelect} onKeyUp={handleWriteSelect} placeholder="Start writing..." style={{width:"100%",height:"100%",minHeight:400,background:"none",border:"none",outline:"none",resize:"none",fontFamily:"'Cormorant Garamond',serif",fontSize:18,color:"var(--text-primary)",lineHeight:2,letterSpacing:"0.01em"}}/>
-              </div>
+              </div>}
+
+              {writeViewMode==="notes"&&<div ref={notesViewContainerRef} onMouseUp={handleNotesViewSelect} style={{flex:1,overflow:"auto",padding:"24px 40px",position:"relative",background:"#EDE6DA"}}>
+                {!currentScene.text?<p style={{fontFamily:"'Cormorant Garamond',serif",fontSize:15,color:"#8A7A60",fontStyle:"italic"}}>Nothing written yet. Switch to Write to get started, then come back here to see and add notes in context.</p>
+                :<div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:18,color:"#1E1C14",lineHeight:2,letterSpacing:"0.01em",whiteSpace:"pre-wrap"}}>{renderChapterWithNotes(currentScene.text,currentScene.marginalia||[])}</div>}
+                {notesViewSelectPopup.visible&&!noteFormOpen&&!askFinnNoteLoading&&!askFinnNoteDraft&&<div style={{position:"fixed",left:notesViewSelectPopup.x,top:notesViewSelectPopup.y,background:"#F5EEE4",border:"1px solid #D8CEB0",borderRadius:8,padding:5,zIndex:250,display:"flex",boxShadow:"0 4px 16px rgba(0,0,0,0.2)"}}>
+                  <span onClick={()=>{setNoteFormSnippet(notesViewSelectPopup.text);setNoteFormAnchor({start:notesViewSelectPopup.start,end:notesViewSelectPopup.end});setNoteFormType("writer");setNoteFormPos({x:notesViewSelectPopup.x,y:notesViewSelectPopup.y});setNoteFormText("");setNoteFormOpen(true);}} style={{fontSize:11,color:"#5A6B3A",padding:"5px 10px",cursor:"pointer",fontFamily:"'DM Sans',sans-serif"}}>&#9674; My note</span>
+                  <span onClick={()=>{const anchor=notesViewSelectPopup;setNoteFormSnippet(anchor.text);setNoteFormAnchor({start:anchor.start,end:anchor.end});setNoteFormType("agnes");setNoteFormPos({x:anchor.x,y:anchor.y});setNoteFormText("");setNoteFormOpen(true);}} style={{fontSize:11,color:"#907860",padding:"5px 10px",cursor:"pointer",fontFamily:"'DM Sans',sans-serif",borderLeft:"1px solid #D8CEB0"}}>A Agnes</span>
+                  <span onClick={()=>{const{text,start,end}=notesViewSelectPopup;setNotesViewSelectPopup({visible:false,x:0,y:0,text:"",start:0,end:0});askFinnAboutPassage(currentScene.chapter,text,start,end);}} style={{fontSize:11,color:"#A8884A",padding:"5px 10px",cursor:"pointer",fontFamily:"'DM Sans',sans-serif",borderLeft:"1px solid #D8CEB0"}}>F Ask Finn</span>
+                </div>}
+              </div>}
 
               {/* Selection toolbar: highlight text above to attach a note or ask Finn about it */}
               {writeSelectPopup.visible&&!noteFormOpen&&!askFinnNoteLoading&&!askFinnNoteDraft&&<div style={{position:"fixed",left:writeSelectPopup.x,top:writeSelectPopup.y,background:"var(--bg-deepest)",border:"1px solid var(--border)",borderRadius:10,padding:6,zIndex:250,display:"flex",flexDirection:"column",gap:2,minWidth:160,boxShadow:"0 4px 20px rgba(0,0,0,0.3)"}}>
                 <div style={{fontSize:9,color:"var(--text-dim)",letterSpacing:"0.15em",textTransform:"uppercase",padding:"3px 8px 5px",borderBottom:"1px solid var(--border)",marginBottom:2,fontFamily:"'DM Sans',sans-serif"}}>Note this passage</div>
-                <div onClick={()=>{setNoteFormSnippet(writeSelectPopup.text);setNoteFormAnchor({start:writeSelectPopup.start,end:writeSelectPopup.end});setNoteFormText("");setNoteFormOpen(true);}} style={{display:"flex",alignItems:"center",gap:8,padding:"6px 10px",borderRadius:5,cursor:"pointer",fontFamily:"'DM Sans',sans-serif"}}>
+                <div onClick={()=>{setNoteFormSnippet(writeSelectPopup.text);setNoteFormAnchor({start:writeSelectPopup.start,end:writeSelectPopup.end});setNoteFormType("writer");setNoteFormPos({x:writeSelectPopup.x,y:writeSelectPopup.y});setNoteFormText("");setNoteFormOpen(true);}} style={{display:"flex",alignItems:"center",gap:8,padding:"6px 10px",borderRadius:5,cursor:"pointer",fontFamily:"'DM Sans',sans-serif"}}>
                   <span style={{fontSize:12,fontWeight:600,color:"#5A6B3A"}}>&#9674;</span>
                   <span style={{fontSize:12,color:"var(--text-primary)"}}>Add my note</span>
+                </div>
+                <div onClick={()=>{setNoteFormSnippet(writeSelectPopup.text);setNoteFormAnchor({start:writeSelectPopup.start,end:writeSelectPopup.end});setNoteFormType("agnes");setNoteFormPos({x:writeSelectPopup.x,y:writeSelectPopup.y});setNoteFormText("");setNoteFormOpen(true);}} style={{display:"flex",alignItems:"center",gap:8,padding:"6px 10px",borderRadius:5,cursor:"pointer",fontFamily:"'DM Sans',sans-serif"}}>
+                  <span style={{fontSize:12,fontWeight:600,color:"#907860"}}>A</span>
+                  <span style={{fontSize:12,color:"var(--text-primary)"}}>Note for Agnes</span>
                 </div>
                 <div onClick={()=>{const snippet=writeSelectPopup.text;const{start,end}=writeSelectPopup;setWriteSelectPopup({visible:false,x:0,y:0,text:""});askFinnAboutPassage(currentScene.chapter,snippet,start,end);}} style={{display:"flex",alignItems:"center",gap:8,padding:"6px 10px",borderRadius:5,cursor:"pointer",fontFamily:"'DM Sans',sans-serif"}}>
                   <span style={{fontSize:12,fontWeight:600,color:"var(--accent)"}}>F</span>
@@ -4159,12 +4257,13 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
                 </div>
               </div>}
 
-              {/* Writer's own note form */}
-              {noteFormOpen&&<div style={{position:"fixed",left:writeSelectPopup.x,top:writeSelectPopup.y,background:"var(--bg-deepest)",border:"1px solid #5A6B3A60",borderRadius:10,padding:12,zIndex:250,width:260,boxShadow:"0 4px 20px rgba(0,0,0,0.3)"}}>
+              {/* Shared note form — writer note or Agnes-context note, depending on noteFormType */}
+              {noteFormOpen&&<div style={{position:"fixed",left:noteFormPos.x,top:noteFormPos.y,background:"var(--bg-deepest)",border:"1px solid "+(noteFormType==="agnes"?"#90786060":"#5A6B3A60"),borderRadius:10,padding:12,zIndex:250,width:260,boxShadow:"0 4px 20px rgba(0,0,0,0.3)"}}>
+                <div style={{fontSize:9,letterSpacing:"0.1em",textTransform:"uppercase",fontWeight:600,color:noteFormType==="agnes"?"#907860":"#5A6B3A",marginBottom:6}}>{noteFormType==="agnes"?"Note for Agnes":"Your note"}</div>
                 <div style={{fontSize:10,color:"var(--text-dim)",fontStyle:"italic",fontFamily:"'DM Sans',sans-serif",marginBottom:8}}>"{noteFormSnippet.substring(0,60)}{noteFormSnippet.length>60?"...":""}"</div>
-                <textarea autoFocus value={noteFormText} onChange={e=>setNoteFormText(e.target.value)} placeholder="What do you want to remember about this?" rows={3} style={{width:"100%",background:"var(--bg-base)",border:"1px solid var(--border)",borderRadius:6,padding:"6px 8px",fontFamily:"'Cormorant Garamond',serif",fontSize:13,color:"var(--text-primary)",outline:"none",resize:"vertical",marginBottom:8}}/>
+                <textarea autoFocus value={noteFormText} onChange={e=>setNoteFormText(e.target.value)} placeholder={noteFormType==="agnes"?"Tell Agnes why this isn't drift, e.g. this warmth is intentional, it's the mask, not a contradiction.":"What do you want to remember about this?"} rows={3} style={{width:"100%",background:"var(--bg-base)",border:"1px solid var(--border)",borderRadius:6,padding:"6px 8px",fontFamily:"'Cormorant Garamond',serif",fontSize:13,color:"var(--text-primary)",outline:"none",resize:"vertical",marginBottom:8}}/>
                 <div style={{display:"flex",gap:6}}>
-                  <span onClick={()=>{addMarginaliaNote(currentScene.id,"writer",noteFormText,noteFormSnippet,noteFormAnchor.start,noteFormAnchor.end);setNoteFormOpen(false);setNoteFormText("");setWriteSelectPopup({visible:false,x:0,y:0,text:""});}} style={{fontSize:11,fontWeight:500,padding:"5px 12px",borderRadius:5,background:noteFormText.trim()?"#5A6B3A":"var(--bg-card)",color:noteFormText.trim()?"#F0EAE0":"var(--text-dim)",cursor:noteFormText.trim()?"pointer":"default",fontFamily:"'DM Sans',sans-serif"}}>Save</span>
+                  <span onClick={()=>{addMarginaliaNote(currentScene.id,noteFormType,noteFormText,noteFormSnippet,noteFormAnchor.start,noteFormAnchor.end);setNoteFormOpen(false);setNoteFormText("");setWriteSelectPopup({visible:false,x:0,y:0,text:""});setNotesViewSelectPopup({visible:false,x:0,y:0,text:"",start:0,end:0});}} style={{fontSize:11,fontWeight:500,padding:"5px 12px",borderRadius:5,background:noteFormText.trim()?(noteFormType==="agnes"?"#907860":"#5A6B3A"):"var(--bg-card)",color:noteFormText.trim()?"#F0EAE0":"var(--text-dim)",cursor:noteFormText.trim()?"pointer":"default",fontFamily:"'DM Sans',sans-serif"}}>Save</span>
                   <span onClick={()=>{setNoteFormOpen(false);setNoteFormText("");}} style={{fontSize:11,padding:"5px 12px",borderRadius:5,border:"1px solid var(--border)",color:"var(--text-dim)",cursor:"pointer",fontFamily:"'DM Sans',sans-serif"}}>Cancel</span>
                 </div>
               </div>}
