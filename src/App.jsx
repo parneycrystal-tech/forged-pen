@@ -694,7 +694,7 @@ export default function App() {
   const [flipped, setFlipped] = useState(false);
   const [loadMsg, setLoadMsg] = useState(LOAD[Math.floor(Math.random()*LOAD.length)]);
   const [project, setProject] = useState(null);
-  const [pForm, setPForm] = useState({title:"",genre:"",synopsis:"",protagonist:"",protagonistGoal:"",protagonistDream:"",protagonistFear:"",protagonistWound:"",protagonistBackstory:"",protagonistMisbelief:"",supporting:"",antagonist:"",worldSetting:"",worldRules:"",worldMythology:"",worldBeliefs:"",worldDanger:"",worldTone:"",themes:"",characters:[],openQuestions:[],chapters:[{num:1,summary:""}],where:"",stuck:"",excites:"",currentChapter:""});
+  const [pForm, setPForm] = useState({title:"",genre:"",synopsis:"",protagonist:"",protagonistGoal:"",protagonistDream:"",protagonistFear:"",protagonistWound:"",protagonistBackstory:"",protagonistMisbelief:"",supporting:"",antagonist:"",worldSetting:"",worldRules:"",worldMythology:"",worldBeliefs:"",worldDanger:"",worldTone:"",themes:"",mainPlot:"",characters:[],openQuestions:[],chapters:[{num:1,summary:""}],where:"",stuck:"",excites:"",currentChapter:""});
   const [sparks, setSparks] = useState([]);
   const [flaggedIdx, setFlaggedIdx] = useState(null);
   const [ideaLabSparked, setIdeaLabSparked] = useState(false);
@@ -1509,7 +1509,8 @@ Mythology & paranormal rules: ${project?.worldMythology||"none"}
 Beliefs vs reality: ${project?.worldBeliefs||"none"}
 What makes it dangerous: ${project?.worldDanger||"none"}
 Tone: ${project?.worldTone||"none"}
-Themes: ${project?.themes||"none"}`;
+Themes: ${project?.themes||"none"}
+Main plot: ${project?.mainPlot||"none"}`;
 
     // Any writer-authored Agnes-context notes on this chapter get fed directly into drift detection,
     // so intentional choices the writer already flagged never get mistaken for drift in the first place.
@@ -1523,7 +1524,7 @@ ${agnesContextNotes?`\nThe writer has left the following context for you about s
 Also include in your JSON response:
   "drifts": [
     {
-      "field": "the field key exactly as given (protagonist, protagonistGoal, protagonistDream, protagonistFear, protagonistWound, protagonistBackstory, protagonistMisbelief, supporting, antagonist, worldSetting, worldRules, worldMythology, worldBeliefs, worldDanger, worldTone, themes)",
+      "field": "the field key exactly as given (protagonist, protagonistGoal, protagonistDream, protagonistFear, protagonistWound, protagonistBackstory, protagonistMisbelief, supporting, antagonist, worldSetting, worldRules, worldMythology, worldBeliefs, worldDanger, worldTone, themes, mainPlot)",
       "fieldLabel": "human readable label. For protagonistMisbelief specifically, always use \"The lie they believe\", never \"misbelief\".",
       "existing": "the existing Bible entry, quoted briefly",
       "incoming": "the new chapter evidence, quoted briefly",
@@ -1571,6 +1572,7 @@ Respond with ONLY this JSON:
   "worldDangerUpdate": "did this chapter reveal what creates real stakes or danger in this world? Empty string if nothing new.",
   "worldToneUpdate": "did this chapter establish or shift the emotional tone or atmosphere of the world? Empty string if nothing new.",
   "themeReveal": "themes or ideas that surfaced clearly in this chapter. Empty string if nothing clear.",
+  "mainPlotUpdate": "did this chapter develop or clarify the overall plot arc, the throughline of the whole book? Empty string if this chapter is mostly texture or a subplot beat rather than the main arc.",
   "beats": [{"beat": "a short label for the shift, a few words", "shift": "one sentence naming what specifically changed because of it, not what happened in general"}],
   "craftNote": "one observation about what is working well in this chapter, specific and precise, that Finn would point out as a coach. Not generic praise.",
   "openQuestion": "the most important unresolved question this chapter raises for the story going forward."${isOtherTimeline?"":',\n  "drifts": []'}
@@ -1651,8 +1653,9 @@ Respond with ONLY this JSON:
         const priorForTag=existingCaptures[tag]?existingCaptures[tag]+"\n\n":"";
         updated.timelineCaptures={...existingCaptures,[tag]:priorForTag+`[Chapter ${result.chapterNum}]\n`+captureLines};
       }
-      // Themes are story-wide regardless of which timeline reveals them, so those still merge normally
+      // Themes and Main Plot are story-wide regardless of which timeline reveals them, so those still merge normally
       if(result.themeReveal&&result.themeReveal.trim())updated.themes=(updated.themes?updated.themes+"\n\n"+result.themeReveal:result.themeReveal);
+      if(result.mainPlotUpdate&&result.mainPlotUpdate.trim())updated.mainPlot=(updated.mainPlot?updated.mainPlot+"\n\n"+result.mainPlotUpdate:result.mainPlotUpdate);
     }else{
       // Merge new details into existing fields (append rather than replace)
       const appendField=(key,value)=>{if(value&&value.trim())updated[key]=(updated[key]?updated[key]+"\n\n"+value:value);};
@@ -1672,6 +1675,7 @@ Respond with ONLY this JSON:
       appendField("worldDanger",result.worldDangerUpdate);
       appendField("worldTone",result.worldToneUpdate);
       appendField("themes",result.themeReveal);
+      appendField("mainPlot",result.mainPlotUpdate);
     }
     setPForm(updated);
     const proj={...updated,updated:Date.now()};
@@ -3413,7 +3417,14 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
         </>}
         {bibTab==="world"&&<><WorldField label="Core Setting" helper="When and where does this story take place?" example="A small coastal town in present-day Maine..." k="worldSetting" value={pForm.worldSetting} onChange={updateField}/><WorldField label="World Rules" helper="What can and cannot happen here?" example="Time can be observed but never changed..." k="worldRules" value={pForm.worldRules} onChange={updateField}/><WorldField label="Mythology & Paranormal Rules" helper="The internal logic of anything that operates outside ordinary reality. Ritual mechanics, supernatural rules, entity limitations, protective systems. Agnes cross-references this during drift detection." example="The ritual requires three components and cannot be reversed once fractured..." k="worldMythology" value={pForm.worldMythology} onChange={updateField}/><WorldField label="Beliefs vs. Reality" helper="What do characters assume that isn't true?" example="Everyone believes the disappearances were accidents..." k="worldBeliefs" value={pForm.worldBeliefs} onChange={updateField}/><WorldField label="What Makes This World Dangerous" helper="What creates real stakes?" example="The closer you get to the truth, the more you risk losing..." k="worldDanger" value={pForm.worldDanger} onChange={updateField}/><WorldField label="Tone" helper="What does this world feel like?" example="Warm but uneasy..." k="worldTone" value={pForm.worldTone} onChange={updateField}/></>}
         {bibTab==="plot"&&<div>
-          <p style={{fontSize:12,color:"var(--text-muted)",marginBottom:14,lineHeight:1.5}}>Agnes finds these automatically when you Capture to Bible. Nothing to type here yet, this is where Threads and the Story Spine will live too.</p>
+          <div style={{marginBottom:20}}>
+            <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:6}}>
+              <label style={{fontSize:12,color:"var(--text-secondary)",fontWeight:500}}>Main plot</label>
+              <span onClick={()=>pick(MODES.find(m=>m.id==="plot"))} style={{fontSize:11,color:"var(--accent)",cursor:"pointer",textDecoration:"underline"}}>Build this with Finn</span>
+            </div>
+            <textarea value={pForm.mainPlot} onChange={e=>updateField("mainPlot",e.target.value)} placeholder="What is this story actually about, underneath the scenes? Type it yourself, or let it grow as you capture chapters." rows={4} style={{width:"100%",background:"var(--bg-base)",border:"1px solid var(--border)",borderRadius:8,padding:"10px 12px",outline:"none",resize:"vertical",fontFamily:"'Cormorant Garamond',serif",fontSize:14,color:"var(--text-primary)",lineHeight:1.7}}/>
+          </div>
+          <p style={{fontSize:12,color:"var(--text-muted)",marginBottom:14,lineHeight:1.5}}>Beats below are found automatically when you Capture to Bible. This is where Threads and the Story Spine will live too.</p>
           {(()=>{
             const chaptersWithBeats=(project?.chapters||[]).filter(c=>Array.isArray(c.beats)&&c.beats.length>0);
             if(chaptersWithBeats.length===0)return <p style={{fontFamily:"'Cormorant Garamond',serif",fontSize:14,color:"var(--text-dim)",fontStyle:"italic"}}>Nothing here yet. Beats show up here once Agnes reads a chapter.</p>;
@@ -3590,6 +3601,10 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
           {!project.worldSetting&&!project.worldRules&&!project.worldTone&&<p style={{fontFamily:"'Cormorant Garamond',serif",fontSize:14,color:"var(--text-dim)",fontStyle:"italic"}}>No world details added yet. Tap Edit to add them.</p>}
         </div>}
         {!bibleSearch&&bibViewTab==="plot"&&<div>
+          {project.mainPlot&&<div style={{marginBottom:20}}>
+            <div style={{fontSize:10,textTransform:"uppercase",letterSpacing:"0.12em",color:"var(--text-dim)",fontFamily:"'DM Sans',sans-serif",marginBottom:6}}>Main plot</div>
+            <div style={{background:"var(--bg-card)",border:"1px solid var(--border)",borderRadius:8,padding:"12px 14px",fontFamily:"'Cormorant Garamond',serif",fontSize:14,color:"var(--text-primary)",lineHeight:1.75,whiteSpace:"pre-wrap"}}>{project.mainPlot}</div>
+          </div>}
           {(()=>{
             const chaptersWithBeats=(project.chapters||[]).filter(c=>Array.isArray(c.beats)&&c.beats.length>0);
             if(chaptersWithBeats.length===0)return <p style={{fontFamily:"'Cormorant Garamond',serif",fontSize:14,color:"var(--text-dim)",fontStyle:"italic"}}>Nothing here yet. Beats show up here once Agnes reads a chapter during Capture to Bible.</p>;
@@ -4752,6 +4767,7 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
               {key:"worldDangerUpdate",label:"What Makes It Dangerous"},
               {key:"worldToneUpdate",label:"Tone"},
               {key:"themeReveal",label:"Themes"},
+              {key:"mainPlotUpdate",label:"Main plot"},
             ].filter(f=>extractResult[f.key]&&extractResult[f.key].trim()).map(f=>(
               <div key={f.key} style={{marginBottom:10,padding:10,background:"var(--bg-card)",borderRadius:8,border:"1px solid var(--border)"}}>
                 <div style={{fontSize:9,textTransform:"uppercase",letterSpacing:"0.12em",color:"var(--accent-70)",fontFamily:"'DM Sans',sans-serif",marginBottom:4}}>{f.label}</div>
