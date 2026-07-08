@@ -638,6 +638,7 @@ function LandingScreen({onSignIn,onSubmitEmail}){
 
 
 const CHARACTER_ROLES=["Antagonist / villain","Love interest","Mentor","Best friend / confidant","Foil","Family","Secondary character","Other"];
+const THREAD_TYPES=[{id:"Subplot",color:"#5A6B3A"},{id:"Question",color:"#7A6EA0"},{id:"Object",color:"#907860"},{id:"Relationship",color:"#A8884A"}];
 
 const AGNES_INVOLVEMENT_LEVELS=[
   {id:"full",label:"Full",desc:"Agnes speaks up on her own. Drift notes, ember analysis, and her read on where you are all surface automatically."},
@@ -1559,7 +1560,7 @@ ${sceneText.substring(0,20000)}
 
 Extract what this chapter actually establishes. Only include fields where you found something meaningful that isn't already well-captured in the existing Bible. Leave fields as empty string if nothing new or significant was found. Paraphrase what you find in your own words rather than quoting dialogue directly, since direct quotes containing quotation marks can break the JSON format.
 
-Also check the tracked threads above. If this chapter continues, references, or advances any of them, note it. Separately, if this chapter introduces something that reads like the start of its own multi-chapter thread (a promise, a planted question, an unresolved object or relationship) that is not already tracked, propose it as a new thread. Do not propose a thread for something that is just this chapter's own self-contained beat. A thread is something a later chapter would need to pay off.
+Also check the tracked threads above. If this chapter continues, references, or advances any of them, note it. Separately, if this chapter introduces something that reads like the start of its own multi-chapter thread (a promise, a planted question, an unresolved object or relationship) that is not already tracked, propose it as a new thread. Do not propose a thread for something that is just this chapter's own self-contained beat. A thread is something a later chapter would need to pay off. Classify each proposed thread as exactly one type: Subplot (a secondary storyline involving other characters), Question (something the reader is left wondering about), Object (a physical thing planted for later significance), or Relationship (an evolving dynamic between two characters that isn't its own subplot).
 
 Also run this pacing check on the chapter as a whole, answered honestly, not generously: did something actually change by the end of it, a decision made, information revealed, a relationship shifted? Did the protagonist want something and hit real resistance, not just talk about wanting something? Does the reader know something at the end they did not know at the start? Answer each true or false based only on what is actually on the page, and give one honest sentence explaining the assessment.
 
@@ -1587,7 +1588,7 @@ Respond with ONLY this JSON:
   "mainPlotUpdate": "did this chapter develop or clarify the overall plot arc, the throughline of the whole book? Empty string if this chapter is mostly texture or a subplot beat rather than the main arc.",
   "threadUpdates": [{"thread": "the exact name of an existing tracked thread this chapter continues, must match the list given above exactly", "note": "one short phrase on what happened with it here"}],
   "pacingCheck": {"somethingChanged": true, "realResistance": true, "newKnowledge": true, "note": "one sentence explaining the assessment, naming specifically what did or did not shift"},
-  "proposedThreads": [{"name": "a short name for a new potential thread", "description": "what it is and why it might need a payoff later"}],
+  "proposedThreads": [{"name": "a short name for a new potential thread", "description": "what it is and why it might need a payoff later", "type": "one of exactly: Subplot, Question, Object, Relationship"}],
   "beats": [{"beat": "a short label for the shift, a few words", "shift": "one sentence naming what specifically changed because of it, not what happened in general"}],
   "craftNote": "one observation about what is working well in this chapter, specific and precise, that Finn would point out as a coach. Not generic praise.",
   "openQuestion": "the most important unresolved question this chapter raises for the story going forward."${isOtherTimeline?"":',\n  "drifts": []'}
@@ -1730,9 +1731,9 @@ Respond with ONLY this JSON:
   // Creates a real, tracked thread from a proposal Agnes surfaced during extraction, once the writer
   // approves it. Never happens automatically — proposedThreads only ever becomes a real thread through
   // this explicit click.
-  const addThread=(name,description,chapterNum)=>{
+  const addThread=(name,description,chapterNum,type)=>{
     const existing=Array.isArray(project?.threads)?[...project.threads]:[];
-    existing.push({id:"thread_"+Date.now(),name,description,status:"active",chapters:chapterNum?[chapterNum]:[],characterId:null});
+    existing.push({id:"thread_"+Date.now(),name,description,status:"active",chapters:chapterNum?[chapterNum]:[],characterId:null,type:type||"Subplot"});
     const updated={...project,threads:existing,updated:Date.now()};
     setProject(updated);
     setPForm(prev=>({...prev,threads:existing}));
@@ -2663,12 +2664,12 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
 
   const [threadFormOpen,setThreadFormOpen]=useState(false);
   const [threadFormEdit,setThreadFormEdit]=useState(null); // index being edited, or null for new
-  const [threadForm,setThreadForm]=useState({name:"",description:"",characterId:""});
-  const openAddThread=()=>{setThreadForm({name:"",description:"",characterId:""});setThreadFormEdit(null);setThreadFormOpen(true);};
+  const [threadForm,setThreadForm]=useState({name:"",description:"",characterId:"",type:"Subplot"});
+  const openAddThread=()=>{setThreadForm({name:"",description:"",characterId:"",type:"Subplot"});setThreadFormEdit(null);setThreadFormOpen(true);};
   const openEditThread=(idx)=>{
     const t=(project?.threads||[])[idx];
     if(!t)return;
-    setThreadForm({name:t.name||"",description:t.description||"",characterId:t.characterId||""});
+    setThreadForm({name:t.name||"",description:t.description||"",characterId:t.characterId||"",type:t.type||"Subplot"});
     setThreadFormEdit(idx);
     setThreadFormOpen(true);
   };
@@ -2676,9 +2677,9 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
     if(!threadForm.name.trim())return;
     const existing=Array.isArray(project?.threads)?[...project.threads]:[];
     if(threadFormEdit===null){
-      existing.push({id:"thread_"+Date.now(),name:threadForm.name.trim(),description:threadForm.description,status:"active",chapters:[],characterId:threadForm.characterId||null});
+      existing.push({id:"thread_"+Date.now(),name:threadForm.name.trim(),description:threadForm.description,status:"active",chapters:[],characterId:threadForm.characterId||null,type:threadForm.type||"Subplot"});
     }else{
-      existing[threadFormEdit]={...existing[threadFormEdit],name:threadForm.name.trim(),description:threadForm.description,characterId:threadForm.characterId||null};
+      existing[threadFormEdit]={...existing[threadFormEdit],name:threadForm.name.trim(),description:threadForm.description,characterId:threadForm.characterId||null,type:threadForm.type||"Subplot"};
     }
     const updated={...project,threads:existing,updated:Date.now()};
     setProject(updated);
@@ -3531,10 +3532,12 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
                 const lastTouched=t.chapters&&t.chapters.length>0?Math.max(...t.chapters):0;
                 const isQuiet=t.status!=="resolved"&&lastTouched>0&&(latestChapter-lastTouched)>=4;
                 const linkedChar=t.characterId?(project?.characters||[]).find(c=>c.id===t.characterId):null;
+                const typeInfo=THREAD_TYPES.find(tt=>tt.id===t.type)||THREAD_TYPES[0];
                 return <div key={t.id||idx} style={{background:"var(--bg-card-alt)",border:"1px solid var(--border)",borderRadius:8,padding:"10px 12px",marginBottom:8}}>
                   <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:3}}>
                     <div style={{display:"flex",alignItems:"center",gap:8}}>
                       <span style={{fontFamily:"'Cormorant Garamond',serif",fontSize:14,color:"var(--text-primary)"}}>{t.name}</span>
+                      <span style={{fontSize:9,fontWeight:500,color:typeInfo.color,background:typeInfo.color+"25",padding:"2px 8px",borderRadius:8}}>{t.type||"Subplot"}</span>
                       {t.status==="resolved"?<span style={{fontSize:9,fontWeight:500,color:"var(--text-dim)",background:"var(--bg-card)",padding:"2px 8px",borderRadius:8}}>Resolved</span>
                         :isQuiet?<span style={{fontSize:9,fontWeight:500,color:"var(--accent)",background:"var(--accent-15)",padding:"2px 8px",borderRadius:8}}>Quiet</span>
                         :<span style={{fontSize:9,fontWeight:500,color:"#8CC79A",background:"#5A7A5C25",padding:"2px 8px",borderRadius:8}}>Active</span>}
@@ -3557,6 +3560,12 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
             {threadFormOpen&&<div style={{background:"var(--bg-card)",border:"1px solid var(--accent-40)",borderRadius:8,padding:14,marginTop:6}}>
               <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:14,color:"var(--text-primary)",marginBottom:10}}>{threadFormEdit===null?"New thread":"Edit thread"}</div>
               <input className="fi" placeholder="Name" value={threadForm.name} onChange={e=>setThreadForm(prev=>({...prev,name:e.target.value}))} style={{width:"100%",marginBottom:8}}/>
+              <div style={{display:"flex",gap:6,marginBottom:8,flexWrap:"wrap"}}>
+                {THREAD_TYPES.map(tt=>{
+                  const sel=threadForm.type===tt.id;
+                  return <span key={tt.id} onClick={()=>setThreadForm(prev=>({...prev,type:tt.id}))} style={{fontSize:10,padding:"5px 11px",borderRadius:6,cursor:"pointer",fontFamily:"'DM Sans',sans-serif",background:sel?tt.color:"var(--bg-base)",color:sel?"#F0EAE0":"var(--text-dim)",border:"1px solid "+(sel?tt.color:"var(--border)")}}>{tt.id}</span>;
+                })}
+              </div>
               <textarea className="fi" rows={2} placeholder="What is this thread, and what would need to pay it off?" value={threadForm.description} onChange={e=>setThreadForm(prev=>({...prev,description:e.target.value}))} style={{width:"100%",marginBottom:8,resize:"vertical"}}/>
               {(project?.characters||[]).length>0&&<select value={threadForm.characterId} onChange={e=>setThreadForm(prev=>({...prev,characterId:e.target.value}))} className="fi" style={{width:"100%",marginBottom:10}}>
                 <option value="">Not tied to a specific character</option>
@@ -3758,10 +3767,12 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
                 const lastTouched=t.chapters&&t.chapters.length>0?Math.max(...t.chapters):0;
                 const isQuiet=t.status!=="resolved"&&lastTouched>0&&(latestChapter-lastTouched)>=4;
                 const linkedChar=t.characterId?(project.characters||[]).find(c=>c.id===t.characterId):null;
+                const typeInfo=THREAD_TYPES.find(tt=>tt.id===t.type)||THREAD_TYPES[0];
                 return <div key={t.id||idx} style={{background:"var(--bg-card)",border:"1px solid var(--border)",borderRadius:8,padding:"10px 12px",marginBottom:8}}>
                   <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:3}}>
                     <div style={{display:"flex",alignItems:"center",gap:8}}>
                       <span style={{fontFamily:"'Cormorant Garamond',serif",fontSize:14,color:"var(--text-primary)"}}>{t.name}</span>
+                      <span style={{fontSize:9,fontWeight:500,color:typeInfo.color,background:typeInfo.color+"25",padding:"2px 8px",borderRadius:8}}>{t.type||"Subplot"}</span>
                       {t.status==="resolved"?<span style={{fontSize:9,fontWeight:500,color:"var(--text-dim)",background:"var(--bg-card-alt)",padding:"2px 8px",borderRadius:8}}>Resolved</span>
                         :isQuiet?<span style={{fontSize:9,fontWeight:500,color:"var(--accent)",background:"var(--accent-15)",padding:"2px 8px",borderRadius:8}}>Quiet</span>
                         :<span style={{fontSize:9,fontWeight:500,color:"#8CC79A",background:"#5A7A5C25",padding:"2px 8px",borderRadius:8}}>Active</span>}
@@ -4952,10 +4963,13 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
                 const state=handledProposedThreads[pi];
                 if(state)return null;
                 return <div key={pi} style={{background:"var(--bg-card)",border:"1px dashed var(--border-mid)",borderRadius:8,padding:"10px 12px",marginBottom:8}}>
-                  <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:13,color:"var(--text-primary)",marginBottom:2}}>{pt.name}</div>
+                  <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:2}}>
+                    <span style={{fontFamily:"'Cormorant Garamond',serif",fontSize:13,color:"var(--text-primary)"}}>{pt.name}</span>
+                    {pt.type&&<span style={{fontSize:9,fontWeight:500,color:"var(--accent)",background:"var(--accent-15)",padding:"1px 8px",borderRadius:8}}>{pt.type}</span>}
+                  </div>
                   <div style={{fontSize:11,color:"var(--text-dim)",marginBottom:9}}>{pt.description}</div>
                   <div style={{display:"flex",gap:6}}>
-                    <span onClick={()=>{addThread(pt.name,pt.description,extractResult.chapterNum);setHandledProposedThreads(prev=>({...prev,[pi]:"approved"}));}} style={{fontSize:10,padding:"4px 10px",borderRadius:5,background:"var(--accent)",color:"var(--bg-deepest)",cursor:"pointer",fontFamily:"'DM Sans',sans-serif"}}>Add as thread</span>
+                    <span onClick={()=>{addThread(pt.name,pt.description,extractResult.chapterNum,pt.type);setHandledProposedThreads(prev=>({...prev,[pi]:"approved"}));}} style={{fontSize:10,padding:"4px 10px",borderRadius:5,background:"var(--accent)",color:"var(--bg-deepest)",cursor:"pointer",fontFamily:"'DM Sans',sans-serif"}}>Add as thread</span>
                     <span onClick={()=>setHandledProposedThreads(prev=>({...prev,[pi]:"dismissed"}))} style={{fontSize:10,padding:"4px 10px",borderRadius:5,border:"1px solid var(--border)",color:"var(--text-dim)",cursor:"pointer",fontFamily:"'DM Sans',sans-serif"}}>Not a thread</span>
                   </div>
                 </div>;
