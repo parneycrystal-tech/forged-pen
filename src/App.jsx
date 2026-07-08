@@ -752,6 +752,7 @@ export default function App() {
   const [sceneNotesOpen, setSceneNotesOpen] = useState(false);
   const [extracting, setExtracting] = useState(false);
   const [extractResult, setExtractResult] = useState(null);
+  const [handledProposedThreads, setHandledProposedThreads] = useState({}); // index -> "approved" | "dismissed", reset per extraction
   const [extractOpen, setExtractOpen] = useState(false);
   const [driftResult, setDriftResult] = useState(null);
   const [driftOpen, setDriftOpen] = useState(false);
@@ -1475,6 +1476,7 @@ Respond with ONLY this JSON:
     setExtracting(true);
     setExtractOpen(true);
     setExtractResult(null);
+    setHandledProposedThreads({});
 
     // Get draft status of the current scene for Agnes context
     const currentScn=scenes.find(s=>s.chapter===chapterNum)||scenes.find(s=>s.id===activeScene);
@@ -1512,6 +1514,8 @@ Tone: ${project?.worldTone||"none"}
 Themes: ${project?.themes||"none"}
 Main plot: ${project?.mainPlot||"none"}`;
 
+    const existingThreadsList=(project?.threads||[]).filter(t=>t.status!=="resolved").map(t=>`- ${t.name}: ${t.description}`).join("\n")||"none tracked yet";
+
     // Any writer-authored Agnes-context notes on this chapter get fed directly into drift detection,
     // so intentional choices the writer already flagged never get mistaken for drift in the first place.
     const agnesContextNotes=(currentScn?.marginalia||[]).filter(n=>n.type==="agnes").map(n=>`On "${n.snippet}": ${n.text}`).join("\n");
@@ -1544,12 +1548,17 @@ If there is no genuine drift anywhere, return "drifts": [].`;
 EXISTING STORY BIBLE (for context, do not repeat what's already captured well):
 ${existingBible}
 
+THREADS ALREADY BEING TRACKED (subplots and open questions spanning multiple chapters):
+${existingThreadsList}
+
 CHAPTER DRAFT STATUS: ${draftNote}
 
 CHAPTER ${chapterNum||"??"} TEXT:
 ${sceneText.substring(0,20000)}
 
 Extract what this chapter actually establishes. Only include fields where you found something meaningful that isn't already well-captured in the existing Bible. Leave fields as empty string if nothing new or significant was found. Paraphrase what you find in your own words rather than quoting dialogue directly, since direct quotes containing quotation marks can break the JSON format.
+
+Also check the tracked threads above. If this chapter continues, references, or advances any of them, note it. Separately, if this chapter introduces something that reads like the start of its own multi-chapter thread (a promise, a planted question, an unresolved object or relationship) that is not already tracked, propose it as a new thread. Do not propose a thread for something that is just this chapter's own self-contained beat. A thread is something a later chapter would need to pay off.
 
 Also identify the beats in this chapter. A beat is one unit of change: something enters a state, something happens, it exits in a different state. If a passage could be cut and nothing about where the character stands, emotionally or tactically, would be different, it is not a beat, it is setup or texture. Only list genuine shifts, not every scene or moment. A short chapter might have two or three. A dense one might have five or six. Do not pad the list to hit a number.${driftInstructions}
 
@@ -1573,6 +1582,8 @@ Respond with ONLY this JSON:
   "worldToneUpdate": "did this chapter establish or shift the emotional tone or atmosphere of the world? Empty string if nothing new.",
   "themeReveal": "themes or ideas that surfaced clearly in this chapter. Empty string if nothing clear.",
   "mainPlotUpdate": "did this chapter develop or clarify the overall plot arc, the throughline of the whole book? Empty string if this chapter is mostly texture or a subplot beat rather than the main arc.",
+  "threadUpdates": [{"thread": "the exact name of an existing tracked thread this chapter continues, must match the list given above exactly", "note": "one short phrase on what happened with it here"}],
+  "proposedThreads": [{"name": "a short name for a new potential thread", "description": "what it is and why it might need a payoff later"}],
   "beats": [{"beat": "a short label for the shift, a few words", "shift": "one sentence naming what specifically changed because of it, not what happened in general"}],
   "craftNote": "one observation about what is working well in this chapter, specific and precise, that Finn would point out as a coach. Not generic praise.",
   "openQuestion": "the most important unresolved question this chapter raises for the story going forward."${isOtherTimeline?"":',\n  "drifts": []'}
@@ -1587,6 +1598,8 @@ Respond with ONLY this JSON:
           result.chapterNum=chapterNum;
           if(!Array.isArray(result.drifts))result.drifts=[];
           if(!Array.isArray(result.beats))result.beats=[];
+          if(!Array.isArray(result.threadUpdates))result.threadUpdates=[];
+          if(!Array.isArray(result.proposedThreads))result.proposedThreads=[];
           setExtractResult(result);
           // Persist so it survives navigation
           saveStored("tt-pending-extract",result);
@@ -1677,6 +1690,23 @@ Respond with ONLY this JSON:
       appendField("themes",result.themeReveal);
       appendField("mainPlot",result.mainPlotUpdate);
     }
+    // Threads: auto-append this chapter to any already-tracked thread it continues. No approval needed
+    // here, since the thread itself was already approved when created — this just extends where it's
+    // been seen. New threads (proposedThreads) are handled separately and DO need approval, shown in
+    // the extraction review panel before anything gets created.
+    if(result.threadUpdates&&result.threadUpdates.length>0){
+      const existingThreads=Array.isArray(updated.threads)?[...updated.threads]:[];
+      result.threadUpdates.forEach(tu=>{
+        const idx=existingThreads.findIndex(t=>t.name===tu.thread);
+        if(idx>=0&&result.chapterNum){
+          const chapters=existingThreads[idx].chapters||[];
+          if(!chapters.includes(result.chapterNum)){
+            existingThreads[idx]={...existingThreads[idx],chapters:[...chapters,result.chapterNum].sort((a,b)=>a-b)};
+          }
+        }
+      });
+      updated.threads=existingThreads;
+    }
     setPForm(updated);
     const proj={...updated,updated:Date.now()};
     setProject(proj);
@@ -1690,6 +1720,19 @@ Respond with ONLY this JSON:
     if(!isOtherTimeline&&result.drifts&&result.drifts.length>0){
       processDrifts(result,projectBeforeMerge);
     }
+  };
+
+  // Creates a real, tracked thread from a proposal Agnes surfaced during extraction, once the writer
+  // approves it. Never happens automatically — proposedThreads only ever becomes a real thread through
+  // this explicit click.
+  const addThread=(name,description,chapterNum)=>{
+    const existing=Array.isArray(project?.threads)?[...project.threads]:[];
+    existing.push({id:"thread_"+Date.now(),name,description,status:"active",chapters:chapterNum?[chapterNum]:[],characterId:null});
+    const updated={...project,threads:existing,updated:Date.now()};
+    setProject(updated);
+    setPForm(prev=>({...prev,threads:existing}));
+    saveStored("tt-project",updated);
+    cloudSave("tt-project",updated);
   };
 
   const processDrifts=(extractResult,projectBeforeMerge)=>{
@@ -2613,6 +2656,52 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
     cloudSave("tt-project",updated);
   };
 
+  const [threadFormOpen,setThreadFormOpen]=useState(false);
+  const [threadFormEdit,setThreadFormEdit]=useState(null); // index being edited, or null for new
+  const [threadForm,setThreadForm]=useState({name:"",description:"",characterId:""});
+  const openAddThread=()=>{setThreadForm({name:"",description:"",characterId:""});setThreadFormEdit(null);setThreadFormOpen(true);};
+  const openEditThread=(idx)=>{
+    const t=(project?.threads||[])[idx];
+    if(!t)return;
+    setThreadForm({name:t.name||"",description:t.description||"",characterId:t.characterId||""});
+    setThreadFormEdit(idx);
+    setThreadFormOpen(true);
+  };
+  const saveThreadForm=()=>{
+    if(!threadForm.name.trim())return;
+    const existing=Array.isArray(project?.threads)?[...project.threads]:[];
+    if(threadFormEdit===null){
+      existing.push({id:"thread_"+Date.now(),name:threadForm.name.trim(),description:threadForm.description,status:"active",chapters:[],characterId:threadForm.characterId||null});
+    }else{
+      existing[threadFormEdit]={...existing[threadFormEdit],name:threadForm.name.trim(),description:threadForm.description,characterId:threadForm.characterId||null};
+    }
+    const updated={...project,threads:existing,updated:Date.now()};
+    setProject(updated);
+    setPForm(prev=>({...prev,threads:existing}));
+    saveStored("tt-project",updated);
+    cloudSave("tt-project",updated);
+    setThreadFormOpen(false);
+  };
+  const removeThread=(idx)=>{
+    const existing=Array.isArray(project?.threads)?[...project.threads]:[];
+    existing.splice(idx,1);
+    const updated={...project,threads:existing,updated:Date.now()};
+    setProject(updated);
+    setPForm(prev=>({...prev,threads:existing}));
+    saveStored("tt-project",updated);
+    cloudSave("tt-project",updated);
+  };
+  const toggleThreadStatus=(idx)=>{
+    const existing=Array.isArray(project?.threads)?[...project.threads]:[];
+    if(!existing[idx])return;
+    existing[idx]={...existing[idx],status:existing[idx].status==="resolved"?"active":"resolved"};
+    const updated={...project,threads:existing,updated:Date.now()};
+    setProject(updated);
+    setPForm(prev=>({...prev,threads:existing}));
+    saveStored("tt-project",updated);
+    cloudSave("tt-project",updated);
+  };
+
   const isFocusMode = mode && (mode.id==="micro"||mode.id==="smoke");
 
   return (
@@ -3424,7 +3513,58 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
             </div>
             <textarea value={pForm.mainPlot} onChange={e=>updateField("mainPlot",e.target.value)} placeholder="What is this story actually about, underneath the scenes? Type it yourself, or let it grow as you capture chapters." rows={4} style={{width:"100%",background:"var(--bg-base)",border:"1px solid var(--border)",borderRadius:8,padding:"10px 12px",outline:"none",resize:"vertical",fontFamily:"'Cormorant Garamond',serif",fontSize:14,color:"var(--text-primary)",lineHeight:1.7}}/>
           </div>
-          <p style={{fontSize:12,color:"var(--text-muted)",marginBottom:14,lineHeight:1.5}}>Beats below are found automatically when you Capture to Bible. This is where Threads and the Story Spine will live too.</p>
+
+          <div style={{marginBottom:20}}>
+            <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:10}}>
+              <label style={{fontSize:12,color:"var(--text-secondary)",fontWeight:500}}>Threads</label>
+              <span onClick={openAddThread} style={{fontSize:11,color:"var(--accent)",cursor:"pointer",fontFamily:"'DM Sans',sans-serif",display:"flex",alignItems:"center",gap:4}}><span style={{fontSize:14}}>+</span>Add thread</span>
+            </div>
+            {(project?.threads||[]).length===0&&<p style={{fontFamily:"'Cormorant Garamond',serif",fontSize:13,color:"var(--text-dim)",fontStyle:"italic",marginBottom:10}}>None yet. Add one yourself, or Agnes will propose one when she notices something worth tracking during Capture to Bible.</p>}
+            {(()=>{
+              const latestChapter=Math.max(0,...(project?.chapters||[]).map(c=>c.num));
+              return (project?.threads||[]).map((t,idx)=>{
+                const lastTouched=t.chapters&&t.chapters.length>0?Math.max(...t.chapters):0;
+                const isQuiet=t.status!=="resolved"&&lastTouched>0&&(latestChapter-lastTouched)>=4;
+                const linkedChar=t.characterId?(project?.characters||[]).find(c=>c.id===t.characterId):null;
+                return <div key={t.id||idx} style={{background:"var(--bg-card-alt)",border:"1px solid var(--border)",borderRadius:8,padding:"10px 12px",marginBottom:8}}>
+                  <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:3}}>
+                    <div style={{display:"flex",alignItems:"center",gap:8}}>
+                      <span style={{fontFamily:"'Cormorant Garamond',serif",fontSize:14,color:"var(--text-primary)"}}>{t.name}</span>
+                      {t.status==="resolved"?<span style={{fontSize:9,fontWeight:500,color:"var(--text-dim)",background:"var(--bg-card)",padding:"2px 8px",borderRadius:8}}>Resolved</span>
+                        :isQuiet?<span style={{fontSize:9,fontWeight:500,color:"var(--accent)",background:"var(--accent-15)",padding:"2px 8px",borderRadius:8}}>Quiet</span>
+                        :<span style={{fontSize:9,fontWeight:500,color:"#8CC79A",background:"#5A7A5C25",padding:"2px 8px",borderRadius:8}}>Active</span>}
+                    </div>
+                    <div style={{display:"flex",gap:10}}>
+                      <span onClick={()=>openEditThread(idx)} style={{fontSize:11,color:"var(--text-dim)",cursor:"pointer"}}>Edit</span>
+                      <span onClick={()=>toggleThreadStatus(idx)} style={{fontSize:11,color:"var(--text-dim)",cursor:"pointer"}}>{t.status==="resolved"?"Reopen":"Resolve"}</span>
+                      <span onClick={()=>removeThread(idx)} style={{fontSize:11,color:"var(--text-dim)",cursor:"pointer"}}>Remove</span>
+                    </div>
+                  </div>
+                  {t.description&&<div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:13,color:"var(--text-secondary)",lineHeight:1.6,marginBottom:4}}>{t.description}</div>}
+                  <div style={{fontSize:11,color:"var(--text-dim)"}}>
+                    {t.chapters&&t.chapters.length>0?`Appears in Chapter${t.chapters.length>1?"s":""} ${t.chapters.join(", ")}`:"Not yet seen in any captured chapter"}
+                    {linkedChar&&` · ${linkedChar.name}`}
+                  </div>
+                  {isQuiet&&<div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:12,color:"var(--text-muted)",fontStyle:"italic",marginTop:6}}>Hasn't come up since Chapter {lastTouched}. Still live, or has it resolved off the page?</div>}
+                </div>;
+              });
+            })()}
+            {threadFormOpen&&<div style={{background:"var(--bg-card)",border:"1px solid var(--accent-40)",borderRadius:8,padding:14,marginTop:6}}>
+              <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:14,color:"var(--text-primary)",marginBottom:10}}>{threadFormEdit===null?"New thread":"Edit thread"}</div>
+              <input className="fi" placeholder="Name" value={threadForm.name} onChange={e=>setThreadForm(prev=>({...prev,name:e.target.value}))} style={{width:"100%",marginBottom:8}}/>
+              <textarea className="fi" rows={2} placeholder="What is this thread, and what would need to pay it off?" value={threadForm.description} onChange={e=>setThreadForm(prev=>({...prev,description:e.target.value}))} style={{width:"100%",marginBottom:8,resize:"vertical"}}/>
+              {(project?.characters||[]).length>0&&<select value={threadForm.characterId} onChange={e=>setThreadForm(prev=>({...prev,characterId:e.target.value}))} className="fi" style={{width:"100%",marginBottom:10}}>
+                <option value="">Not tied to a specific character</option>
+                {(project.characters||[]).map(c=><option key={c.id} value={c.id}>{c.name||"Unnamed"}</option>)}
+              </select>}
+              <div style={{display:"flex",gap:8}}>
+                <Btn onClick={saveThreadForm} s={{flex:1}}>Save thread</Btn>
+                <Btn onClick={()=>setThreadFormOpen(false)} s={{background:"none",borderColor:"var(--border)",color:"var(--text-dim)"}}>Cancel</Btn>
+              </div>
+            </div>}
+          </div>
+
+          <p style={{fontSize:12,color:"var(--text-muted)",marginBottom:14,lineHeight:1.5}}>Beats below are found automatically when you Capture to Bible. This is where the Story Spine will live too.</p>
           {(()=>{
             const chaptersWithBeats=(project?.chapters||[]).filter(c=>Array.isArray(c.beats)&&c.beats.length>0);
             if(chaptersWithBeats.length===0)return <p style={{fontFamily:"'Cormorant Garamond',serif",fontSize:14,color:"var(--text-dim)",fontStyle:"italic"}}>Nothing here yet. Beats show up here once Agnes reads a chapter.</p>;
@@ -3604,6 +3744,34 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
           {project.mainPlot&&<div style={{marginBottom:20}}>
             <div style={{fontSize:10,textTransform:"uppercase",letterSpacing:"0.12em",color:"var(--text-dim)",fontFamily:"'DM Sans',sans-serif",marginBottom:6}}>Main plot</div>
             <div style={{background:"var(--bg-card)",border:"1px solid var(--border)",borderRadius:8,padding:"12px 14px",fontFamily:"'Cormorant Garamond',serif",fontSize:14,color:"var(--text-primary)",lineHeight:1.75,whiteSpace:"pre-wrap"}}>{project.mainPlot}</div>
+          </div>}
+          {(project.threads||[]).length>0&&<div style={{marginBottom:20}}>
+            <div style={{fontSize:10,textTransform:"uppercase",letterSpacing:"0.12em",color:"var(--text-dim)",fontFamily:"'DM Sans',sans-serif",marginBottom:8}}>Threads</div>
+            {(()=>{
+              const latestChapter=Math.max(0,...(project.chapters||[]).map(c=>c.num));
+              return (project.threads||[]).map((t,idx)=>{
+                const lastTouched=t.chapters&&t.chapters.length>0?Math.max(...t.chapters):0;
+                const isQuiet=t.status!=="resolved"&&lastTouched>0&&(latestChapter-lastTouched)>=4;
+                const linkedChar=t.characterId?(project.characters||[]).find(c=>c.id===t.characterId):null;
+                return <div key={t.id||idx} style={{background:"var(--bg-card)",border:"1px solid var(--border)",borderRadius:8,padding:"10px 12px",marginBottom:8}}>
+                  <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:3}}>
+                    <div style={{display:"flex",alignItems:"center",gap:8}}>
+                      <span style={{fontFamily:"'Cormorant Garamond',serif",fontSize:14,color:"var(--text-primary)"}}>{t.name}</span>
+                      {t.status==="resolved"?<span style={{fontSize:9,fontWeight:500,color:"var(--text-dim)",background:"var(--bg-card-alt)",padding:"2px 8px",borderRadius:8}}>Resolved</span>
+                        :isQuiet?<span style={{fontSize:9,fontWeight:500,color:"var(--accent)",background:"var(--accent-15)",padding:"2px 8px",borderRadius:8}}>Quiet</span>
+                        :<span style={{fontSize:9,fontWeight:500,color:"#8CC79A",background:"#5A7A5C25",padding:"2px 8px",borderRadius:8}}>Active</span>}
+                    </div>
+                    <span onClick={()=>toggleThreadStatus(idx)} style={{fontSize:11,color:"var(--text-dim)",cursor:"pointer"}}>{t.status==="resolved"?"Reopen":"Resolve"}</span>
+                  </div>
+                  {t.description&&<div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:13,color:"var(--text-secondary)",lineHeight:1.6,marginBottom:4}}>{t.description}</div>}
+                  <div style={{fontSize:11,color:"var(--text-dim)"}}>
+                    {t.chapters&&t.chapters.length>0?`Appears in Chapter${t.chapters.length>1?"s":""} ${t.chapters.join(", ")}`:"Not yet seen in any captured chapter"}
+                    {linkedChar&&` · ${linkedChar.name}`}
+                  </div>
+                  {isQuiet&&<div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:12,color:"var(--text-muted)",fontStyle:"italic",marginTop:6}}>Hasn't come up since Chapter {lastTouched}. Still live, or has it resolved off the page?</div>}
+                </div>;
+              });
+            })()}
           </div>}
           {(()=>{
             const chaptersWithBeats=(project.chapters||[]).filter(c=>Array.isArray(c.beats)&&c.beats.length>0);
@@ -4748,6 +4916,22 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
                   </div>
                 ))}
               </div>
+            </div>}
+
+            {Array.isArray(extractResult.proposedThreads)&&extractResult.proposedThreads.length>0&&<div style={{marginBottom:14}}>
+              <div style={{fontSize:9,textTransform:"uppercase",letterSpacing:"0.14em",color:"var(--accent-80)",fontFamily:"'DM Sans',sans-serif",marginBottom:8}}>Agnes noticed a possible thread</div>
+              {extractResult.proposedThreads.map((pt,pi)=>{
+                const state=handledProposedThreads[pi];
+                if(state)return null;
+                return <div key={pi} style={{background:"var(--bg-card)",border:"1px dashed var(--border-mid)",borderRadius:8,padding:"10px 12px",marginBottom:8}}>
+                  <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:13,color:"var(--text-primary)",marginBottom:2}}>{pt.name}</div>
+                  <div style={{fontSize:11,color:"var(--text-dim)",marginBottom:9}}>{pt.description}</div>
+                  <div style={{display:"flex",gap:6}}>
+                    <span onClick={()=>{addThread(pt.name,pt.description,extractResult.chapterNum);setHandledProposedThreads(prev=>({...prev,[pi]:"approved"}));}} style={{fontSize:10,padding:"4px 10px",borderRadius:5,background:"var(--accent)",color:"var(--bg-deepest)",cursor:"pointer",fontFamily:"'DM Sans',sans-serif"}}>Add as thread</span>
+                    <span onClick={()=>setHandledProposedThreads(prev=>({...prev,[pi]:"dismissed"}))} style={{fontSize:10,padding:"4px 10px",borderRadius:5,border:"1px solid var(--border)",color:"var(--text-dim)",cursor:"pointer",fontFamily:"'DM Sans',sans-serif"}}>Not a thread</span>
+                  </div>
+                </div>;
+              })}
             </div>}
 
             {[
