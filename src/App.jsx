@@ -753,6 +753,7 @@ export default function App() {
   const [extracting, setExtracting] = useState(false);
   const [extractResult, setExtractResult] = useState(null);
   const [handledProposedThreads, setHandledProposedThreads] = useState({}); // index -> "approved" | "dismissed", reset per extraction
+  const [spineExpandedChapter, setSpineExpandedChapter] = useState(null);
   const [extractOpen, setExtractOpen] = useState(false);
   const [driftResult, setDriftResult] = useState(null);
   const [driftOpen, setDriftOpen] = useState(false);
@@ -1560,6 +1561,8 @@ Extract what this chapter actually establishes. Only include fields where you fo
 
 Also check the tracked threads above. If this chapter continues, references, or advances any of them, note it. Separately, if this chapter introduces something that reads like the start of its own multi-chapter thread (a promise, a planted question, an unresolved object or relationship) that is not already tracked, propose it as a new thread. Do not propose a thread for something that is just this chapter's own self-contained beat. A thread is something a later chapter would need to pay off.
 
+Also run this pacing check on the chapter as a whole, answered honestly, not generously: did something actually change by the end of it, a decision made, information revealed, a relationship shifted? Did the protagonist want something and hit real resistance, not just talk about wanting something? Does the reader know something at the end they did not know at the start? Answer each true or false based only on what is actually on the page, and give one honest sentence explaining the assessment.
+
 Also identify the beats in this chapter. A beat is one unit of change: something enters a state, something happens, it exits in a different state. If a passage could be cut and nothing about where the character stands, emotionally or tactically, would be different, it is not a beat, it is setup or texture. Only list genuine shifts, not every scene or moment. A short chapter might have two or three. A dense one might have five or six. Do not pad the list to hit a number.${driftInstructions}
 
 Respond with ONLY this JSON:
@@ -1583,6 +1586,7 @@ Respond with ONLY this JSON:
   "themeReveal": "themes or ideas that surfaced clearly in this chapter. Empty string if nothing clear.",
   "mainPlotUpdate": "did this chapter develop or clarify the overall plot arc, the throughline of the whole book? Empty string if this chapter is mostly texture or a subplot beat rather than the main arc.",
   "threadUpdates": [{"thread": "the exact name of an existing tracked thread this chapter continues, must match the list given above exactly", "note": "one short phrase on what happened with it here"}],
+  "pacingCheck": {"somethingChanged": true, "realResistance": true, "newKnowledge": true, "note": "one sentence explaining the assessment, naming specifically what did or did not shift"},
   "proposedThreads": [{"name": "a short name for a new potential thread", "description": "what it is and why it might need a payoff later"}],
   "beats": [{"beat": "a short label for the shift, a few words", "shift": "one sentence naming what specifically changed because of it, not what happened in general"}],
   "craftNote": "one observation about what is working well in this chapter, specific and precise, that Finn would point out as a coach. Not generic praise.",
@@ -1632,8 +1636,9 @@ Respond with ONLY this JSON:
       const existingChapters=Array.isArray(project.chapters)?[...project.chapters]:[{num:1,summary:""}];
       const idx=existingChapters.findIndex(c=>c.num===result.chapterNum);
       const beats=Array.isArray(result.beats)?result.beats:[];
-      if(idx>=0){existingChapters[idx]={...existingChapters[idx],summary:result.chapterSummary,beats};}
-      else{existingChapters.push({num:result.chapterNum||existingChapters.length+1,summary:result.chapterSummary,beats});}
+      const pacing=result.pacingCheck&&typeof result.pacingCheck==="object"?result.pacingCheck:null;
+      if(idx>=0){existingChapters[idx]={...existingChapters[idx],summary:result.chapterSummary,beats,pacing};}
+      else{existingChapters.push({num:result.chapterNum||existingChapters.length+1,summary:result.chapterSummary,beats,pacing});}
       existingChapters.sort((a,b)=>a.num-b.num);
       updated.chapters=existingChapters;
     }
@@ -3774,29 +3779,47 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
             })()}
           </div>}
           {(()=>{
-            const chaptersWithBeats=(project.chapters||[]).filter(c=>Array.isArray(c.beats)&&c.beats.length>0);
-            if(chaptersWithBeats.length===0)return <p style={{fontFamily:"'Cormorant Garamond',serif",fontSize:14,color:"var(--text-dim)",fontStyle:"italic"}}>Nothing here yet. Beats show up here once Agnes reads a chapter during Capture to Bible.</p>;
-            return chaptersWithBeats.map(c=>(
-              <div key={c.num} style={{marginBottom:16}}>
-                <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:8}}>
-                  <span style={{fontSize:12,color:"var(--accent)",fontWeight:600,fontFamily:"'DM Sans',sans-serif"}}>Chapter {c.num}</span>
-                  {c.tag&&c.tag.trim()&&c.tag.toLowerCase()!=="main"&&<span style={{fontSize:9,fontWeight:500,color:"#7A6EA0",background:"#7A6EA020",padding:"2px 8px",borderRadius:8,fontFamily:"'DM Sans',sans-serif"}}>{c.tag}</span>}
+            const chaptersWithData=(project.chapters||[]).filter(c=>(Array.isArray(c.beats)&&c.beats.length>0)||c.pacing);
+            if(chaptersWithData.length===0)return <p style={{fontFamily:"'Cormorant Garamond',serif",fontSize:14,color:"var(--text-dim)",fontStyle:"italic"}}>Nothing here yet. The shape of your story shows up here once Agnes reads a chapter during Capture to Bible.</p>;
+            const scoreOf=(c)=>{if(!c.pacing)return null;return (c.pacing.somethingChanged?1:0)+(c.pacing.realResistance?1:0)+(c.pacing.newKnowledge?1:0);};
+            const expanded=chaptersWithData.find(c=>c.num===spineExpandedChapter);
+            return <div>
+              <div style={{fontSize:10,textTransform:"uppercase",letterSpacing:"0.12em",color:"var(--text-dim)",fontFamily:"'DM Sans',sans-serif",marginBottom:8}}>Story spine</div>
+              <div style={{background:"var(--bg-card)",border:"1px solid var(--border)",borderRadius:8,padding:"16px 14px",marginBottom:14}}>
+                <div style={{display:"flex",alignItems:"flex-end",gap:4,height:70,marginBottom:8}}>
+                  {chaptersWithData.map(c=>{
+                    const score=scoreOf(c);
+                    const heightPct=score===null?20:15+score*23;
+                    const isFlat=score!==null&&score<=1;
+                    const isSelected=spineExpandedChapter===c.num;
+                    return <div key={c.num} onClick={()=>setSpineExpandedChapter(isSelected?null:c.num)} title={`Chapter ${c.num}`} style={{flex:1,height:heightPct+"%",background:isSelected?"var(--accent)":isFlat?"var(--border-mid)":"var(--accent-60)",borderRadius:"2px 2px 0 0",cursor:"pointer",border:isSelected?"1px solid var(--accent)":"none",transition:"background .15s"}}/>;
+                  })}
                 </div>
-                <div style={{background:"var(--bg-card)",border:"1px solid var(--border)",borderRadius:8,padding:"12px 14px"}}>
-                  <div style={{display:"flex",flexDirection:"column",gap:8}}>
-                    {c.beats.map((b,bi)=>(
-                      <div key={bi} style={{display:"flex",gap:10}}>
-                        <span style={{fontSize:11,color:"var(--accent)",fontWeight:600,flexShrink:0,width:14}}>{bi+1}</span>
-                        <div>
-                          <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:13,color:"var(--text-primary)"}}>{b.beat}</div>
-                          <div style={{fontSize:11,color:"var(--text-dim)"}}>{b.shift}</div>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
+                <div style={{display:"flex",gap:4}}>
+                  {chaptersWithData.map(c=><div key={c.num} onClick={()=>setSpineExpandedChapter(spineExpandedChapter===c.num?null:c.num)} style={{flex:1,textAlign:"center",fontSize:9,color:spineExpandedChapter===c.num?"var(--accent)":"var(--text-dim)",cursor:"pointer"}}>{c.num}</div>)}
                 </div>
+                {!expanded&&<div style={{fontSize:11,color:"var(--text-dim)",fontFamily:"'DM Sans',sans-serif",marginTop:10,fontStyle:"italic"}}>Tap a chapter to see what Agnes found there.</div>}
               </div>
-            ));
+
+              {expanded&&<div style={{background:"var(--bg-card)",border:"1px solid var(--border)",borderRadius:8,padding:"14px 16px",marginBottom:16}}>
+                <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:10}}>
+                  <span style={{fontSize:12,color:"var(--accent)",fontWeight:600,fontFamily:"'DM Sans',sans-serif"}}>Chapter {expanded.num}</span>
+                  {expanded.tag&&expanded.tag.trim()&&expanded.tag.toLowerCase()!=="main"&&<span style={{fontSize:9,fontWeight:500,color:"#7A6EA0",background:"#7A6EA020",padding:"2px 8px",borderRadius:8,fontFamily:"'DM Sans',sans-serif"}}>{expanded.tag}</span>}
+                </div>
+                {expanded.pacing?.note&&<div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:13,color:"var(--text-muted)",fontStyle:"italic",lineHeight:1.65,marginBottom:12,paddingBottom:12,borderBottom:"1px solid var(--border)"}}>{expanded.pacing.note}</div>}
+                {Array.isArray(expanded.beats)&&expanded.beats.length>0?<div style={{display:"flex",flexDirection:"column",gap:8}}>
+                  {expanded.beats.map((b,bi)=>(
+                    <div key={bi} style={{display:"flex",gap:10}}>
+                      <span style={{fontSize:11,color:"var(--accent)",fontWeight:600,flexShrink:0,width:14}}>{bi+1}</span>
+                      <div>
+                        <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:13,color:"var(--text-primary)"}}>{b.beat}</div>
+                        <div style={{fontSize:11,color:"var(--text-dim)"}}>{b.shift}</div>
+                      </div>
+                    </div>
+                  ))}
+                </div>:<p style={{fontFamily:"'Cormorant Garamond',serif",fontSize:13,color:"var(--text-dim)",fontStyle:"italic"}}>No beats recorded for this chapter yet.</p>}
+              </div>}
+            </div>;
           })()}
         </div>}
         {!bibleSearch&&bibViewTab==="chapters"&&<div>
@@ -4901,6 +4924,11 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
             {extractResult.chapterSummary&&<div style={{marginBottom:14,padding:14,background:"var(--bg-card)",borderRadius:8,border:"1px solid var(--border)"}}>
               <div style={{fontSize:9,textTransform:"uppercase",letterSpacing:"0.14em",color:"var(--accent-80)",fontFamily:"'DM Sans',sans-serif",marginBottom:6}}>Chapter {extractResult.chapterNum||"?"} Summary</div>
               <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:14,color:"var(--text-primary)",lineHeight:1.75}}>{extractResult.chapterSummary}</div>
+            </div>}
+
+            {extractResult.pacingCheck?.note&&<div style={{marginBottom:14,padding:14,background:"var(--bg-card)",borderRadius:8,border:"1px solid var(--border)"}}>
+              <div style={{fontSize:9,textTransform:"uppercase",letterSpacing:"0.14em",color:"var(--accent-80)",fontFamily:"'DM Sans',sans-serif",marginBottom:6}}>Pacing</div>
+              <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:13,color:"var(--text-primary)",fontStyle:"italic",lineHeight:1.7}}>{extractResult.pacingCheck.note}</div>
             </div>}
 
             {Array.isArray(extractResult.beats)&&extractResult.beats.length>0&&<div style={{marginBottom:14,padding:14,background:"var(--bg-card)",borderRadius:8,border:"1px solid var(--border)"}}>
