@@ -783,7 +783,6 @@ export default function App() {
   const [noteFormText, setNoteFormText] = useState("");
   const [noteFormSnippet, setNoteFormSnippet] = useState("");
   const [noteFormAnchor, setNoteFormAnchor] = useState({start:null,end:null});
-  const [noteFormType, setNoteFormType] = useState("writer"); // "writer" | "agnes" — which type the shared note form is currently creating
   const [noteFormPos, setNoteFormPos] = useState({x:0,y:0}); // screen position, since the form can open from either the Write popup or the notes view popup
   const [askFinnNoteLoading, setAskFinnNoteLoading] = useState(false);
   const [askFinnNoteDraft, setAskFinnNoteDraft] = useState(null); // {snippet,text,start,end} pending confirmation
@@ -1518,14 +1517,9 @@ Main plot: ${project?.mainPlot||"none"}`;
 
     const existingThreadsList=(project?.threads||[]).filter(t=>t.status!=="resolved").map(t=>`- ${t.name}: ${t.description}`).join("\n")||"none tracked yet";
 
-    // Any writer-authored Agnes-context notes on this chapter get fed directly into drift detection,
-    // so intentional choices the writer already flagged never get mistaken for drift in the first place.
-    const agnesContextNotes=(currentScn?.marginalia||[]).filter(n=>n.type==="agnes").map(n=>`On "${n.snippet}": ${n.text}`).join("\n");
-
     const driftInstructions=isOtherTimeline?"":`
 
 Then, as Agnes, the meticulous record keeper, compare what this chapter reveals against the EXISTING STORY BIBLE above, field by field. Only flag a field as drift if the existing entry is a real, substantial entry (not "none") AND this chapter appears to move in a meaningfully different direction from it, not just add consistent detail. Agnes's voice is direct, selective, specific, and slightly pointed. She never uses the words "inconsistency", "error", "problem", or "contradiction". She says "evolving", "different direction", "moving toward something new". She is not alarmed. She is precise.
-${agnesContextNotes?`\nThe writer has left the following context for you about specific passages in this chapter. Trust it completely. Do not flag drift on anything these notes cover, even if it would otherwise look like a meaningful shift.\n${agnesContextNotes}`:""}
 
 Also include in your JSON response:
   "drifts": [
@@ -4467,7 +4461,7 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
                 </div>
                 {sceneNotesOpen&&<div style={{padding:"10px 40px 14px",background:"var(--bg-card-alt)"}}>
                   <div style={{display:"flex",gap:6,marginBottom:10}}>
-                    {[["all","All"],["writer","\u25CA Mine"],["agnes","A Agnes"],["finn","F Finn"]].map(([key,label])=>(
+                    {[["all","All"],["writer","\u25CA Mine"],["finn","F Finn"]].map(([key,label])=>(
                       <span key={key} onClick={()=>setNoteFilter(key)} style={{fontSize:11,padding:"4px 10px",borderRadius:8,cursor:"pointer",fontFamily:"'DM Sans',sans-serif",background:noteFilter===key?"var(--text-primary)":"var(--bg-card)",color:noteFilter===key?"var(--bg-deepest)":"var(--text-muted)",border:"1px solid "+(noteFilter===key?"var(--text-primary)":"var(--border)")}}>{label}</span>
                     ))}
                   </div>
@@ -4528,8 +4522,7 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
                 {!currentScene.text?<p style={{fontFamily:"'Cormorant Garamond',serif",fontSize:15,color:"#8A7A60",fontStyle:"italic"}}>Nothing written yet. Switch to Write to get started, then come back here to see and add notes in context.</p>
                 :<div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:18,color:"#1E1C14",lineHeight:2,letterSpacing:"0.01em",whiteSpace:"pre-wrap"}}>{renderChapterWithNotes(currentScene.text,currentScene.marginalia||[])}</div>}
                 {notesViewSelectPopup.visible&&!noteFormOpen&&!askFinnNoteLoading&&!askFinnNoteDraft&&<div data-note-toolbar="true" style={{position:"fixed",left:notesViewSelectPopup.x,top:notesViewSelectPopup.y,background:"#F5EEE4",border:"1px solid #D8CEB0",borderRadius:8,padding:5,zIndex:250,display:"flex",boxShadow:"0 4px 16px rgba(0,0,0,0.2)"}}>
-                  <span onClick={()=>{setNoteFormSnippet(notesViewSelectPopup.text);setNoteFormAnchor({start:notesViewSelectPopup.start,end:notesViewSelectPopup.end});setNoteFormType("writer");setNoteFormPos({x:notesViewSelectPopup.x,y:notesViewSelectPopup.y});setNoteFormText("");setNoteFormOpen(true);}} style={{fontSize:11,color:"#5A6B3A",padding:"5px 10px",cursor:"pointer",fontFamily:"'DM Sans',sans-serif"}}>&#9674; My note</span>
-                  <span onClick={()=>{const anchor=notesViewSelectPopup;setNoteFormSnippet(anchor.text);setNoteFormAnchor({start:anchor.start,end:anchor.end});setNoteFormType("agnes");setNoteFormPos({x:anchor.x,y:anchor.y});setNoteFormText("");setNoteFormOpen(true);}} style={{fontSize:11,color:"#907860",padding:"5px 10px",cursor:"pointer",fontFamily:"'DM Sans',sans-serif",borderLeft:"1px solid #D8CEB0"}}>A Agnes</span>
+                  <span onClick={()=>{setNoteFormSnippet(notesViewSelectPopup.text);setNoteFormAnchor({start:notesViewSelectPopup.start,end:notesViewSelectPopup.end});setNoteFormPos({x:notesViewSelectPopup.x,y:notesViewSelectPopup.y});setNoteFormText("");setNoteFormOpen(true);}} style={{fontSize:11,color:"#5A6B3A",padding:"5px 10px",cursor:"pointer",fontFamily:"'DM Sans',sans-serif"}}>&#9674; My note</span>
                   <span onClick={()=>{const{text,start,end}=notesViewSelectPopup;setNotesViewSelectPopup({visible:false,x:0,y:0,text:"",start:0,end:0});setAskFinnQuestionText("");setAskFinnPrompt({snippet:text,start,end});}} style={{fontSize:11,color:"#A8884A",padding:"5px 10px",cursor:"pointer",fontFamily:"'DM Sans',sans-serif",borderLeft:"1px solid #D8CEB0"}}>F Ask Finn</span>
                 </div>}
               </div>}
@@ -4537,13 +4530,9 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
               {/* Selection toolbar: highlight text above to attach a note or ask Finn about it */}
               {writeSelectPopup.visible&&!noteFormOpen&&!askFinnNoteLoading&&!askFinnNoteDraft&&<div style={{position:"fixed",left:writeSelectPopup.x,top:writeSelectPopup.y,background:"var(--bg-deepest)",border:"1px solid var(--border)",borderRadius:10,padding:6,zIndex:250,display:"flex",flexDirection:"column",gap:2,minWidth:160,boxShadow:"0 4px 20px rgba(0,0,0,0.3)"}}>
                 <div style={{fontSize:9,color:"var(--text-dim)",letterSpacing:"0.15em",textTransform:"uppercase",padding:"3px 8px 5px",borderBottom:"1px solid var(--border)",marginBottom:2,fontFamily:"'DM Sans',sans-serif"}}>Note this passage</div>
-                <div onClick={()=>{setNoteFormSnippet(writeSelectPopup.text);setNoteFormAnchor({start:writeSelectPopup.start,end:writeSelectPopup.end});setNoteFormType("writer");setNoteFormPos({x:writeSelectPopup.x,y:writeSelectPopup.y});setNoteFormText("");setNoteFormOpen(true);}} style={{display:"flex",alignItems:"center",gap:8,padding:"6px 10px",borderRadius:5,cursor:"pointer",fontFamily:"'DM Sans',sans-serif"}}>
+                <div onClick={()=>{setNoteFormSnippet(writeSelectPopup.text);setNoteFormAnchor({start:writeSelectPopup.start,end:writeSelectPopup.end});setNoteFormPos({x:writeSelectPopup.x,y:writeSelectPopup.y});setNoteFormText("");setNoteFormOpen(true);}} style={{display:"flex",alignItems:"center",gap:8,padding:"6px 10px",borderRadius:5,cursor:"pointer",fontFamily:"'DM Sans',sans-serif"}}>
                   <span style={{fontSize:12,fontWeight:600,color:"#5A6B3A"}}>&#9674;</span>
                   <span style={{fontSize:12,color:"var(--text-primary)"}}>Add my note</span>
-                </div>
-                <div onClick={()=>{setNoteFormSnippet(writeSelectPopup.text);setNoteFormAnchor({start:writeSelectPopup.start,end:writeSelectPopup.end});setNoteFormType("agnes");setNoteFormPos({x:writeSelectPopup.x,y:writeSelectPopup.y});setNoteFormText("");setNoteFormOpen(true);}} style={{display:"flex",alignItems:"center",gap:8,padding:"6px 10px",borderRadius:5,cursor:"pointer",fontFamily:"'DM Sans',sans-serif"}}>
-                  <span style={{fontSize:12,fontWeight:600,color:"#907860"}}>A</span>
-                  <span style={{fontSize:12,color:"var(--text-primary)"}}>Note for Agnes</span>
                 </div>
                 <div onClick={()=>{const snippet=writeSelectPopup.text;const{start,end}=writeSelectPopup;setWriteSelectPopup({visible:false,x:0,y:0,text:""});setAskFinnQuestionText("");setAskFinnPrompt({snippet,start,end});}} style={{display:"flex",alignItems:"center",gap:8,padding:"6px 10px",borderRadius:5,cursor:"pointer",fontFamily:"'DM Sans',sans-serif"}}>
                   <span style={{fontSize:12,fontWeight:600,color:"var(--accent)"}}>F</span>
@@ -4551,13 +4540,13 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
                 </div>
               </div>}
 
-              {/* Shared note form — writer note or Agnes-context note, depending on noteFormType */}
-              {noteFormOpen&&<div style={{position:"fixed",left:noteFormPos.x,top:noteFormPos.y,background:"var(--bg-deepest)",border:"1px solid "+(noteFormType==="agnes"?"#90786060":"#5A6B3A60"),borderRadius:10,padding:12,zIndex:250,width:260,boxShadow:"0 4px 20px rgba(0,0,0,0.3)"}}>
-                <div style={{fontSize:9,letterSpacing:"0.1em",textTransform:"uppercase",fontWeight:600,color:noteFormType==="agnes"?"#907860":"#5A6B3A",marginBottom:6}}>{noteFormType==="agnes"?"Note for Agnes":"Your note"}</div>
+              {/* Writer's own note form — the only type of note created here now */}
+              {noteFormOpen&&<div style={{position:"fixed",left:noteFormPos.x,top:noteFormPos.y,background:"var(--bg-deepest)",border:"1px solid #5A6B3A60",borderRadius:10,padding:12,zIndex:250,width:260,boxShadow:"0 4px 20px rgba(0,0,0,0.3)"}}>
+                <div style={{fontSize:9,letterSpacing:"0.1em",textTransform:"uppercase",fontWeight:600,color:"#5A6B3A",marginBottom:6}}>Your note</div>
                 <div style={{fontSize:10,color:"var(--text-dim)",fontStyle:"italic",fontFamily:"'DM Sans',sans-serif",marginBottom:8}}>"{noteFormSnippet.substring(0,60)}{noteFormSnippet.length>60?"...":""}"</div>
-                <textarea autoFocus value={noteFormText} onChange={e=>setNoteFormText(e.target.value)} placeholder={noteFormType==="agnes"?"Tell Agnes why this isn't drift, e.g. this warmth is intentional, it's the mask, not a contradiction.":"What do you want to remember about this?"} rows={3} style={{width:"100%",background:"var(--bg-base)",border:"1px solid var(--border)",borderRadius:6,padding:"6px 8px",fontFamily:"'Cormorant Garamond',serif",fontSize:13,color:"var(--text-primary)",outline:"none",resize:"vertical",marginBottom:8}}/>
+                <textarea autoFocus value={noteFormText} onChange={e=>setNoteFormText(e.target.value)} placeholder="What do you want to remember about this?" rows={3} style={{width:"100%",background:"var(--bg-base)",border:"1px solid var(--border)",borderRadius:6,padding:"6px 8px",fontFamily:"'Cormorant Garamond',serif",fontSize:13,color:"var(--text-primary)",outline:"none",resize:"vertical",marginBottom:8}}/>
                 <div style={{display:"flex",gap:6}}>
-                  <span onClick={()=>{addMarginaliaNote(currentScene.id,noteFormType,noteFormText,noteFormSnippet,noteFormAnchor.start,noteFormAnchor.end);setNoteFormOpen(false);setNoteFormText("");setWriteSelectPopup({visible:false,x:0,y:0,text:""});setNotesViewSelectPopup({visible:false,x:0,y:0,text:"",start:0,end:0});}} style={{fontSize:11,fontWeight:500,padding:"5px 12px",borderRadius:5,background:noteFormText.trim()?(noteFormType==="agnes"?"#907860":"#5A6B3A"):"var(--bg-card)",color:noteFormText.trim()?"#F0EAE0":"var(--text-dim)",cursor:noteFormText.trim()?"pointer":"default",fontFamily:"'DM Sans',sans-serif"}}>Save</span>
+                  <span onClick={()=>{addMarginaliaNote(currentScene.id,"writer",noteFormText,noteFormSnippet,noteFormAnchor.start,noteFormAnchor.end);setNoteFormOpen(false);setNoteFormText("");setWriteSelectPopup({visible:false,x:0,y:0,text:""});setNotesViewSelectPopup({visible:false,x:0,y:0,text:"",start:0,end:0});}} style={{fontSize:11,fontWeight:500,padding:"5px 12px",borderRadius:5,background:noteFormText.trim()?"#5A6B3A":"var(--bg-card)",color:noteFormText.trim()?"#F0EAE0":"var(--text-dim)",cursor:noteFormText.trim()?"pointer":"default",fontFamily:"'DM Sans',sans-serif"}}>Save</span>
                   <span onClick={()=>{setNoteFormOpen(false);setNoteFormText("");}} style={{fontSize:11,padding:"5px 12px",borderRadius:5,border:"1px solid var(--border)",color:"var(--text-dim)",cursor:"pointer",fontFamily:"'DM Sans',sans-serif"}}>Cancel</span>
                 </div>
               </div>}
