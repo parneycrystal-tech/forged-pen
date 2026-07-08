@@ -455,12 +455,24 @@ function finnClean(text) {
     .replace(/\*\*(.+?)\*\*/g, "$1")  // **bold** → plain
     .replace(/\*(.+?)\*/g, "$1");     // *italic* → plain
 }
+// Every save to the same key waits for the prior save to that same key to finish before it fires its
+// own write. Without this, two saves to the same key in flight close together (e.g. capturing Chapter
+// 4 then quickly Chapter 5) have no guaranteed completion order — whichever network request finishes
+// last wins, even if it started first, silently overwriting newer data with a stale snapshot. This is
+// the confirmed cause of the Title/Genre/Synopsis/Excites fields going blank during a fast recapture
+// session. Contained entirely in this function; no caller anywhere else needs to change.
+const _cloudSaveQueues = {};
 async function cloudSave(key, val) {
-  try {
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return;
-    await supabase.from("user_store").upsert({ user_id: user.id, key, value: val, updated_at: new Date().toISOString() }, { onConflict: "user_id,key" });
-  } catch {}
+  const prior = _cloudSaveQueues[key] || Promise.resolve();
+  const thisSave = prior.then(async () => {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+      await supabase.from("user_store").upsert({ user_id: user.id, key, value: val, updated_at: new Date().toISOString() }, { onConflict: "user_id,key" });
+    } catch {}
+  });
+  _cloudSaveQueues[key] = thisSave;
+  return thisSave;
 }
 async function cloudLoadAll() {
   try {
@@ -755,6 +767,7 @@ export default function App() {
   const [extractResult, setExtractResult] = useState(null);
   const [handledProposedThreads, setHandledProposedThreads] = useState({}); // index -> "approved" | "dismissed", reset per extraction
   const [spineExpandedChapter, setSpineExpandedChapter] = useState(null);
+  const [newYourBeatText, setNewYourBeatText] = useState("");
   const [extractOpen, setExtractOpen] = useState(false);
   const [driftResult, setDriftResult] = useState(null);
   const [driftOpen, setDriftOpen] = useState(false);
@@ -1493,6 +1506,9 @@ Respond with ONLY this JSON:
     const chapterEntry=(project?.chapters||[]).find(c=>c.num===chapterNum);
     const chapterTag=(chapterEntry?.tag||"").trim();
     const isOtherTimeline=chapterTag&&chapterTag.toLowerCase()!=="main";
+    // Off means Agnes doesn't run the automatic drift check at all, not just that it stays quiet about
+    // it. She's still available on demand via the manual "Run a drift scan" option.
+    const skipDrift=isOtherTimeline||agnesInvolvement==="off";
 
     const existingBible=`Title: ${project?.title||"untitled"}
 Genre: ${project?.genre||""}
@@ -1517,7 +1533,7 @@ Main plot: ${project?.mainPlot||"none"}`;
 
     const existingThreadsList=(project?.threads||[]).filter(t=>t.status!=="resolved").map(t=>`- ${t.name}: ${t.description}`).join("\n")||"none tracked yet";
 
-    const driftInstructions=isOtherTimeline?"":`
+    const driftInstructions=skipDrift?"":`
 
 Then, as Agnes, the meticulous record keeper, compare what this chapter reveals against the EXISTING STORY BIBLE above, field by field. Only flag a field as drift if the existing entry is a real, substantial entry (not "none") AND this chapter appears to move in a meaningfully different direction from it, not just add consistent detail. Agnes's voice is direct, selective, specific, and slightly pointed. She never uses the words "inconsistency", "error", "problem", or "contradiction". She says "evolving", "different direction", "moving toward something new". She is not alarmed. She is precise.
 
@@ -1538,7 +1554,7 @@ If there is no genuine drift anywhere, return "drifts": [].`;
     try{
       const r=await fetch("/api/chat",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({
         max_tokens:6000,
-        system:`You are Finn, a writing coach reading a chapter of a writer's manuscript, extracting Story Bible information from what is actually written on the page and surfacing it for the writer to review before anything gets saved. You are not summarizing for a reader. Read carefully. Extract only what is actually present in the text. Do not invent, infer beyond what's clearly implied, or add details that aren't on the page.${isOtherTimeline?"":" You also embody Agnes for the drift-comparison part of this response, described below, and switch fully into her voice and rules for that part only."} Never use em dashes. Respond ONLY with a JSON object.`,
+        system:`You are Finn, a writing coach reading a chapter of a writer's manuscript, extracting Story Bible information from what is actually written on the page and surfacing it for the writer to review before anything gets saved. You are not summarizing for a reader. Read carefully. Extract only what is actually present in the text. Do not invent, infer beyond what's clearly implied, or add details that aren't on the page.${skipDrift?"":" You also embody Agnes for the drift-comparison part of this response, described below, and switch fully into her voice and rules for that part only."} Never use em dashes. Respond ONLY with a JSON object.`,
         messages:[{role:"user",content:`Read this chapter excerpt and extract Story Bible information from what is actually written.
 
 EXISTING STORY BIBLE (for context, do not repeat what's already captured well):
@@ -1585,7 +1601,7 @@ Respond with ONLY this JSON:
   "proposedThreads": [{"name": "a short name for a new potential thread", "description": "what it is and why it might need a payoff later", "type": "one of exactly: Subplot, Question, Object, Relationship"}],
   "beats": [{"beat": "a short label for the shift, a few words", "shift": "one sentence naming what specifically changed because of it, not what happened in general"}],
   "craftNote": "one observation about what is working well in this chapter, specific and precise, that Finn would point out as a coach. Not generic praise.",
-  "openQuestion": "the most important unresolved question this chapter raises for the story going forward."${isOtherTimeline?"":',\n  "drifts": []'}
+  "openQuestion": "the most important unresolved question this chapter raises for the story going forward."${skipDrift?"":',\n  "drifts": []'}
 }`}]
       })});
       const d=await r.json();
@@ -1613,6 +1629,55 @@ Respond with ONLY this JSON:
       setExtractResult({chapterSummary:"Something went wrong. Try again.",chapterNum});
     }
     setExtracting(false);
+  };
+
+  const [manualDriftScanning,setManualDriftScanning]=useState(false);
+  // For Off mode, where the automatic check never runs during Capture to Bible. This asks Agnes to
+  // compare an already-captured chapter against the current Bible on demand, without redoing the full
+  // extraction (summary, beats, threads, pacing already exist from the original capture).
+  const runManualDriftScan=async(sceneText,chapterNum)=>{
+    if(!sceneText?.trim()||manualDriftScanning)return;
+    setManualDriftScanning(true);
+    const existingBible=`Title: ${project?.title||"untitled"}
+Genre: ${project?.genre||""}
+Synopsis so far: ${project?.synopsis||"none"}
+Protagonist: ${project?.protagonist||"none"}
+Goal: ${project?.protagonistGoal||"none"}
+Dream: ${project?.protagonistDream||"none"}
+Fear: ${project?.protagonistFear||"none"}
+Wound: ${project?.protagonistWound||"none"}
+Backstory: ${project?.protagonistBackstory||"none"}
+Misbelief: ${project?.protagonistMisbelief||"none"}
+Supporting characters: ${project?.supporting||"none"}
+Antagonist: ${project?.antagonist||"none"}
+Setting: ${project?.worldSetting||"none"}
+World rules: ${project?.worldRules||"none"}
+Mythology & paranormal rules: ${project?.worldMythology||"none"}
+Beliefs vs reality: ${project?.worldBeliefs||"none"}
+What makes it dangerous: ${project?.worldDanger||"none"}
+Tone: ${project?.worldTone||"none"}
+Themes: ${project?.themes||"none"}
+Main plot: ${project?.mainPlot||"none"}`;
+    try{
+      const r=await fetch("/api/chat",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({
+        max_tokens:2000,
+        system:`You are Agnes, the meticulous record keeper. Compare this chapter against the EXISTING STORY BIBLE, field by field. Only flag a field as drift if the existing entry is a real, substantial entry (not "none") AND this chapter appears to move in a meaningfully different direction from it, not just add consistent detail. Your voice is direct, selective, specific, and slightly pointed. Never use the words "inconsistency", "error", "problem", or "contradiction". Say "evolving", "different direction", "moving toward something new". Not alarmed. Precise. Never use em dashes. Respond ONLY with a JSON object.`,
+        messages:[{role:"user",content:`EXISTING STORY BIBLE:\n${existingBible}\n\nCHAPTER ${chapterNum} TEXT:\n${sceneText.substring(0,20000)}\n\nRespond with ONLY this JSON:\n{"drifts":[{"field":"the field key exactly as given (protagonist, protagonistGoal, protagonistDream, protagonistFear, protagonistWound, protagonistBackstory, protagonistMisbelief, supporting, antagonist, worldSetting, worldRules, worldMythology, worldBeliefs, worldDanger, worldTone, themes, mainPlot)","fieldLabel":"human readable label. For protagonistMisbelief specifically, always use \\"The lie they believe\\", never \\"misbelief\\".","existing":"the existing Bible entry, quoted briefly","incoming":"the new chapter evidence, quoted briefly","observation":"one-sentence neutral observation of the difference","question":"one specific question for the writer, is this intentional evolution or something to revisit"}]}\n\nIf there is no genuine drift, return "drifts": [].`}]
+      })});
+      const d=await r.json();
+      if(!d.error){
+        const raw=finnClean(d.content?.filter(b=>b.type==="text").map(b=>b.text).join(""))||"";
+        const cleaned=raw.replace(/```json\s*/g,"").replace(/```\s*/g,"").trim();
+        try{
+          const result=JSON.parse(cleaned);
+          if(Array.isArray(result.drifts)&&result.drifts.length>0){
+            processDrifts({drifts:result.drifts,chapterNum},project);
+            setDriftOpen(true); // a manual ask is always shown immediately, regardless of involvement level
+          }
+        }catch(e){console.log("Manual drift scan parse error:",e);}
+      }
+    }catch(e){console.log("Manual drift scan error:",e);}
+    setManualDriftScanning(false);
   };
 
   const applyExtractToBible=(result)=>{
@@ -1725,6 +1790,34 @@ Respond with ONLY this JSON:
   // Creates a real, tracked thread from a proposal Agnes surfaced during extraction, once the writer
   // approves it. Never happens automatically — proposedThreads only ever becomes a real thread through
   // this explicit click.
+  // Writer's own beats — typed directly, never generated, never touched by extraction. Sits alongside
+  // Agnes's beats on the same chapter but is a completely separate list, matching the "list your beats,
+  // Agnes's beats" decision: no merging, no matching one against the other.
+  const addYourBeat=(chapterNum,text)=>{
+    if(!text||!text.trim())return;
+    const chapters=Array.isArray(project?.chapters)?[...project.chapters]:[];
+    const idx=chapters.findIndex(c=>c.num===chapterNum);
+    const newBeat={id:"yb_"+Date.now(),text:text.trim()};
+    if(idx>=0){chapters[idx]={...chapters[idx],yourBeats:[...(chapters[idx].yourBeats||[]),newBeat]};}
+    else{chapters.push({num:chapterNum,summary:"",yourBeats:[newBeat]});}
+    const updated={...project,chapters,updated:Date.now()};
+    setProject(updated);
+    setPForm(prev=>({...prev,chapters}));
+    saveStored("tt-project",updated);
+    cloudSave("tt-project",updated);
+  };
+  const removeYourBeat=(chapterNum,beatId)=>{
+    const chapters=Array.isArray(project?.chapters)?[...project.chapters]:[];
+    const idx=chapters.findIndex(c=>c.num===chapterNum);
+    if(idx<0)return;
+    chapters[idx]={...chapters[idx],yourBeats:(chapters[idx].yourBeats||[]).filter(b=>b.id!==beatId)};
+    const updated={...project,chapters,updated:Date.now()};
+    setProject(updated);
+    setPForm(prev=>({...prev,chapters}));
+    saveStored("tt-project",updated);
+    cloudSave("tt-project",updated);
+  };
+
   const addThread=(name,description,chapterNum,type)=>{
     const existing=Array.isArray(project?.threads)?[...project.threads]:[];
     existing.push({id:"thread_"+Date.now(),name,description,status:"active",chapters:chapterNum?[chapterNum]:[],characterId:null,type:type||"Subplot"});
@@ -3784,8 +3877,8 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
             })()}
           </div>}
           {(()=>{
-            const chaptersWithData=(project.chapters||[]).filter(c=>(Array.isArray(c.beats)&&c.beats.length>0)||c.pacing);
-            if(chaptersWithData.length===0)return <p style={{fontFamily:"'Cormorant Garamond',serif",fontSize:14,color:"var(--text-dim)",fontStyle:"italic"}}>Nothing here yet. The shape of your story shows up here once Agnes reads a chapter during Capture to Bible.</p>;
+            const chaptersWithData=(project.chapters||[]).filter(c=>(Array.isArray(c.beats)&&c.beats.length>0)||c.pacing||(Array.isArray(c.yourBeats)&&c.yourBeats.length>0));
+            if(chaptersWithData.length===0)return <p style={{fontFamily:"'Cormorant Garamond',serif",fontSize:14,color:"var(--text-dim)",fontStyle:"italic"}}>Nothing here yet. The shape of your story shows up here once Agnes reads a chapter during Capture to Bible, or once you add your own planned beats.</p>;
             const scoreOf=(c)=>{if(!c.pacing)return null;return (c.pacing.somethingChanged?1:0)+(c.pacing.realResistance?1:0)+(c.pacing.newKnowledge?1:0);};
             const expanded=chaptersWithData.find(c=>c.num===spineExpandedChapter);
             return <div>
@@ -3803,7 +3896,7 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
                 <div style={{display:"flex",gap:4}}>
                   {chaptersWithData.map(c=><div key={c.num} onClick={()=>setSpineExpandedChapter(spineExpandedChapter===c.num?null:c.num)} style={{flex:1,textAlign:"center",fontSize:9,color:spineExpandedChapter===c.num?"var(--accent)":"var(--text-dim)",cursor:"pointer"}}>{c.num}</div>)}
                 </div>
-                {!expanded&&<div style={{fontSize:11,color:"var(--text-dim)",fontFamily:"'DM Sans',sans-serif",marginTop:10,fontStyle:"italic"}}>Tap a chapter to see what Agnes found there.</div>}
+                {!expanded&&<div style={{fontSize:11,color:"var(--text-dim)",fontFamily:"'DM Sans',sans-serif",marginTop:10,fontStyle:"italic"}}>Tap a chapter to see what's there.</div>}
               </div>
 
               {expanded&&<div style={{background:"var(--bg-card)",border:"1px solid var(--border)",borderRadius:8,padding:"14px 16px",marginBottom:16}}>
@@ -3811,6 +3904,27 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
                   <span style={{fontSize:12,color:"var(--accent)",fontWeight:600,fontFamily:"'DM Sans',sans-serif"}}>Chapter {expanded.num}</span>
                   {expanded.tag&&expanded.tag.trim()&&expanded.tag.toLowerCase()!=="main"&&<span style={{fontSize:9,fontWeight:500,color:"#7A6EA0",background:"#7A6EA020",padding:"2px 8px",borderRadius:8,fontFamily:"'DM Sans',sans-serif"}}>{expanded.tag}</span>}
                 </div>
+
+                <div style={{marginBottom:14,paddingBottom:14,borderBottom:"1px solid var(--border)"}}>
+                  <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:8}}>
+                    <span style={{fontSize:9,letterSpacing:"0.12em",textTransform:"uppercase",color:"#5A6B3A",fontWeight:600}}>&#9674; Your beats</span>
+                  </div>
+                  {Array.isArray(expanded.yourBeats)&&expanded.yourBeats.length>0&&<div style={{display:"flex",flexDirection:"column",gap:6,marginBottom:8}}>
+                    {expanded.yourBeats.map((b,bi)=>(
+                      <div key={b.id||bi} style={{display:"flex",gap:8,alignItems:"flex-start"}}>
+                        <span style={{fontSize:11,color:"#5A6B3A",fontWeight:600,flexShrink:0,width:14}}>{bi+1}</span>
+                        <div style={{flex:1,fontFamily:"'Cormorant Garamond',serif",fontSize:13,color:"var(--text-primary)"}}>{b.text}</div>
+                        <span onClick={()=>removeYourBeat(expanded.num,b.id)} style={{fontSize:10,color:"var(--text-dim)",cursor:"pointer",flexShrink:0}}>Remove</span>
+                      </div>
+                    ))}
+                  </div>}
+                  <div style={{display:"flex",gap:6}}>
+                    <input value={newYourBeatText} onChange={e=>setNewYourBeatText(e.target.value)} onKeyDown={e=>{if(e.key==="Enter"&&newYourBeatText.trim()){addYourBeat(expanded.num,newYourBeatText);setNewYourBeatText("");}}} placeholder="Add a beat..." style={{flex:1,background:"var(--bg-base)",border:"1px solid var(--border)",borderRadius:6,padding:"6px 10px",fontFamily:"'Cormorant Garamond',serif",fontSize:13,color:"var(--text-primary)",outline:"none"}}/>
+                    <span onClick={()=>{if(newYourBeatText.trim()){addYourBeat(expanded.num,newYourBeatText);setNewYourBeatText("");}}} style={{fontSize:11,padding:"6px 12px",borderRadius:6,background:newYourBeatText.trim()?"#5A6B3A":"var(--bg-card-alt)",color:newYourBeatText.trim()?"#F0EAE0":"var(--text-dim)",cursor:newYourBeatText.trim()?"pointer":"default",fontFamily:"'DM Sans',sans-serif",whiteSpace:"nowrap"}}>Add</span>
+                  </div>
+                </div>
+
+                <div style={{fontSize:9,letterSpacing:"0.12em",textTransform:"uppercase",color:"var(--accent-80)",fontWeight:600,marginBottom:8}}>A Agnes's beats</div>
                 {expanded.pacing?.note&&<div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:13,color:"var(--text-muted)",fontStyle:"italic",lineHeight:1.65,marginBottom:12,paddingBottom:12,borderBottom:"1px solid var(--border)"}}>{expanded.pacing.note}</div>}
                 {Array.isArray(expanded.beats)&&expanded.beats.length>0?<div style={{display:"flex",flexDirection:"column",gap:8}}>
                   {expanded.beats.map((b,bi)=>(
@@ -3822,7 +3936,7 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
                       </div>
                     </div>
                   ))}
-                </div>:<p style={{fontFamily:"'Cormorant Garamond',serif",fontSize:13,color:"var(--text-dim)",fontStyle:"italic"}}>No beats recorded for this chapter yet.</p>}
+                </div>:<p style={{fontFamily:"'Cormorant Garamond',serif",fontSize:13,color:"var(--text-dim)",fontStyle:"italic"}}>{agnesInvolvement==="off"?"Not generated automatically. Run a drift scan or capture this chapter to have Agnes read it.":"No beats recorded for this chapter yet."}</p>}
               </div>}
             </div>;
           })()}
@@ -4424,6 +4538,7 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
                       extractToBible(currentScene.text,currentScene.chapter);
                     }} style={{fontSize:10,color:extracting?"var(--text-dim)":isComplete?"var(--accent)":"var(--text-muted)",background:"var(--bg-card)",border:"1px solid var(--border)",borderRadius:4,padding:"3px 8px",cursor:extracting?"default":"pointer"}}>{extracting?"Reading...":"Capture to Bible"}</span>;
                   })()}
+                  {agnesInvolvement==="off"&&currentScene.text&&currentScene.text.length>200&&<span onClick={()=>runManualDriftScan(currentScene.text,currentScene.chapter)} style={{fontSize:10,color:manualDriftScanning?"var(--text-dim)":"var(--text-muted)",background:"var(--bg-card)",border:"1px solid var(--border)",borderRadius:4,padding:"3px 8px",cursor:manualDriftScanning?"default":"pointer"}}>{manualDriftScanning?"Scanning...":"Run a drift scan"}</span>}
                   <input value={currentScene.title||""} onChange={e=>{const updated=scenes.map(s=>s.id===currentScene.id?{...s,title:e.target.value}:s);saveScenes(updated);}} placeholder="Scene title (optional)" style={{background:"none",border:"none",outline:"none",color:"var(--text-dim)",fontSize:10,fontFamily:"'DM Sans',sans-serif",width:140,textAlign:"right"}}/>
                 </div>
               </div>
