@@ -3869,7 +3869,7 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
               </div>}
             </div>;
           };
-          return <div style={{display:"grid",gridTemplateColumns:"150px 1fr",gap:16}}>
+          return <><div style={{display:"grid",gridTemplateColumns:"150px 1fr",gap:16}}>
             <div>
               <div style={{fontSize:9,textTransform:"uppercase",letterSpacing:"0.14em",color:"var(--text-dim)",fontFamily:"'DM Sans',sans-serif",marginBottom:8}}>Characters</div>
               <div onClick={()=>setSelectedCharKey("protagonist")} style={{padding:"8px 10px",marginBottom:4,borderRadius:6,cursor:"pointer",background:isProtagonist?"var(--accent-15)":"transparent",borderLeft:isProtagonist?"2px solid var(--accent)":"2px solid transparent"}}>
@@ -3898,12 +3898,14 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
                 {selected.relationship&&<div style={{fontSize:12,fontStyle:"italic",color:"var(--text-dim)",marginBottom:8}}>{selected.relationship}</div>}
                 {selected.description&&<div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:13,color:"var(--text-secondary)",lineHeight:1.65}}>{selected.description}</div>}
               </>:<p style={{fontFamily:"'Cormorant Garamond',serif",fontSize:14,color:"var(--text-dim)",fontStyle:"italic"}}>Select a character.</p>}
-              {(project.supporting||project.antagonist)&&<div style={{marginTop:16,paddingTop:14,borderTop:"1px solid var(--border)"}}>
-                <ReadField label="Other notes on supporting characters" value={project.supporting} multi/>
-                <ReadField label="Other notes on the antagonist" value={project.antagonist} multi/>
-              </div>}
             </div>
-          </div>;
+          </div>
+          {(project.supporting||project.antagonist)&&<div style={{marginTop:20,paddingTop:16,borderTop:"1px solid var(--border)"}}>
+            <div style={{fontSize:9,textTransform:"uppercase",letterSpacing:"0.14em",color:"var(--text-dim)",fontFamily:"'DM Sans',sans-serif",marginBottom:8}}>Unsorted notes, not yet assigned to a specific character</div>
+            <ReadField label="Other notes on supporting characters" value={project.supporting} multi/>
+            <ReadField label="Other notes on the antagonist" value={project.antagonist} multi/>
+          </div>}
+        </>;
         })()}
         {!bibleSearch&&bibViewTab==="world"&&<div>
           <ReadField label="Core Setting" value={project.worldSetting} multi/>
