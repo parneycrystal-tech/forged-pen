@@ -739,6 +739,8 @@ export default function App() {
   const [openTagIdx, setOpenTagIdx] = useState(null);
   const [newTagInput, setNewTagInput] = useState("");
   const [bibViewTab, setBibViewTab] = useState("overview");
+  const [selectedCharKey, setSelectedCharKey] = useState("protagonist"); // "protagonist" or a character's id
+  const [expandedFieldHistory, setExpandedFieldHistory] = useState({}); // fieldKey -> bool
   const [bibExpanded, setBibExpanded] = useState(false);
   const [bibleSearch, setBibleSearch] = useState("");
   const [subMenu, setSubMenu] = useState(null);
@@ -1741,13 +1743,34 @@ Main plot: ${project?.mainPlot||"none"}`;
     }else{
       // Merge new details into existing fields (append rather than replace)
       const appendField=(key,value)=>{if(value&&value.trim())updated[key]=(updated[key]?updated[key]+"\n\n"+value:value);};
+      // Alongside the flat string (unchanged, still used everywhere as Finn's context), also track a
+      // parallel chapter-labeled history for the Characters tab's redesigned display. Old accumulated
+      // text was never saved with chapter numbers, so it can't be split retroactively; new entries from
+      // here forward get one.
+      const appendHistory=(key,value)=>{
+        if(!value||!value.trim())return;
+        const existingHist=Array.isArray(project[key+"History"])?project[key+"History"]:[];
+        if(existingHist.length===0&&project[key]&&project[key].trim()){
+          // First time this field gets chapter-tracked — freeze whatever already existed as a one-time
+          // legacy snapshot, so it never has to be split into chapters it was never actually saved with.
+          updated[key+"Legacy"]=project[key];
+        }
+        updated[key+"History"]=[...existingHist,{chapterNum:result.chapterNum,text:value.trim()}];
+      };
       appendField("protagonist",result.protagonistReveal);
+      appendHistory("protagonist",result.protagonistReveal);
       appendField("protagonistGoal",result.protagonistGoalUpdate);
+      appendHistory("protagonistGoal",result.protagonistGoalUpdate);
       appendField("protagonistDream",result.protagonistDreamUpdate);
+      appendHistory("protagonistDream",result.protagonistDreamUpdate);
       appendField("protagonistFear",result.protagonistFearUpdate);
+      appendHistory("protagonistFear",result.protagonistFearUpdate);
       appendField("protagonistWound",result.protagonistWoundUpdate);
+      appendHistory("protagonistWound",result.protagonistWoundUpdate);
       appendField("protagonistBackstory",result.protagonistBackstoryUpdate);
+      appendHistory("protagonistBackstory",result.protagonistBackstoryUpdate);
       appendField("protagonistMisbelief",result.protagonistMisbeliefUpdate);
+      appendHistory("protagonistMisbelief",result.protagonistMisbeliefUpdate);
       appendField("supporting",result.characterReveal);
       appendField("antagonist",result.antagonistReveal);
       appendField("worldSetting",result.worldReveal);
@@ -3808,34 +3831,80 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
             ))}
           </div>}
         </div>}
-        {!bibleSearch&&bibViewTab==="characters"&&<div>
-          <ReadField label="Protagonist" value={project.protagonist} multi/>
-          {(project.protagonistGoal||project.protagonistDream||project.protagonistFear||project.protagonistWound||project.protagonistBackstory||project.protagonistMisbelief)&&<>
-            <div style={{fontSize:9,textTransform:"uppercase",letterSpacing:"0.14em",color:"var(--accent-70)",fontWeight:500,marginBottom:12,marginTop:8,paddingTop:8,borderTop:"1px solid var(--border)"}}>Protagonist Inner Life</div>
-            <ReadField label="Goal" value={project.protagonistGoal} multi/>
-            <ReadField label="Dream" value={project.protagonistDream} multi/>
-            <ReadField label="Fear" value={project.protagonistFear} multi/>
-            <ReadField label="Wound" value={project.protagonistWound} multi/>
-            <ReadField label="Backstory" value={project.protagonistBackstory} multi/>
-            <ReadField label="The lie they believe" value={project.protagonistMisbelief} multi/>
-          </>}
-          {(project.characters||[]).length>0&&<>
-            <div style={{fontSize:9,textTransform:"uppercase",letterSpacing:"0.14em",color:"var(--accent-70)",fontWeight:500,marginBottom:10,marginTop:8,paddingTop:8,borderTop:"1px solid var(--border)"}}>Characters</div>
-            {project.characters.map((c,idx)=>(
-              <div key={c.id||idx} style={{background:"var(--bg-card)",border:"1px solid var(--border)",borderRadius:8,padding:"10px 14px",marginBottom:8}}>
-                <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:3}}>
-                  <span style={{fontFamily:"'Cormorant Garamond',serif",fontSize:14,color:c.name?"var(--text-primary)":"var(--text-dim)",fontStyle:c.name?"normal":"italic"}}>{c.name||"Unnamed, tap Edit to name them"}</span>
-                  <span style={{fontSize:9,fontWeight:500,color:"var(--accent)",background:"var(--accent-10)",padding:"2px 8px",borderRadius:8}}>{c.role}</span>
+        {!bibleSearch&&bibViewTab==="characters"&&(()=>{
+          const chars=project.characters||[];
+          const selected=selectedCharKey==="protagonist"?null:chars.find(c=>c.id===selectedCharKey);
+          const isProtagonist=selectedCharKey==="protagonist";
+          const toggleHistory=(key)=>setExpandedFieldHistory(prev=>({...prev,[key]:!prev[key]}));
+          const renderFieldHistory=(label,fieldKey)=>{
+            const history=project[fieldKey+"History"];
+            const legacy=project[fieldKey+"Legacy"];
+            const flat=project[fieldKey];
+            const hasHistory=Array.isArray(history)&&history.length>0;
+            if(!hasHistory&&!flat)return null;
+            const expanded=!!expandedFieldHistory[fieldKey];
+            return <div style={{marginBottom:14}}>
+              <div style={{fontSize:9,textTransform:"uppercase",letterSpacing:"0.12em",color:"var(--text-dim)",fontFamily:"'DM Sans',sans-serif",marginBottom:5}}>{label}</div>
+              {hasHistory?<>
+                <div style={{background:"var(--bg-card)",border:"1px solid var(--border)",borderRadius:8,padding:"10px 12px"}}>
+                  <div style={{fontSize:9,color:"var(--text-dim)",marginBottom:3,fontFamily:"'DM Sans',sans-serif"}}>Chapter {history[history.length-1].chapterNum} &middot; latest</div>
+                  <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:13,color:"var(--text-primary)",lineHeight:1.65}}>{history[history.length-1].text}</div>
                 </div>
-                {c.relationship&&<div style={{fontSize:11,fontStyle:"italic",color:"var(--text-dim)",marginBottom:3}}>{c.relationship}</div>}
-                {c.description&&<div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:13,color:"var(--text-secondary)",lineHeight:1.6}}>{c.description}</div>}
+                {(history.length>1||legacy)&&<div onClick={()=>toggleHistory(fieldKey)} style={{fontSize:10,color:"var(--text-dim)",cursor:"pointer",padding:"5px 0",fontFamily:"'DM Sans',sans-serif"}}>{expanded?"Hide earlier":`Show ${history.length-1+(legacy?1:0)} earlier ${history.length-1+(legacy?1:0)===1?"entry":"entries"}`}</div>}
+                {expanded&&<div style={{display:"flex",flexDirection:"column",gap:8,marginTop:4}}>
+                  {[...history].slice(0,-1).reverse().map((h,i)=>(
+                    <div key={i} style={{background:"var(--bg-card-alt)",border:"1px solid var(--border)",borderRadius:8,padding:"10px 12px"}}>
+                      <div style={{fontSize:9,color:"var(--text-dim)",marginBottom:3,fontFamily:"'DM Sans',sans-serif"}}>Chapter {h.chapterNum}</div>
+                      <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:13,color:"var(--text-secondary)",lineHeight:1.65}}>{h.text}</div>
+                    </div>
+                  ))}
+                  {legacy&&<div style={{background:"var(--bg-card-alt)",border:"1px dashed var(--border-mid)",borderRadius:8,padding:"10px 12px"}}>
+                    <div style={{fontSize:9,color:"var(--text-dim)",marginBottom:3,fontFamily:"'DM Sans',sans-serif"}}>Earlier notes, before chapter tracking</div>
+                    <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:13,color:"var(--text-secondary)",lineHeight:1.65,whiteSpace:"pre-wrap"}}>{legacy}</div>
+                  </div>}
+                </div>}
+              </>:<div style={{background:"var(--bg-card)",border:"1px solid var(--border)",borderRadius:8,padding:"10px 12px"}}>
+                <div style={{fontSize:9,color:"var(--text-dim)",marginBottom:3,fontFamily:"'DM Sans',sans-serif"}}>Earlier notes</div>
+                <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:13,color:"var(--text-primary)",lineHeight:1.65,whiteSpace:"pre-wrap"}}>{flat}</div>
+              </div>}
+            </div>;
+          };
+          return <div style={{display:"grid",gridTemplateColumns:"150px 1fr",gap:16}}>
+            <div>
+              <div style={{fontSize:9,textTransform:"uppercase",letterSpacing:"0.14em",color:"var(--text-dim)",fontFamily:"'DM Sans',sans-serif",marginBottom:8}}>Characters</div>
+              <div onClick={()=>setSelectedCharKey("protagonist")} style={{padding:"8px 10px",marginBottom:4,borderRadius:6,cursor:"pointer",background:isProtagonist?"var(--accent-15)":"transparent",borderLeft:isProtagonist?"2px solid var(--accent)":"2px solid transparent"}}>
+                <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:13,color:"var(--text-primary)"}}>{project.protagonist?project.protagonist.split(/[:.]/)[0].substring(0,20):"Protagonist"}</div>
+                <div style={{fontSize:9,color:"var(--accent)"}}>Protagonist</div>
               </div>
-            ))}
-          </>}
-          <ReadField label="Other notes on supporting characters" value={project.supporting} multi/>
-          <ReadField label="Other notes on the antagonist" value={project.antagonist} multi/>
-          {!project.protagonist&&!project.supporting&&!project.antagonist&&(project.characters||[]).length===0&&<p style={{fontFamily:"'Cormorant Garamond',serif",fontSize:14,color:"var(--text-dim)",fontStyle:"italic"}}>No characters added yet. Tap Edit to add them.</p>}
-        </div>}
+              {chars.map(c=>(
+                <div key={c.id} onClick={()=>setSelectedCharKey(c.id)} style={{padding:"8px 10px",marginBottom:4,borderRadius:6,cursor:"pointer",background:selectedCharKey===c.id?"var(--accent-15)":"transparent",borderLeft:selectedCharKey===c.id?"2px solid var(--accent)":"2px solid transparent"}}>
+                  <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:13,color:c.name?"var(--text-primary)":"var(--text-dim)",fontStyle:c.name?"normal":"italic"}}>{c.name||"Unnamed"}</div>
+                  <div style={{fontSize:9,color:"var(--text-dim)"}}>{c.role}</div>
+                </div>
+              ))}
+            </div>
+            <div>
+              {isProtagonist?<>
+                {renderFieldHistory("Protagonist","protagonist")}
+                {renderFieldHistory("Goal","protagonistGoal")}
+                {renderFieldHistory("Dream","protagonistDream")}
+                {renderFieldHistory("Fear","protagonistFear")}
+                {renderFieldHistory("Wound","protagonistWound")}
+                {renderFieldHistory("Backstory","protagonistBackstory")}
+                {renderFieldHistory("The lie they believe","protagonistMisbelief")}
+                {!project.protagonist&&<p style={{fontFamily:"'Cormorant Garamond',serif",fontSize:14,color:"var(--text-dim)",fontStyle:"italic"}}>Nothing captured yet. Tap Edit to add your protagonist.</p>}
+              </>:selected?<>
+                <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:16,color:"var(--accent)",marginBottom:10}}>{selected.name||"Unnamed"}</div>
+                {selected.relationship&&<div style={{fontSize:12,fontStyle:"italic",color:"var(--text-dim)",marginBottom:8}}>{selected.relationship}</div>}
+                {selected.description&&<div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:13,color:"var(--text-secondary)",lineHeight:1.65}}>{selected.description}</div>}
+              </>:<p style={{fontFamily:"'Cormorant Garamond',serif",fontSize:14,color:"var(--text-dim)",fontStyle:"italic"}}>Select a character.</p>}
+              {(project.supporting||project.antagonist)&&<div style={{marginTop:16,paddingTop:14,borderTop:"1px solid var(--border)"}}>
+                <ReadField label="Other notes on supporting characters" value={project.supporting} multi/>
+                <ReadField label="Other notes on the antagonist" value={project.antagonist} multi/>
+              </div>}
+            </div>
+          </div>;
+        })()}
         {!bibleSearch&&bibViewTab==="world"&&<div>
           <ReadField label="Core Setting" value={project.worldSetting} multi/>
           <ReadField label="World Rules" value={project.worldRules} multi/>
