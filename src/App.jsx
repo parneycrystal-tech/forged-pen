@@ -3572,58 +3572,69 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
           </>}
         </>}
 
-        {bibTab==="characters"&&<>
-          <FormField label="Protagonist" k="protagonist" ph="Name, age, core trait, internal conflict, arc..." value={pForm.protagonist} onChange={updateField} multi/>
-          <div style={{marginBottom:8,marginTop:4}}>
-            <div style={{fontSize:9,textTransform:"uppercase",letterSpacing:"0.14em",color:"var(--accent-70)",fontWeight:500,marginBottom:12,paddingTop:8,borderTop:"1px solid var(--border)"}}>Protagonist Inner Life</div>
-            <FormField label="Goal" k="protagonistGoal" ph="What are they visibly pursuing? The surface want..." value={pForm.protagonistGoal} onChange={updateField} multi/>
-            <FormField label="Dream" k="protagonistDream" ph="What do they want at the deepest level, often unspoken..." value={pForm.protagonistDream} onChange={updateField} multi/>
-            <FormField label="Fear" k="protagonistFear" ph="What are they most afraid of..." value={pForm.protagonistFear} onChange={updateField} multi/>
-            <FormField label="Wound" k="protagonistWound" ph="The specific experience or pattern that created the fear..." value={pForm.protagonistWound} onChange={updateField} multi/>
-            <FormField label="Backstory" k="protagonistBackstory" ph="Childhood, family, formative relationships. The wallpaper that lives in the background..." value={pForm.protagonistBackstory} onChange={updateField} multi/>
-            <FormField label="The lie they believe" k="protagonistMisbelief" ph="The false story they tell themselves born from the wound. The thing the story will test..." value={pForm.protagonistMisbelief} onChange={updateField} multi/>
-          </div>
-
-          <div style={{marginTop:4,marginBottom:14}}>
-            <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:10,paddingTop:8,borderTop:"1px solid var(--border)"}}>
-              <div style={{fontSize:9,textTransform:"uppercase",letterSpacing:"0.14em",color:"var(--accent-70)",fontWeight:500}}>Characters</div>
-              <span onClick={openAddCharacter} style={{fontSize:11,color:"var(--accent)",cursor:"pointer",fontFamily:"'DM Sans',sans-serif",display:"flex",alignItems:"center",gap:4}}><span style={{fontSize:14}}>+</span>Add character</span>
-            </div>
-            {(project?.characters||[]).length===0&&<p style={{fontFamily:"'Cormorant Garamond',serif",fontSize:13,color:"var(--text-dim)",fontStyle:"italic",marginBottom:10}}>No characters added yet.</p>}
-            {(project?.characters||[]).map((c,idx)=>(
-              <div key={c.id||idx} style={{background:"var(--bg-card-alt)",border:"1px solid var(--border)",borderRadius:8,padding:"10px 12px",marginBottom:8}}>
-                <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:3}}>
-                  <div style={{display:"flex",alignItems:"center",gap:8}}>
-                    <span style={{fontFamily:"'Cormorant Garamond',serif",fontSize:14,color:c.name?"var(--text-primary)":"var(--text-dim)",fontStyle:c.name?"normal":"italic"}}>{c.name||"Unnamed, tap Edit to name them"}</span>
-                    <span style={{fontSize:9,fontWeight:500,color:"var(--accent)",background:"var(--accent-10)",padding:"2px 8px",borderRadius:8}}>{c.role}</span>
+        {bibTab==="characters"&&(()=>{
+          const chars=project?.characters||[];
+          const isProtagonist=selectedCharKey==="protagonist";
+          const selectedIdx=chars.findIndex(c=>c.id===selectedCharKey);
+          return <div>
+            <div style={{display:"grid",gridTemplateColumns:"150px 1fr",gap:16}}>
+              <div>
+                <div style={{fontSize:9,textTransform:"uppercase",letterSpacing:"0.14em",color:"var(--text-dim)",fontFamily:"'DM Sans',sans-serif",marginBottom:8}}>Characters</div>
+                <div onClick={()=>{setSelectedCharKey("protagonist");setCharFormOpen(false);}} style={{padding:"8px 10px",marginBottom:4,borderRadius:6,cursor:"pointer",background:isProtagonist?"var(--accent-15)":"transparent",borderLeft:isProtagonist?"2px solid var(--accent)":"2px solid transparent"}}>
+                  <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:13,color:"var(--text-primary)"}}>{pForm.protagonist?pForm.protagonist.split(/[:.]/)[0].substring(0,20):"Protagonist"}</div>
+                  <div style={{fontSize:9,color:"var(--accent)"}}>Protagonist</div>
+                </div>
+                {chars.map((c,idx)=>(
+                  <div key={c.id||idx} onClick={()=>{setSelectedCharKey(c.id);openEditCharacter(idx);}} style={{padding:"8px 10px",marginBottom:4,borderRadius:6,cursor:"pointer",background:selectedCharKey===c.id?"var(--accent-15)":"transparent",borderLeft:selectedCharKey===c.id?"2px solid var(--accent)":"2px solid transparent"}}>
+                    <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:13,color:c.name?"var(--text-primary)":"var(--text-dim)",fontStyle:c.name?"normal":"italic"}}>{c.name||"Unnamed"}</div>
+                    <div style={{fontSize:9,color:"var(--text-dim)"}}>{c.role}</div>
                   </div>
-                  <div style={{display:"flex",gap:10}}>
-                    <span onClick={()=>openEditCharacter(idx)} style={{fontSize:11,color:"var(--text-dim)",cursor:"pointer"}}>Edit</span>
-                    <span onClick={()=>removeCharacter(idx)} style={{fontSize:11,color:"var(--text-dim)",cursor:"pointer"}}>Remove</span>
+                ))}
+                <div onClick={()=>{openAddCharacter();setSelectedCharKey("__new");}} style={{padding:"8px 10px",marginTop:6,paddingTop:10,borderTop:"1px solid var(--border)"}}>
+                  <span style={{fontSize:10,color:"var(--accent)",cursor:"pointer",fontFamily:"'DM Sans',sans-serif"}}>+ Add character</span>
+                </div>
+              </div>
+
+              <div>
+                {isProtagonist?<>
+                  <FormField label="Protagonist" k="protagonist" ph="Name, age, core trait, internal conflict, arc..." value={pForm.protagonist} onChange={updateField} multi/>
+                  <div style={{fontSize:9,textTransform:"uppercase",letterSpacing:"0.14em",color:"var(--accent-70)",fontWeight:500,marginBottom:12,marginTop:4,paddingTop:8,borderTop:"1px solid var(--border)"}}>Protagonist Inner Life</div>
+                  <FormField label="Goal" k="protagonistGoal" ph="What are they visibly pursuing? The surface want..." value={pForm.protagonistGoal} onChange={updateField} multi/>
+                  <FormField label="Dream" k="protagonistDream" ph="What do they want at the deepest level, often unspoken..." value={pForm.protagonistDream} onChange={updateField} multi/>
+                  <FormField label="Fear" k="protagonistFear" ph="What are they most afraid of..." value={pForm.protagonistFear} onChange={updateField} multi/>
+                  <FormField label="Wound" k="protagonistWound" ph="The specific experience or pattern that created the fear..." value={pForm.protagonistWound} onChange={updateField} multi/>
+                  <FormField label="Backstory" k="protagonistBackstory" ph="Childhood, family, formative relationships. The wallpaper that lives in the background..." value={pForm.protagonistBackstory} onChange={updateField} multi/>
+                  <FormField label="The lie they believe" k="protagonistMisbelief" ph="The false story they tell themselves born from the wound. The thing the story will test..." value={pForm.protagonistMisbelief} onChange={updateField} multi/>
+                </>:charFormOpen?<>
+                  <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:14,color:"var(--text-primary)",marginBottom:10}}>{charFormEdit===null?"New character":"Edit character"}</div>
+                  <input className="fi" placeholder="Name" value={charForm.name} onChange={e=>setCharForm(prev=>({...prev,name:e.target.value}))} style={{width:"100%",marginBottom:8}}/>
+                  <select value={charForm.role} onChange={e=>setCharForm(prev=>({...prev,role:e.target.value}))} className="fi" style={{width:"100%",marginBottom:8}}>
+                    {CHARACTER_ROLES.map(r=><option key={r} value={r}>{r}</option>)}
+                  </select>
+                  <input className="fi" placeholder="Relationship to protagonist" value={charForm.relationship} onChange={e=>setCharForm(prev=>({...prev,relationship:e.target.value}))} style={{width:"100%",marginBottom:8}}/>
+                  <textarea className="fi" rows={3} placeholder="Description" value={charForm.description} onChange={e=>setCharForm(prev=>({...prev,description:e.target.value}))} style={{width:"100%",marginBottom:10,resize:"vertical"}}/>
+                  <div style={{display:"flex",gap:8,marginBottom:14}}>
+                    <Btn onClick={()=>{saveCharacterForm();}} s={{flex:1}}>Save character</Btn>
+                    {charFormEdit!==null&&<Btn onClick={()=>{removeCharacter(charFormEdit);setCharFormOpen(false);setSelectedCharKey("protagonist");}} s={{background:"none",borderColor:"var(--border)",color:"var(--text-dim)"}}>Remove</Btn>}
+                  </div>
+                </>:<p style={{fontFamily:"'Cormorant Garamond',serif",fontSize:14,color:"var(--text-dim)",fontStyle:"italic"}}>Select a character.</p>}
+                <div style={{borderTop:"1px dashed var(--border-mid)",paddingTop:10,marginTop:4}}>
+                  <div style={{display:"flex",alignItems:"center",gap:6,color:"var(--accent)"}}>
+                    <span style={{fontSize:13}}>&#10022;</span>
+                    <span style={{fontSize:11,fontFamily:"'DM Sans',sans-serif"}}>Natal Chart</span>
+                    <span style={{fontSize:9,color:"var(--text-dim)",fontFamily:"'DM Sans',sans-serif"}}>(coming next)</span>
                   </div>
                 </div>
-                {c.relationship&&<div style={{fontSize:11,fontStyle:"italic",color:"var(--text-dim)",marginBottom:3}}>{c.relationship}</div>}
-                {c.description&&<div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:13,color:"var(--text-secondary)",lineHeight:1.6}}>{c.description}</div>}
               </div>
-            ))}
-            {charFormOpen&&<div style={{background:"var(--bg-card)",border:"1px solid var(--accent-40)",borderRadius:8,padding:14,marginTop:6}}>
-              <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:14,color:"var(--text-primary)",marginBottom:10}}>{charFormEdit===null?"New character":"Edit character"}</div>
-              <input className="fi" placeholder="Name" value={charForm.name} onChange={e=>setCharForm(prev=>({...prev,name:e.target.value}))} style={{width:"100%",marginBottom:8}}/>
-              <select value={charForm.role} onChange={e=>setCharForm(prev=>({...prev,role:e.target.value}))} className="fi" style={{width:"100%",marginBottom:8}}>
-                {CHARACTER_ROLES.map(r=><option key={r} value={r}>{r}</option>)}
-              </select>
-              <input className="fi" placeholder="Relationship to protagonist" value={charForm.relationship} onChange={e=>setCharForm(prev=>({...prev,relationship:e.target.value}))} style={{width:"100%",marginBottom:8}}/>
-              <textarea className="fi" rows={3} placeholder="Description" value={charForm.description} onChange={e=>setCharForm(prev=>({...prev,description:e.target.value}))} style={{width:"100%",marginBottom:10,resize:"vertical"}}/>
-              <div style={{display:"flex",gap:8}}>
-                <Btn onClick={saveCharacterForm} s={{flex:1}}>Save character</Btn>
-                <Btn onClick={()=>setCharFormOpen(false)} s={{background:"none",borderColor:"var(--border)",color:"var(--text-dim)"}}>Cancel</Btn>
-              </div>
-            </div>}
-          </div>
+            </div>
 
-          <FormField label="Other notes on supporting characters" k="supporting" ph="Anything not captured in a character card above..." value={pForm.supporting} onChange={updateField} multi/>
-          <FormField label="Other notes on the antagonist" k="antagonist" ph="Anything not captured in a character card above..." value={pForm.antagonist} onChange={updateField} multi/>
-        </>}
+            <div style={{marginTop:20,paddingTop:16,borderTop:"1px solid var(--border)"}}>
+              <div style={{fontSize:9,textTransform:"uppercase",letterSpacing:"0.14em",color:"var(--text-dim)",fontFamily:"'DM Sans',sans-serif",marginBottom:8}}>Unsorted notes, not yet assigned to a specific character</div>
+              <FormField label="Other notes on supporting characters" k="supporting" ph="Anything not captured in a character card above..." value={pForm.supporting} onChange={updateField} multi/>
+              <FormField label="Other notes on the antagonist" k="antagonist" ph="Anything not captured in a character card above..." value={pForm.antagonist} onChange={updateField} multi/>
+            </div>
+          </div>;
+        })()}
         {bibTab==="world"&&<><WorldField label="Core Setting" helper="When and where does this story take place?" example="A small coastal town in present-day Maine..." k="worldSetting" value={pForm.worldSetting} onChange={updateField}/><WorldField label="World Rules" helper="What can and cannot happen here?" example="Time can be observed but never changed..." k="worldRules" value={pForm.worldRules} onChange={updateField}/><WorldField label="Mythology & Paranormal Rules" helper="The internal logic of anything that operates outside ordinary reality. Ritual mechanics, supernatural rules, entity limitations, protective systems. Agnes cross-references this during drift detection." example="The ritual requires three components and cannot be reversed once fractured..." k="worldMythology" value={pForm.worldMythology} onChange={updateField}/><WorldField label="Beliefs vs. Reality" helper="What do characters assume that isn't true?" example="Everyone believes the disappearances were accidents..." k="worldBeliefs" value={pForm.worldBeliefs} onChange={updateField}/><WorldField label="What Makes This World Dangerous" helper="What creates real stakes?" example="The closer you get to the truth, the more you risk losing..." k="worldDanger" value={pForm.worldDanger} onChange={updateField}/><WorldField label="Tone" helper="What does this world feel like?" example="Warm but uneasy..." k="worldTone" value={pForm.worldTone} onChange={updateField}/></>}
         {bibTab==="plot"&&<div>
           <div style={{marginBottom:20}}>
