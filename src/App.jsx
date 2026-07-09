@@ -2766,6 +2766,176 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
     saveStored("tt-project",updated);
     cloudSave("tt-project",updated);
   };
+
+  // NATAL CHART — opt-in character development tool. Never automatic, never appears unless the writer
+  // clicks into it. target is either {type:"character",id} or {type:"protagonist"}.
+  const [natalTarget,setNatalTarget]=useState(null);
+  const [natalMode,setNatalMode]=useState(null); // "guided" | "manual"
+  const [natalAnswers,setNatalAnswers]=useState(["","","","",""]);
+  const [natalManualSigns,setNatalManualSigns]=useState({sun:"",moon:"",rising:""});
+  const [natalGenerating,setNatalGenerating]=useState(false);
+  const [natalDraft,setNatalDraft]=useState(null);
+  const [natalExpanded,setNatalExpanded]=useState({});
+  const getNatalChart=(target)=>{
+    if(!target)return null;
+    if(target.type==="protagonist")return project?.protagonistNatalChart||null;
+    const c=(project?.characters||[]).find(ch=>ch.id===target.id);
+    return c?.natalChart||null;
+  };
+  const getNatalName=(target)=>{
+    if(!target)return"";
+    if(target.type==="protagonist")return pForm.protagonist?pForm.protagonist.split(/[:.]/)[0].substring(0,30):"the protagonist";
+    const c=(project?.characters||[]).find(ch=>ch.id===target.id);
+    return c?.name||"this character";
+  };
+  const saveNatalChart=(target,chart)=>{
+    if(target.type==="protagonist"){
+      const updated={...project,protagonistNatalChart:chart,updated:Date.now()};
+      setProject(updated);setPForm(prev=>({...prev,protagonistNatalChart:chart}));
+      saveStored("tt-project",updated);cloudSave("tt-project",updated);
+    }else{
+      const existing=Array.isArray(project?.characters)?[...project.characters]:[];
+      const idx=existing.findIndex(c=>c.id===target.id);
+      if(idx<0)return;
+      existing[idx]={...existing[idx],natalChart:chart};
+      const updated={...project,characters:existing,updated:Date.now()};
+      setProject(updated);setPForm(prev=>({...prev,characters:existing}));
+      saveStored("tt-project",updated);cloudSave("tt-project",updated);
+    }
+    setNatalDraft(null);setNatalMode(null);setNatalTarget(null);setNatalAnswers(["","","","",""]);setNatalManualSigns({sun:"",moon:"",rising:""});
+  };
+  const NATAL_QUESTIONS=[
+    "How does this character fill a room when they walk in?",
+    "When something goes wrong that's their fault and they know it, what do they do first?",
+    "What do they want more than anything that they'd be embarrassed to admit out loud?",
+    "When they love someone, how does that person know?",
+    "What does this character do when they feel completely alone?"
+  ];
+  const generateNatalFromAnswers=async(target,answers)=>{
+    setNatalGenerating(true);
+    const name=getNatalName(target);
+    try{
+      const r=await fetch("/api/chat",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({
+        max_tokens:400,
+        system:`You are Finn. A writer has described a character through five behavioral observations, not birth data. Map this character to Sun, Moon, and Rising signs based purely on these behavioral traits. Semantic anchor: Rising reflects how they enter and fill a space (Fire signs are immediate and space-filling, Earth grounded and deliberate, Air communicative and analytical, Water receptive and sensing). Moon reflects their emotional interior and coping style (Cardinal initiating, Fixed holding, Mutable adapting). Sun reflects core identity and what they're becoming, interpreted broadly. Write a portrait in your own voice using the writer's own language and imagery from their answers, not generic astrology copy. Literary craft vocabulary, not clinical psychology terms. Show how the placements interact with each other, not just each one alone. 3-4 sentences maximum. Never use em dashes. Respond ONLY with a JSON object.`,
+        messages:[{role:"user",content:`Character: ${name}\n\n${NATAL_QUESTIONS.map((q,i)=>`${q}\n${answers[i]}`).join("\n\n")}\n\nRespond with ONLY this JSON:\n{"sun":"sign name","moon":"sign name","rising":"sign name","portrait":"3-4 sentence portrait in Finn's voice"}`}]
+      })});
+      const d=await r.json();
+      if(!d.error){
+        const raw=finnClean(d.content?.filter(b=>b.type==="text").map(b=>b.text).join(""))||"";
+        const cleaned=raw.replace(/```json\s*/g,"").replace(/```\s*/g,"").trim();
+        try{const parsed=JSON.parse(cleaned);setNatalDraft(parsed);}catch(e){console.log("Natal chart parse error:",e);}
+      }
+    }catch(e){console.log("Natal chart generation error:",e);}
+    setNatalGenerating(false);
+  };
+  const generateNatalPortraitFromSigns=async(target,sun,moon,rising)=>{
+    setNatalGenerating(true);
+    const name=getNatalName(target);
+    try{
+      const r=await fetch("/api/chat",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({
+        max_tokens:300,
+        system:`You are Finn. The writer already knows this character's astrological chart and has entered it directly. Write a portrait showing how these three placements interact in this specific character, using literary craft vocabulary, not clinical psychology terms or generic astrology copy. 3-4 sentences maximum. Never use em dashes. Respond ONLY with a JSON object.`,
+        messages:[{role:"user",content:`Character: ${name}\nSun: ${sun}\nMoon: ${moon}\nRising: ${rising}\n\nRespond with ONLY this JSON:\n{"portrait":"3-4 sentence portrait in Finn's voice"}`}]
+      })});
+      const d=await r.json();
+      if(!d.error){
+        const raw=finnClean(d.content?.filter(b=>b.type==="text").map(b=>b.text).join(""))||"";
+        const cleaned=raw.replace(/```json\s*/g,"").replace(/```\s*/g,"").trim();
+        try{const parsed=JSON.parse(cleaned);setNatalDraft({sun,moon,rising,portrait:parsed.portrait});}catch(e){console.log("Natal portrait parse error:",e);}
+      }
+    }catch(e){console.log("Natal portrait error:",e);}
+    setNatalGenerating(false);
+  };
+
+  // Shared render for the Natal Chart section, used identically in both Edit and Read — opt-in,
+  // collapsed by default, never appears unless the writer clicks into it for this specific character.
+  const renderNatalSection=(target)=>{
+    const key=target.type==="protagonist"?"protagonist":target.id;
+    const chart=getNatalChart(target);
+    const isActive=natalTarget&&(natalTarget.type==="protagonist"?target.type==="protagonist":natalTarget.id===target.id);
+    const expanded=!!natalExpanded[key];
+    return <div style={{borderTop:"1px dashed var(--border-mid)",paddingTop:12,marginTop:8}}>
+      {chart&&!isActive?<>
+        <div onClick={()=>setNatalExpanded(prev=>({...prev,[key]:!prev[key]}))} style={{display:"flex",alignItems:"center",gap:8,cursor:"pointer",marginBottom:expanded?10:0}}>
+          <span style={{fontSize:13,color:"var(--accent)"}}>&#10022;</span>
+          <span style={{fontSize:11,color:"var(--text-primary)",fontFamily:"'DM Sans',sans-serif"}}>Natal Chart</span>
+          <span style={{fontSize:11,color:"#5A6B3A"}}>&#9737; {chart.sun}</span>
+          <span style={{fontSize:11,color:"#5A6B3A"}}>&#9789; {chart.moon}</span>
+          <span style={{fontSize:11,color:"#5A6B3A"}}>&#8593; {chart.rising}</span>
+          <span style={{fontSize:10,color:"var(--text-dim)",marginLeft:"auto"}}>{expanded?"\u25B2":"\u25BC"}</span>
+        </div>
+        {expanded&&<>
+          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:8,marginBottom:12}}>
+            {[["\u2609",chart.sun,"core identity"],["\u263D",chart.moon,"emotional interior"],["\u2191",chart.rising,"the entrance"]].map(([sym,sign,desc],i)=>(
+              <div key={i} style={{background:"var(--accent-15)",borderRadius:8,padding:"8px 10px",textAlign:"center"}}>
+                <div style={{fontSize:16,color:"var(--accent)"}}>{sym}</div>
+                <div style={{fontSize:10,color:"var(--text-primary)",fontWeight:600}}>{sign}</div>
+                <div style={{fontSize:8,color:"var(--text-dim)"}}>{desc}</div>
+              </div>
+            ))}
+          </div>
+          {chart.portrait&&<div style={{background:"var(--bg-card-alt)",borderLeft:"2px solid var(--accent)",borderRadius:6,padding:"10px 12px",marginBottom:10}}>
+            <div style={{fontSize:9,color:"var(--accent)",fontWeight:600,letterSpacing:"0.1em",marginBottom:4}}>FINN</div>
+            <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:12,color:"var(--text-primary)",lineHeight:1.6,fontStyle:"italic"}}>{chart.portrait}</div>
+          </div>}
+          <span onClick={()=>{setNatalTarget(target);setNatalMode("manual");setNatalManualSigns({sun:chart.sun,moon:chart.moon,rising:chart.rising});}} style={{fontSize:10,color:"var(--text-dim)",cursor:"pointer",marginRight:12}}>Edit signs</span>
+          <span onClick={()=>{setNatalTarget(target);setNatalMode(null);setNatalAnswers(["","","","",""]);}} style={{fontSize:10,color:"var(--text-dim)",cursor:"pointer"}}>Start over</span>
+        </>}
+      </>:isActive?<>
+        {natalGenerating?<div style={{textAlign:"center",padding:"10px 0"}}><span style={{fontSize:12,color:"var(--text-dim)",fontStyle:"italic",fontFamily:"'Cormorant Garamond',serif"}}>Finn is thinking about {getNatalName(target)}...</span></div>
+        :natalDraft?<>
+          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:8,marginBottom:12}}>
+            {[["\u2609",natalDraft.sun],["\u263D",natalDraft.moon],["\u2191",natalDraft.rising]].map(([sym,sign],i)=>(
+              <div key={i} style={{background:"var(--accent-15)",borderRadius:8,padding:"8px 10px",textAlign:"center"}}>
+                <div style={{fontSize:16,color:"var(--accent)"}}>{sym}</div>
+                <div style={{fontSize:10,color:"var(--text-primary)",fontWeight:600}}>{sign}</div>
+              </div>
+            ))}
+          </div>
+          <div style={{background:"var(--bg-card-alt)",borderLeft:"2px solid var(--accent)",borderRadius:6,padding:"10px 12px",marginBottom:10}}>
+            <div style={{fontSize:9,color:"var(--accent)",fontWeight:600,letterSpacing:"0.1em",marginBottom:4}}>FINN</div>
+            <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:12,color:"var(--text-primary)",lineHeight:1.6,fontStyle:"italic"}}>{natalDraft.portrait}</div>
+          </div>
+          <div style={{display:"flex",gap:8}}>
+            <Btn onClick={()=>saveNatalChart(target,natalDraft)} s={{flex:1}}>Save</Btn>
+            <Btn onClick={()=>{setNatalDraft(null);setNatalMode(null);setNatalAnswers(["","","","",""]);}} s={{background:"none",borderColor:"var(--border)",color:"var(--text-dim)"}}>Start over</Btn>
+          </div>
+        </>:natalMode==="guided"?<>
+          <div style={{fontSize:10,color:"var(--text-dim)",fontFamily:"'DM Sans',sans-serif",marginBottom:8}}>Behavioral, not birth data. Answer what you can.</div>
+          {NATAL_QUESTIONS.map((q,i)=>(
+            <div key={i} style={{marginBottom:8}}>
+              <div style={{fontSize:11,color:"var(--text-secondary)",fontFamily:"'DM Sans',sans-serif",marginBottom:3}}>{q}</div>
+              <textarea className="fi" rows={2} value={natalAnswers[i]} onChange={e=>{const a=[...natalAnswers];a[i]=e.target.value;setNatalAnswers(a);}} style={{width:"100%",resize:"vertical",fontSize:13}}/>
+            </div>
+          ))}
+          <div style={{display:"flex",gap:8,marginTop:8}}>
+            <Btn onClick={()=>generateNatalFromAnswers(target,natalAnswers)} s={{flex:1}}>{natalAnswers.some(a=>a.trim())?"Ask Finn to build the chart":"Answer at least one first"}</Btn>
+            <Btn onClick={()=>{setNatalTarget(null);setNatalMode(null);}} s={{background:"none",borderColor:"var(--border)",color:"var(--text-dim)"}}>Cancel</Btn>
+          </div>
+        </>:natalMode==="manual"?<>
+          <input className="fi" placeholder="Sun sign" value={natalManualSigns.sun} onChange={e=>setNatalManualSigns(prev=>({...prev,sun:e.target.value}))} style={{width:"100%",marginBottom:8}}/>
+          <input className="fi" placeholder="Moon sign" value={natalManualSigns.moon} onChange={e=>setNatalManualSigns(prev=>({...prev,moon:e.target.value}))} style={{width:"100%",marginBottom:8}}/>
+          <input className="fi" placeholder="Rising sign" value={natalManualSigns.rising} onChange={e=>setNatalManualSigns(prev=>({...prev,rising:e.target.value}))} style={{width:"100%",marginBottom:10}}/>
+          <div style={{display:"flex",gap:8}}>
+            <Btn onClick={()=>generateNatalPortraitFromSigns(target,natalManualSigns.sun,natalManualSigns.moon,natalManualSigns.rising)} s={{flex:1}}>Generate Finn's portrait</Btn>
+            <Btn onClick={()=>setNatalMode("guided")} s={{background:"none",borderColor:"var(--border)",color:"var(--text-dim)"}}>Ask Finn instead</Btn>
+          </div>
+        </>:<div style={{background:"var(--bg-card-alt)",border:"1px dashed var(--border-mid)",borderRadius:8,padding:16,textAlign:"center"}}>
+          <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:13,color:"var(--text-dim)",fontStyle:"italic",marginBottom:12}}>No chart yet for {getNatalName(target)}.</div>
+          <div style={{display:"flex",gap:8,justifyContent:"center"}}>
+            <span onClick={()=>setNatalMode("guided")} style={{fontSize:11,padding:"7px 16px",borderRadius:6,background:"var(--accent)",color:"var(--bg-deepest)",cursor:"pointer"}}>Explore with Finn</span>
+            <span onClick={()=>setNatalMode("manual")} style={{fontSize:11,padding:"7px 16px",borderRadius:6,border:"1px solid var(--border)",color:"var(--text-muted)",cursor:"pointer"}}>I know the chart</span>
+          </div>
+        </div>}
+      </>:<div onClick={()=>setNatalTarget(target)} style={{display:"flex",alignItems:"center",gap:8,cursor:"pointer"}}>
+        <span style={{fontSize:13,color:"var(--accent)"}}>&#10022;</span>
+        <span style={{fontSize:11,color:"var(--text-primary)",fontFamily:"'DM Sans',sans-serif"}}>Natal Chart</span>
+        <span style={{fontSize:9,color:"var(--text-dim)",fontFamily:"'DM Sans',sans-serif"}}>tap to explore</span>
+      </div>}
+    </div>;
+  };
+
   const dismissOpenQuestion=(idx)=>{
     const existing=Array.isArray(project?.openQuestions)?[...project.openQuestions]:[];
     existing.splice(idx,1);
@@ -3618,13 +3788,7 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
                     {charFormEdit!==null&&<Btn onClick={()=>{removeCharacter(charFormEdit);setCharFormOpen(false);setSelectedCharKey("protagonist");}} s={{background:"none",borderColor:"var(--border)",color:"var(--text-dim)"}}>Remove</Btn>}
                   </div>
                 </>:<p style={{fontFamily:"'Cormorant Garamond',serif",fontSize:14,color:"var(--text-dim)",fontStyle:"italic"}}>Select a character.</p>}
-                <div style={{borderTop:"1px dashed var(--border-mid)",paddingTop:10,marginTop:4}}>
-                  <div style={{display:"flex",alignItems:"center",gap:6,color:"var(--accent)"}}>
-                    <span style={{fontSize:13}}>&#10022;</span>
-                    <span style={{fontSize:11,fontFamily:"'DM Sans',sans-serif"}}>Natal Chart</span>
-                    <span style={{fontSize:9,color:"var(--text-dim)",fontFamily:"'DM Sans',sans-serif"}}>(coming next)</span>
-                  </div>
-                </div>
+                {(isProtagonist||selectedIdx>=0)&&renderNatalSection(isProtagonist?{type:"protagonist"}:{type:"character",id:chars[selectedIdx].id})}
               </div>
             </div>
 
@@ -3909,6 +4073,7 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
                 {selected.relationship&&<div style={{fontSize:12,fontStyle:"italic",color:"var(--text-dim)",marginBottom:8}}>{selected.relationship}</div>}
                 {selected.description&&<div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:13,color:"var(--text-secondary)",lineHeight:1.65}}>{selected.description}</div>}
               </>:<p style={{fontFamily:"'Cormorant Garamond',serif",fontSize:14,color:"var(--text-dim)",fontStyle:"italic"}}>Select a character.</p>}
+              {(isProtagonist||selected)&&renderNatalSection(isProtagonist?{type:"protagonist"}:{type:"character",id:selected.id})}
             </div>
           </div>
           {(project.supporting||project.antagonist)&&<div style={{marginTop:20,paddingTop:16,borderTop:"1px solid var(--border)"}}>
