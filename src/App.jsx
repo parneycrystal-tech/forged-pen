@@ -343,6 +343,8 @@ Wind Down: for when the body is done but the mind isn't. Take the one idea that 
 
 Tone: match their energy. Fast, direct, present. Like a coach running alongside a sprinter. Finn does not lecture or explain craft principles in this mode.
 
+PROACTIVE CHECK-IN: When new text has accumulated since your last check-in, read it and decide if one of the six tools genuinely fits what is happening. If it does, offer exactly one, in a single sentence, framed as a real read of the moment, not a menu: "Sounds like these are coming faster than you can hold them. Want me to just catch them as you go?" Never offer more than one tool at once. Never list options. If nothing about the pattern points clearly to a tool, stay quiet rather than force a suggestion. If the writer ignores what you offered and keeps going, do not repeat it, let them keep working.
+
 Creativity anxiety in the Inferno: if a writer suddenly crashes mid-session as the dopamine drops unexpectedly, name it immediately. Your chemistry just shifted. That is not a verdict on the work. Flag what was alive before the shift and hold it for them.
 
 If no Story Bible exists: the Inferno requires nothing. Just go. Dump everything here. We will organize later.
@@ -831,6 +833,10 @@ export default function App() {
   const [organizeLoading, setOrganizeLoading] = useState(false);
   const [organizeResult, setOrganizeResult] = useState(null);
   const [infernoText, setInfernoText] = useState("");
+  const [infernoLastCheckLength, setInfernoLastCheckLength] = useState(0); // text length at last check-in
+  const [infernoSuggestion, setInfernoSuggestion] = useState(null); // {tool, message} or null
+  const [infernoCheckLoading, setInfernoCheckLoading] = useState(false);
+  const infernoCheckTimerRef = useRef(null);
   const finnWidths = {small:300,medium:360,large:460};
   const endRef = useRef(null);
   const taRef = useRef(null);
@@ -1247,6 +1253,51 @@ export default function App() {
       setChatNoteThis({msgIdx,loading:false,text:msgContent.substring(0,150),chapterNum});
     }
   };
+
+  // Finn's proactive check-in during Inferno: fires on a natural pause in typing, or on a hard word
+  // threshold if the writer never pauses. Reads only the new text since the last check, and either
+  // suggests exactly one tool or stays quiet, per his own instructions. Never repeats an ignored
+  // suggestion, since that's handled by simply clearing it once new text starts arriving again.
+  const checkInferno=async()=>{
+    const newText=infernoText.substring(infernoLastCheckLength);
+    if(!newText.trim())return;
+    setInfernoCheckLoading(true);
+    setInfernoLastCheckLength(infernoText.length);
+    try{
+      const infernoMode=MODES.find(m=>m.id==="inferno");
+      const r=await fetch("/api/chat",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({
+        max_tokens:150,
+        system:infernoMode.sys,
+        messages:[{role:"user",content:`New text since your last check-in:\n\n${newText}\n\nBased on your PROACTIVE CHECK-IN instruction, decide whether to suggest one tool. Respond with ONLY this JSON: {"suggest":true or false,"tool":"one of: Capture the flood, Channel the heat, Ride the wave, 25 min, Flag everything, Body check, Wind down","message":"the single sentence you would actually say"}`}]
+      })});
+      const d=await r.json();
+      if(!d.error){
+        const raw=finnClean(d.content?.filter(b=>b.type==="text").map(b=>b.text).join(""))||"";
+        const cleaned=raw.replace(/```json\s*/g,"").replace(/```\s*/g,"").trim();
+        try{
+          const parsed=JSON.parse(cleaned);
+          if(parsed.suggest&&parsed.tool&&parsed.message){
+            setInfernoSuggestion({tool:parsed.tool,message:parsed.message});
+          }
+        }catch(e){console.log("Inferno check-in parse error:",e);}
+      }
+    }catch(e){console.log("Inferno check-in error:",e);}
+    setInfernoCheckLoading(false);
+  };
+
+  useEffect(()=>{
+    if(forgeMode!=="inferno")return;
+    if(infernoCheckTimerRef.current)clearTimeout(infernoCheckTimerRef.current);
+    const newChars=infernoText.length-infernoLastCheckLength;
+    if(newChars>=600){ // roughly 100+ new words — check in even without a pause
+      checkInferno();
+      return;
+    }
+    if(newChars>=80){ // roughly 15+ new words — wait for a natural pause before checking
+      infernoCheckTimerRef.current=setTimeout(()=>{checkInferno();},12000);
+    }
+    return ()=>{if(infernoCheckTimerRef.current)clearTimeout(infernoCheckTimerRef.current);};
+  },[infernoText,forgeMode]);
 
   const sendContainer=async()=>{
     if(!containerInput.trim()||loading)return;
@@ -3177,6 +3228,9 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
         .cp{cursor:pointer;transition:all .4s}.cp:hover{transform:scale(1.01)}
         .fi{background:var(--bg-card);border:1px solid var(--border);border-radius:8px;padding:10px 14px;color:var(--text-primary);font-family:'Cormorant Garamond',serif;font-size:15px;width:100%;outline:none}.fi:focus{border-color:var(--accent-40)}
         .right-sb{display:none}
+        .inferno-tool-wrap{position:relative}
+        .inferno-tooltip{display:none;position:absolute;left:100%;top:0;margin-left:8px;width:190px;background:var(--bg-card-alt);border:1px solid var(--border);border-radius:6px;padding:8px 10px;font-family:'Cormorant Garamond',serif;font-size:12px;color:var(--text-primary);line-height:1.5;z-index:20;box-shadow:0 4px 12px rgba(0,0,0,0.3);}
+        .inferno-tool-wrap:hover .inferno-tooltip{display:block}
         @media(min-width:1100px){.right-sb{display:flex}}
         .left-panel{display:none}
         @media(min-width:1300px){.left-panel{display:block}}
@@ -4571,17 +4625,32 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
             {forgeMode==="inferno"&&<>
               <div style={{flex:1}}>
                 <div style={{fontSize:9,textTransform:"uppercase",letterSpacing:"0.18em",color:"#C07848",fontWeight:500,marginBottom:8}}>You're on fire</div>
-                <div style={{background:"var(--bg-card)",border:"1px solid #C0784820",borderRadius:8,padding:10,marginBottom:12}}>
+                <div style={{background:"var(--bg-card)",border:"1px solid #C0784820",borderRadius:8,padding:10,marginBottom:8}}>
                   <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:12,color:"#C07848",fontStyle:"italic",lineHeight:1.6}}>Don't stop. Don't edit. Just burn.</div>
                 </div>
+                <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:11,color:"var(--text-dim)",fontStyle:"italic",lineHeight:1.5,marginBottom:12}}>Hover a tool to see what it's for, or just start typing and Finn will read along and check in.</div>
+                {infernoSuggestion&&<div style={{background:"var(--bg-card-alt)",border:"1px solid #C0784850",borderRadius:8,padding:"10px 12px",marginBottom:10}}>
+                  <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:12,color:"var(--text-primary)",lineHeight:1.6,marginBottom:8}}>{infernoSuggestion.message}</div>
+                  <div style={{display:"flex",gap:6}}>
+                    <span onClick={()=>{setFinnOpen(true);setContainerMsgs(prev=>[...prev,{role:"user",content:`INFERNO TOOL: ${infernoSuggestion.tool}`}]);setInfernoSuggestion(null);}} style={{fontSize:10,padding:"5px 12px",borderRadius:5,background:"#C07848",color:"#1E1C14",cursor:"pointer",fontFamily:"'DM Sans',sans-serif"}}>Yes</span>
+                    <span onClick={()=>setInfernoSuggestion(null)} style={{fontSize:10,padding:"5px 12px",borderRadius:5,border:"1px solid var(--border)",color:"var(--text-dim)",cursor:"pointer",fontFamily:"'DM Sans',sans-serif"}}>Not now</span>
+                  </div>
+                </div>}
                 <div style={{display:"flex",flexDirection:"column",gap:4}}>
-                  {["Capture the flood","Channel the heat","Ride the wave, 25 min","Flag everything","Body check","Wind down"].map(tool=>(
-                    <div key={tool} onClick={()=>{
-                      setFinnOpen(true);
-                      const msg=`INFERNO TOOL: ${tool}`;
-                      setContainerMsgs(prev=>[...prev,{role:"user",content:msg}]);
-                    }} style={{background:"var(--bg-card)",border:"1px solid #C0784815",borderRadius:5,padding:"7px 10px",fontSize:10,color:"#C07848",cursor:"pointer",fontFamily:"'DM Sans',sans-serif"}}>
-                      {tool}
+                  {[["Capture the flood","Ideas arriving faster than you can develop them. Dump them, one line each, no explaining."],["Channel the heat","You've got a flood already. Sort what moves the story now from what's fuel for later."],["Ride the wave, 25 min","You know the scene. Timed, uninterrupted writing, no stopping to edit."],["Flag everything","Your clarity's elevated right now. Flag what feels alive for when the fire fades."],["Body check","Water, food, standing up. Ninety seconds. The fire will still be here."],["Wind down","Body's done, mind isn't. Capture one sentence as tomorrow's way back in."]].map(([tool,desc])=>(
+                    <div key={tool} className="inferno-tool-wrap">
+                      <div onClick={()=>{
+                        setFinnOpen(true);
+                        const msg=`INFERNO TOOL: ${tool}`;
+                        setContainerMsgs(prev=>[...prev,{role:"user",content:msg}]);
+                        setInfernoSuggestion(null);
+                      }} style={{background:"var(--bg-card)",border:"1px solid #C0784815",borderRadius:5,padding:"7px 10px",fontSize:10,color:"#C07848",cursor:"pointer",fontFamily:"'DM Sans',sans-serif"}}>
+                        {tool}
+                      </div>
+                      <div className="inferno-tooltip">
+                        <div style={{fontSize:8,textTransform:"uppercase",letterSpacing:"0.1em",color:"#C07848",fontWeight:600,marginBottom:3}}>What it's for</div>
+                        {desc}
+                      </div>
                     </div>
                   ))}
                 </div>
