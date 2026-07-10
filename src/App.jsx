@@ -772,6 +772,7 @@ export default function App() {
   const [extracting, setExtracting] = useState(false);
   const [extractResult, setExtractResult] = useState(null);
   const [handledProposedThreads, setHandledProposedThreads] = useState({}); // index -> "approved" | "dismissed", reset per extraction
+  const [handledProposedCharacters, setHandledProposedCharacters] = useState({});
   const [spineExpandedChapter, setSpineExpandedChapter] = useState(null);
   const [newYourBeatText, setNewYourBeatText] = useState("");
   const [extractOpen, setExtractOpen] = useState(false);
@@ -1497,6 +1498,7 @@ Respond with ONLY this JSON:
     setExtractOpen(true);
     setExtractResult(null);
     setHandledProposedThreads({});
+    setHandledProposedCharacters({});
 
     // Get draft status of the current scene for Agnes context
     const currentScn=scenes.find(s=>s.chapter===chapterNum)||scenes.find(s=>s.id===activeScene);
@@ -1538,6 +1540,7 @@ Themes: ${project?.themes||"none"}
 Main plot: ${project?.mainPlot||"none"}`;
 
     const existingThreadsList=(project?.threads||[]).filter(t=>t.status!=="resolved").map(t=>`- ${t.name}: ${t.description}`).join("\n")||"none tracked yet";
+    const existingCharacterNames=(project?.characters||[]).map(c=>c.name).filter(Boolean).join(", ")||"none yet";
 
     const driftInstructions=skipDrift?"":`
 
@@ -1569,6 +1572,8 @@ ${existingBible}
 THREADS ALREADY BEING TRACKED (subplots and open questions spanning multiple chapters):
 ${existingThreadsList}
 
+CHARACTERS ALREADY GIVEN THEIR OWN CARD: ${existingCharacterNames}
+
 CHAPTER DRAFT STATUS: ${draftNote}
 
 CHAPTER ${chapterNum||"??"} TEXT:
@@ -1577,6 +1582,8 @@ ${sceneText.substring(0,20000)}
 Extract what this chapter actually establishes. Only include fields where you found something meaningful that isn't already well-captured in the existing Bible. Leave fields as empty string if nothing new or significant was found. Paraphrase what you find in your own words rather than quoting dialogue directly, since direct quotes containing quotation marks can break the JSON format.
 
 Also check the tracked threads above. If this chapter continues, references, or advances any of them, note it. Separately, if this chapter introduces something that reads like the start of its own multi-chapter thread (a promise, a planted question, an unresolved object or relationship) that is not already tracked, propose it as a new thread. Do not propose a thread for something that is just this chapter's own self-contained beat. A thread is something a later chapter would need to pay off. Classify each proposed thread as exactly one type: Subplot (a secondary storyline involving other characters), Question (something the reader is left wondering about), Object (a physical thing planted for later significance), or Relationship (an evolving dynamic between two characters that isn't its own subplot).
+
+Also check for named characters in this chapter who are not in the list of characters who already have their own card above. If this chapter names a specific new person (not a vague group or unnamed background figure) and gives them enough presence to be worth a real character card, propose them individually with a name, a best-guess role, and a short description of what this chapter actually shows about them. Do not propose the same person twice if they are already listed above. Reserve characterReveal for texture and background that does not name a specific new individual worth a card.
 
 Also run this pacing check on the chapter as a whole, answered honestly, not generously: did something actually change by the end of it, a decision made, information revealed, a relationship shifted? Did the protagonist want something and hit real resistance, not just talk about wanting something? Does the reader know something at the end they did not know at the start? Answer each true or false based only on what is actually on the page, and give one honest sentence explaining the assessment.
 
@@ -1605,6 +1612,7 @@ Respond with ONLY this JSON:
   "threadUpdates": [{"thread": "the exact name of an existing tracked thread this chapter continues, must match the list given above exactly", "note": "one short phrase on what happened with it here"}],
   "pacingCheck": {"somethingChanged": true, "realResistance": true, "newKnowledge": true, "note": "one sentence explaining the assessment, naming specifically what did or did not shift"},
   "proposedThreads": [{"name": "a short name for a new potential thread", "description": "what it is and why it might need a payoff later", "type": "one of exactly: Subplot, Question, Object, Relationship"}],
+  "proposedCharacters": [{"name": "the character's actual name", "role": "best guess: Antagonist / villain, Love interest, Mentor, Best friend / confidant, Foil, Family, or Secondary character", "description": "what this chapter actually shows about them"}],
   "beats": [{"beat": "a short label for the shift, a few words", "shift": "one sentence naming what specifically changed because of it, not what happened in general"}],
   "craftNote": "one observation about what is working well in this chapter, specific and precise, that Finn would point out as a coach. Not generic praise.",
   "openQuestion": "the most important unresolved question this chapter raises for the story going forward."${skipDrift?"":',\n  "drifts": []'}
@@ -1621,6 +1629,7 @@ Respond with ONLY this JSON:
           if(!Array.isArray(result.beats))result.beats=[];
           if(!Array.isArray(result.threadUpdates))result.threadUpdates=[];
           if(!Array.isArray(result.proposedThreads))result.proposedThreads=[];
+          if(!Array.isArray(result.proposedCharacters))result.proposedCharacters=[];
           setExtractResult(result);
           // Persist so it survives navigation
           saveStored("tt-pending-extract",result);
@@ -1845,6 +1854,17 @@ Main plot: ${project?.mainPlot||"none"}`;
     cloudSave("tt-project",updated);
   };
 
+  // Creates a real character card from a proposal Agnes surfaced during extraction, once approved.
+  // Same principle as addThread — never happens automatically.
+  const addProposedCharacter=(name,role,description)=>{
+    const existing=Array.isArray(project?.characters)?[...project.characters]:[];
+    existing.push({id:"char_"+Date.now(),name,role:role||"Secondary character",relationship:"",description:description||""});
+    const updated={...project,characters:existing,updated:Date.now()};
+    setProject(updated);
+    setPForm(prev=>({...prev,characters:existing}));
+    saveStored("tt-project",updated);
+    cloudSave("tt-project",updated);
+  };
   const addThread=(name,description,chapterNum,type)=>{
     const existing=Array.isArray(project?.threads)?[...project.threads]:[];
     existing.push({id:"thread_"+Date.now(),name,description,status:"active",chapters:chapterNum?[chapterNum]:[],characterId:null,type:type||"Subplot"});
@@ -5431,6 +5451,25 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
                   <div style={{display:"flex",gap:6}}>
                     <span onClick={()=>{addThread(pt.name,pt.description,extractResult.chapterNum,pt.type);setHandledProposedThreads(prev=>({...prev,[pi]:"approved"}));}} style={{fontSize:10,padding:"4px 10px",borderRadius:5,background:"var(--accent)",color:"var(--bg-deepest)",cursor:"pointer",fontFamily:"'DM Sans',sans-serif"}}>Add as thread</span>
                     <span onClick={()=>setHandledProposedThreads(prev=>({...prev,[pi]:"dismissed"}))} style={{fontSize:10,padding:"4px 10px",borderRadius:5,border:"1px solid var(--border)",color:"var(--text-dim)",cursor:"pointer",fontFamily:"'DM Sans',sans-serif"}}>Not a thread</span>
+                  </div>
+                </div>;
+              })}
+            </div>}
+
+            {Array.isArray(extractResult.proposedCharacters)&&extractResult.proposedCharacters.length>0&&<div style={{marginBottom:14}}>
+              <div style={{fontSize:9,textTransform:"uppercase",letterSpacing:"0.14em",color:"var(--accent-80)",fontFamily:"'DM Sans',sans-serif",marginBottom:8}}>Agnes noticed a character worth its own card</div>
+              {extractResult.proposedCharacters.map((pc,pi)=>{
+                const state=handledProposedCharacters[pi];
+                if(state)return null;
+                return <div key={pi} style={{background:"var(--bg-card)",border:"1px dashed var(--border-mid)",borderRadius:8,padding:"10px 12px",marginBottom:8}}>
+                  <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:2}}>
+                    <span style={{fontFamily:"'Cormorant Garamond',serif",fontSize:13,color:"var(--text-primary)"}}>{pc.name}</span>
+                    {pc.role&&<span style={{fontSize:9,fontWeight:500,color:"var(--accent)",background:"var(--accent-15)",padding:"1px 8px",borderRadius:8}}>{pc.role}</span>}
+                  </div>
+                  <div style={{fontSize:11,color:"var(--text-dim)",marginBottom:9}}>{pc.description}</div>
+                  <div style={{display:"flex",gap:6}}>
+                    <span onClick={()=>{addProposedCharacter(pc.name,pc.role,pc.description);setHandledProposedCharacters(prev=>({...prev,[pi]:"approved"}));}} style={{fontSize:10,padding:"4px 10px",borderRadius:5,background:"var(--accent)",color:"var(--bg-deepest)",cursor:"pointer",fontFamily:"'DM Sans',sans-serif"}}>Add as character</span>
+                    <span onClick={()=>setHandledProposedCharacters(prev=>({...prev,[pi]:"dismissed"}))} style={{fontSize:10,padding:"4px 10px",borderRadius:5,border:"1px solid var(--border)",color:"var(--text-dim)",cursor:"pointer",fontFamily:"'DM Sans',sans-serif"}}>Not yet</span>
                   </div>
                 </div>;
               })}
