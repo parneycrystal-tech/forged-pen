@@ -2776,6 +2776,8 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
   const [natalGenerating,setNatalGenerating]=useState(false);
   const [natalDraft,setNatalDraft]=useState(null);
   const [natalExpanded,setNatalExpanded]=useState({});
+  const [charDetailsExpanded,setCharDetailsExpanded]=useState({}); // key -> bool, "See character details" toggle
+  const [summaryGenerating,setSummaryGenerating]=useState(null); // key currently generating, or null
   const getNatalChart=(target)=>{
     if(!target)return null;
     if(target.type==="protagonist")return project?.protagonistNatalChart||null;
@@ -2787,6 +2789,64 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
     if(target.type==="protagonist")return pForm.protagonist?pForm.protagonist.split(/[:.]/)[0].substring(0,30):"the protagonist";
     const c=(project?.characters||[]).find(ch=>ch.id===target.id);
     return c?.name||"this character";
+  };
+  const saveCharacterSummary=(target,summary)=>{
+    if(target.type==="protagonist"){
+      const updated={...project,protagonistSummary:summary,updated:Date.now()};
+      setProject(updated);setPForm(prev=>({...prev,protagonistSummary:summary}));
+      saveStored("tt-project",updated);cloudSave("tt-project",updated);
+    }else{
+      const existing=Array.isArray(project?.characters)?[...project.characters]:[];
+      const idx=existing.findIndex(c=>c.id===target.id);
+      if(idx<0)return;
+      existing[idx]={...existing[idx],summary};
+      const updated={...project,characters:existing,updated:Date.now()};
+      setProject(updated);setPForm(prev=>({...prev,characters:existing}));
+      saveStored("tt-project",updated);cloudSave("tt-project",updated);
+    }
+  };
+  // Agnes's summary reads from cheap, already-existing sources only: the character's own current
+  // fields, plus a scan of the unsorted "other notes" blob for mentions of them by name. Deliberately
+  // does not reread manuscript chapters — that would make a quick gist expensive and slow for
+  // something that's supposed to be a glance, not an audit.
+  const generateCharacterSummary=async(target)=>{
+    const key=target.type==="protagonist"?"protagonist":target.id;
+    setSummaryGenerating(key);
+    const name=getNatalName(target);
+    let sourceText="";
+    if(target.type==="protagonist"){
+      sourceText=[
+        pForm.protagonist?`Description: ${pForm.protagonist}`:"",
+        project?.protagonistGoal?`Goal: ${project.protagonistGoal}`:"",
+        project?.protagonistFear?`Fear: ${project.protagonistFear}`:"",
+        project?.protagonistWound?`Wound: ${project.protagonistWound}`:"",
+        project?.protagonistBackstory?`Backstory: ${project.protagonistBackstory}`:"",
+        project?.protagonistMisbelief?`The lie they believe: ${project.protagonistMisbelief}`:"",
+      ].filter(Boolean).join("\n");
+    }else{
+      const c=(project?.characters||[]).find(ch=>ch.id===target.id);
+      sourceText=[
+        c?.role?`Role: ${c.role}`:"",
+        c?.relationship?`Relationship: ${c.relationship}`:"",
+        c?.description?`Description: ${c.description}`:"",
+      ].filter(Boolean).join("\n");
+    }
+    const unsortedMentions=(project?.supporting||"")+(project?.antagonist?"\n\n"+project.antagonist:"");
+    if(!sourceText.trim()&&!unsortedMentions.trim()){setSummaryGenerating(null);return;}
+    try{
+      const r=await fetch("/api/chat",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({
+        max_tokens:200,
+        system:`You are Agnes, the meticulous record keeper. Write a short, precise 1-2 sentence summary of this character using only what is actually written below. If the unsorted notes mention them by name, pull in anything real and specific said about them there. Do not invent anything not present. Never use em dashes. Respond ONLY with a JSON object.`,
+        messages:[{role:"user",content:`Character name: ${name}\n\nTheir own fields:\n${sourceText||"none yet"}\n\nUnsorted notes on other characters (pull anything that mentions ${name} by name, ignore the rest):\n${unsortedMentions.substring(0,4000)||"none"}\n\nRespond with ONLY this JSON:\n{"summary":"1-2 sentence summary"}`}]
+      })});
+      const d=await r.json();
+      if(!d.error){
+        const raw=finnClean(d.content?.filter(b=>b.type==="text").map(b=>b.text).join(""))||"";
+        const cleaned=raw.replace(/```json\s*/g,"").replace(/```\s*/g,"").trim();
+        try{const parsed=JSON.parse(cleaned);if(parsed.summary)saveCharacterSummary(target,parsed.summary);}catch(e){console.log("Character summary parse error:",e);}
+      }
+    }catch(e){console.log("Character summary generation error:",e);}
+    setSummaryGenerating(null);
   };
   const saveNatalChart=(target,chart)=>{
     if(target.type==="protagonist"){
@@ -2850,6 +2910,24 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
 
   // Shared render for the Natal Chart section, used identically in both Edit and Read — opt-in,
   // collapsed by default, never appears unless the writer clicks into it for this specific character.
+  // Summary-first display: only this shows by default. Everything else — role, description, full
+  // inner-life history, Natal Chart — sits behind "See character details" so a glance at a character
+  // never front-loads everything at once.
+  const renderCharacterSummary=(target)=>{
+    const key=target.type==="protagonist"?"protagonist":target.id;
+    const summary=target.type==="protagonist"?project?.protagonistSummary:(project?.characters||[]).find(c=>c.id===target.id)?.summary;
+    const expanded=!!charDetailsExpanded[key];
+    const generating=summaryGenerating===key;
+    return <div style={{marginBottom:12}}>
+      {generating?<div style={{fontSize:12,color:"var(--text-dim)",fontStyle:"italic",fontFamily:"'Cormorant Garamond',serif",padding:"8px 0"}}>Agnes is putting this together...</div>
+      :<textarea value={summary||""} onChange={e=>saveCharacterSummary(target,e.target.value)} placeholder="Write a short summary, or let Agnes draft one from what's already known..." rows={2} style={{width:"100%",background:"var(--bg-card)",border:"1px solid var(--border)",borderRadius:8,padding:"10px 12px",outline:"none",resize:"vertical",fontFamily:"'Cormorant Garamond',serif",fontSize:13,color:"var(--text-primary)",lineHeight:1.6,marginBottom:6}}/>}
+      <div style={{display:"flex",alignItems:"center",gap:14}}>
+        <span onClick={()=>setCharDetailsExpanded(prev=>({...prev,[key]:!prev[key]}))} style={{fontSize:10,color:"var(--text-dim)",cursor:"pointer",textDecoration:"underline"}}>{expanded?"Hide details":"See character details"}</span>
+        {!generating&&<span onClick={()=>generateCharacterSummary(target)} style={{fontSize:10,color:"var(--accent)",cursor:"pointer"}}>Ask Agnes for a summary</span>}
+      </div>
+    </div>;
+  };
+
   const renderNatalSection=(target)=>{
     const key=target.type==="protagonist"?"protagonist":target.id;
     const chart=getNatalChart(target);
@@ -3766,29 +3844,42 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
               </div>
 
               <div>
-                {isProtagonist?<>
-                  <FormField label="Protagonist" k="protagonist" ph="Name, age, core trait, internal conflict, arc..." value={pForm.protagonist} onChange={updateField} multi/>
-                  <div style={{fontSize:9,textTransform:"uppercase",letterSpacing:"0.14em",color:"var(--accent-70)",fontWeight:500,marginBottom:12,marginTop:4,paddingTop:8,borderTop:"1px solid var(--border)"}}>Protagonist Inner Life</div>
-                  <FormField label="Goal" k="protagonistGoal" ph="What are they visibly pursuing? The surface want..." value={pForm.protagonistGoal} onChange={updateField} multi/>
-                  <FormField label="Dream" k="protagonistDream" ph="What do they want at the deepest level, often unspoken..." value={pForm.protagonistDream} onChange={updateField} multi/>
-                  <FormField label="Fear" k="protagonistFear" ph="What are they most afraid of..." value={pForm.protagonistFear} onChange={updateField} multi/>
-                  <FormField label="Wound" k="protagonistWound" ph="The specific experience or pattern that created the fear..." value={pForm.protagonistWound} onChange={updateField} multi/>
-                  <FormField label="Backstory" k="protagonistBackstory" ph="Childhood, family, formative relationships. The wallpaper that lives in the background..." value={pForm.protagonistBackstory} onChange={updateField} multi/>
-                  <FormField label="The lie they believe" k="protagonistMisbelief" ph="The false story they tell themselves born from the wound. The thing the story will test..." value={pForm.protagonistMisbelief} onChange={updateField} multi/>
-                </>:charFormOpen?<>
-                  <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:14,color:"var(--text-primary)",marginBottom:10}}>{charFormEdit===null?"New character":"Edit character"}</div>
-                  <input className="fi" placeholder="Name" value={charForm.name} onChange={e=>setCharForm(prev=>({...prev,name:e.target.value}))} style={{width:"100%",marginBottom:8}}/>
-                  <select value={charForm.role} onChange={e=>setCharForm(prev=>({...prev,role:e.target.value}))} className="fi" style={{width:"100%",marginBottom:8}}>
-                    {CHARACTER_ROLES.map(r=><option key={r} value={r}>{r}</option>)}
-                  </select>
-                  <input className="fi" placeholder="Relationship to protagonist" value={charForm.relationship} onChange={e=>setCharForm(prev=>({...prev,relationship:e.target.value}))} style={{width:"100%",marginBottom:8}}/>
-                  <textarea className="fi" rows={3} placeholder="Description" value={charForm.description} onChange={e=>setCharForm(prev=>({...prev,description:e.target.value}))} style={{width:"100%",marginBottom:10,resize:"vertical"}}/>
-                  <div style={{display:"flex",gap:8,marginBottom:14}}>
-                    <Btn onClick={()=>{saveCharacterForm();}} s={{flex:1}}>Save character</Btn>
-                    {charFormEdit!==null&&<Btn onClick={()=>{removeCharacter(charFormEdit);setCharFormOpen(false);setSelectedCharKey("protagonist");}} s={{background:"none",borderColor:"var(--border)",color:"var(--text-dim)"}}>Remove</Btn>}
-                  </div>
-                </>:<p style={{fontFamily:"'Cormorant Garamond',serif",fontSize:14,color:"var(--text-dim)",fontStyle:"italic"}}>Select a character.</p>}
-                {(isProtagonist||selectedIdx>=0)&&renderNatalSection(isProtagonist?{type:"protagonist"}:{type:"character",id:chars[selectedIdx].id})}
+                {(isProtagonist||selectedIdx>=0||charFormOpen)&&(()=>{
+                  const target=isProtagonist?{type:"protagonist"}:selectedIdx>=0?{type:"character",id:chars[selectedIdx].id}:null;
+                  const key=isProtagonist?"protagonist":(target?.id||"__new");
+                  const expanded=!!charDetailsExpanded[key];
+                  return <>
+                    <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:16,color:"var(--accent)",marginBottom:2}}>{isProtagonist?(pForm.protagonist?pForm.protagonist.split(/[:.]/)[0].substring(0,30):"Protagonist"):(charForm.name||(charFormEdit===null?"New character":"Unnamed"))}</div>
+                    {isProtagonist?<div style={{fontSize:10,color:"var(--accent)",marginBottom:10}}>Protagonist</div>:charForm.relationship&&<div style={{fontSize:12,fontStyle:"italic",color:"var(--text-dim)",marginBottom:10}}>{charForm.relationship}</div>}
+                    {target&&renderCharacterSummary(target)}
+                    {(expanded||!target)&&<div style={{borderTop:target?"1px solid var(--border)":"none",paddingTop:target?12:0,marginTop:4}}>
+                      {isProtagonist?<>
+                        <FormField label="Protagonist" k="protagonist" ph="Name, age, core trait, internal conflict, arc..." value={pForm.protagonist} onChange={updateField} multi/>
+                        <div style={{fontSize:9,textTransform:"uppercase",letterSpacing:"0.14em",color:"var(--accent-70)",fontWeight:500,marginBottom:12,marginTop:4,paddingTop:8,borderTop:"1px solid var(--border)"}}>Protagonist Inner Life</div>
+                        <FormField label="Goal" k="protagonistGoal" ph="What are they visibly pursuing? The surface want..." value={pForm.protagonistGoal} onChange={updateField} multi/>
+                        <FormField label="Dream" k="protagonistDream" ph="What do they want at the deepest level, often unspoken..." value={pForm.protagonistDream} onChange={updateField} multi/>
+                        <FormField label="Fear" k="protagonistFear" ph="What are they most afraid of..." value={pForm.protagonistFear} onChange={updateField} multi/>
+                        <FormField label="Wound" k="protagonistWound" ph="The specific experience or pattern that created the fear..." value={pForm.protagonistWound} onChange={updateField} multi/>
+                        <FormField label="Backstory" k="protagonistBackstory" ph="Childhood, family, formative relationships. The wallpaper that lives in the background..." value={pForm.protagonistBackstory} onChange={updateField} multi/>
+                        <FormField label="The lie they believe" k="protagonistMisbelief" ph="The false story they tell themselves born from the wound. The thing the story will test..." value={pForm.protagonistMisbelief} onChange={updateField} multi/>
+                      </>:charFormOpen?<>
+                        <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:14,color:"var(--text-primary)",marginBottom:10}}>{charFormEdit===null?"New character":"Edit character"}</div>
+                        <input className="fi" placeholder="Name" value={charForm.name} onChange={e=>setCharForm(prev=>({...prev,name:e.target.value}))} style={{width:"100%",marginBottom:8}}/>
+                        <select value={charForm.role} onChange={e=>setCharForm(prev=>({...prev,role:e.target.value}))} className="fi" style={{width:"100%",marginBottom:8}}>
+                          {CHARACTER_ROLES.map(r=><option key={r} value={r}>{r}</option>)}
+                        </select>
+                        <input className="fi" placeholder="Relationship to protagonist" value={charForm.relationship} onChange={e=>setCharForm(prev=>({...prev,relationship:e.target.value}))} style={{width:"100%",marginBottom:8}}/>
+                        <textarea className="fi" rows={3} placeholder="Description" value={charForm.description} onChange={e=>setCharForm(prev=>({...prev,description:e.target.value}))} style={{width:"100%",marginBottom:10,resize:"vertical"}}/>
+                        <div style={{display:"flex",gap:8,marginBottom:14}}>
+                          <Btn onClick={()=>{saveCharacterForm();}} s={{flex:1}}>Save character</Btn>
+                          {charFormEdit!==null&&<Btn onClick={()=>{removeCharacter(charFormEdit);setCharFormOpen(false);setSelectedCharKey("protagonist");}} s={{background:"none",borderColor:"var(--border)",color:"var(--text-dim)"}}>Remove</Btn>}
+                        </div>
+                      </>:null}
+                      {target&&renderNatalSection(target)}
+                    </div>}
+                  </>;
+                })()}
+                {!isProtagonist&&selectedIdx<0&&!charFormOpen&&<p style={{fontFamily:"'Cormorant Garamond',serif",fontSize:14,color:"var(--text-dim)",fontStyle:"italic"}}>Select a character.</p>}
               </div>
             </div>
 
@@ -4059,21 +4150,35 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
               ))}
             </div>
             <div>
-              {isProtagonist?<>
-                {renderFieldHistory("Protagonist","protagonist")}
-                {renderFieldHistory("Goal","protagonistGoal")}
-                {renderFieldHistory("Dream","protagonistDream")}
-                {renderFieldHistory("Fear","protagonistFear")}
-                {renderFieldHistory("Wound","protagonistWound")}
-                {renderFieldHistory("Backstory","protagonistBackstory")}
-                {renderFieldHistory("The lie they believe","protagonistMisbelief")}
-                {!project.protagonist&&<p style={{fontFamily:"'Cormorant Garamond',serif",fontSize:14,color:"var(--text-dim)",fontStyle:"italic"}}>Nothing captured yet. Tap Edit to add your protagonist.</p>}
-              </>:selected?<>
-                <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:16,color:"var(--accent)",marginBottom:10}}>{selected.name||"Unnamed"}</div>
-                {selected.relationship&&<div style={{fontSize:12,fontStyle:"italic",color:"var(--text-dim)",marginBottom:8}}>{selected.relationship}</div>}
-                {selected.description&&<div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:13,color:"var(--text-secondary)",lineHeight:1.65}}>{selected.description}</div>}
-              </>:<p style={{fontFamily:"'Cormorant Garamond',serif",fontSize:14,color:"var(--text-dim)",fontStyle:"italic"}}>Select a character.</p>}
-              {(isProtagonist||selected)&&renderNatalSection(isProtagonist?{type:"protagonist"}:{type:"character",id:selected.id})}
+              {(isProtagonist||selected)&&(()=>{
+                const target=isProtagonist?{type:"protagonist"}:{type:"character",id:selected.id};
+                const key=isProtagonist?"protagonist":selected.id;
+                const expanded=!!charDetailsExpanded[key];
+                return <>
+                  <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:16,color:"var(--accent)",marginBottom:2}}>{isProtagonist?(pForm.protagonist?pForm.protagonist.split(/[:.]/)[0].substring(0,30):"Protagonist"):(selected.name||"Unnamed")}</div>
+                  {isProtagonist?<div style={{fontSize:10,color:"var(--accent)",marginBottom:10}}>Protagonist</div>:selected.relationship&&<div style={{fontSize:12,fontStyle:"italic",color:"var(--text-dim)",marginBottom:10}}>{selected.relationship}</div>}
+                  {renderCharacterSummary(target)}
+                  {expanded&&<div style={{borderTop:"1px solid var(--border)",paddingTop:12,marginTop:4}}>
+                    {isProtagonist?<>
+                      {renderFieldHistory("Protagonist","protagonist")}
+                      {renderFieldHistory("Goal","protagonistGoal")}
+                      {renderFieldHistory("Dream","protagonistDream")}
+                      {renderFieldHistory("Fear","protagonistFear")}
+                      {renderFieldHistory("Wound","protagonistWound")}
+                      {renderFieldHistory("Backstory","protagonistBackstory")}
+                      {renderFieldHistory("The lie they believe","protagonistMisbelief")}
+                      {!project.protagonist&&<p style={{fontFamily:"'Cormorant Garamond',serif",fontSize:14,color:"var(--text-dim)",fontStyle:"italic"}}>Nothing captured yet. Tap Edit to add your protagonist.</p>}
+                    </>:<>
+                      <div style={{fontSize:9,textTransform:"uppercase",letterSpacing:"0.12em",color:"var(--text-dim)",fontFamily:"'DM Sans',sans-serif",marginBottom:4}}>Role</div>
+                      <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:13,color:"var(--text-primary)",marginBottom:10}}>{selected.role}</div>
+                      {selected.description&&<><div style={{fontSize:9,textTransform:"uppercase",letterSpacing:"0.12em",color:"var(--text-dim)",fontFamily:"'DM Sans',sans-serif",marginBottom:4}}>Description</div>
+                      <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:13,color:"var(--text-secondary)",lineHeight:1.65}}>{selected.description}</div></>}
+                    </>}
+                    {renderNatalSection(target)}
+                  </div>}
+                </>;
+              })()}
+              {!isProtagonist&&!selected&&<p style={{fontFamily:"'Cormorant Garamond',serif",fontSize:14,color:"var(--text-dim)",fontStyle:"italic"}}>Select a character.</p>}
             </div>
           </div>
           {(project.supporting||project.antagonist)&&<div style={{marginTop:20,paddingTop:16,borderTop:"1px solid var(--border)"}}>
