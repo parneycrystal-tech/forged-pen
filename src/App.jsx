@@ -837,6 +837,7 @@ export default function App() {
   const [infernoSuggestion, setInfernoSuggestion] = useState(null); // {tool, message} or null
   const [infernoCheckLoading, setInfernoCheckLoading] = useState(false);
   const infernoCheckTimerRef = useRef(null);
+  const [infernoToolInfoOpen, setInfernoToolInfoOpen] = useState({}); // tool name -> bool, independent toggles
   const finnWidths = {small:300,medium:360,large:460};
   const endRef = useRef(null);
   const taRef = useRef(null);
@@ -3228,9 +3229,6 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
         .cp{cursor:pointer;transition:all .4s}.cp:hover{transform:scale(1.01)}
         .fi{background:var(--bg-card);border:1px solid var(--border);border-radius:8px;padding:10px 14px;color:var(--text-primary);font-family:'Cormorant Garamond',serif;font-size:15px;width:100%;outline:none}.fi:focus{border-color:var(--accent-40)}
         .right-sb{display:none}
-        .inferno-tool-wrap{position:relative}
-        .inferno-tooltip{display:none;position:absolute;left:100%;top:0;margin-left:8px;width:190px;background:var(--bg-card-alt);border:1px solid var(--border);border-radius:6px;padding:8px 10px;font-family:'Cormorant Garamond',serif;font-size:12px;color:var(--text-primary);line-height:1.5;z-index:20;box-shadow:0 4px 12px rgba(0,0,0,0.3);}
-        .inferno-tool-wrap:hover .inferno-tooltip{display:block}
         @media(min-width:1100px){.right-sb{display:flex}}
         .left-panel{display:none}
         @media(min-width:1300px){.left-panel{display:block}}
@@ -4628,7 +4626,7 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
                 <div style={{background:"var(--bg-card)",border:"1px solid #C0784820",borderRadius:8,padding:10,marginBottom:8}}>
                   <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:12,color:"#C07848",fontStyle:"italic",lineHeight:1.6}}>Don't stop. Don't edit. Just burn.</div>
                 </div>
-                <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:11,color:"var(--text-dim)",fontStyle:"italic",lineHeight:1.5,marginBottom:12}}>Hover a tool to see what it's for, or just start typing and Finn will read along and check in.</div>
+                <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:13,color:"var(--text-dim)",fontStyle:"italic",lineHeight:1.5,marginBottom:12}}>Tap the &#9432; to see what a tool's for, or just start typing and Finn will read along and check in.</div>
                 {infernoSuggestion&&<div style={{background:"var(--bg-card-alt)",border:"1px solid #C0784850",borderRadius:8,padding:"10px 12px",marginBottom:10}}>
                   <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:12,color:"var(--text-primary)",lineHeight:1.6,marginBottom:8}}>{infernoSuggestion.message}</div>
                   <div style={{display:"flex",gap:6}}>
@@ -4637,22 +4635,26 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
                   </div>
                 </div>}
                 <div style={{display:"flex",flexDirection:"column",gap:4}}>
-                  {[["Capture the flood","Ideas arriving faster than you can develop them. Dump them, one line each, no explaining."],["Channel the heat","You've got a flood already. Sort what moves the story now from what's fuel for later."],["Ride the wave, 25 min","You know the scene. Timed, uninterrupted writing, no stopping to edit."],["Flag everything","Your clarity's elevated right now. Flag what feels alive for when the fire fades."],["Body check","Water, food, standing up. Ninety seconds. The fire will still be here."],["Wind down","Body's done, mind isn't. Capture one sentence as tomorrow's way back in."]].map(([tool,desc])=>(
-                    <div key={tool} className="inferno-tool-wrap">
-                      <div onClick={()=>{
-                        setFinnOpen(true);
-                        const msg=`INFERNO TOOL: ${tool}`;
-                        setContainerMsgs(prev=>[...prev,{role:"user",content:msg}]);
-                        setInfernoSuggestion(null);
-                      }} style={{background:"var(--bg-card)",border:"1px solid #C0784815",borderRadius:5,padding:"7px 10px",fontSize:10,color:"#C07848",cursor:"pointer",fontFamily:"'DM Sans',sans-serif"}}>
-                        {tool}
+                  {[["Capture the flood","Ideas arriving faster than you can develop them. Dump them, one line each, no explaining."],["Channel the heat","You've got a flood already. Sort what moves the story now from what's fuel for later."],["Ride the wave, 25 min","You know the scene. Timed, uninterrupted writing, no stopping to edit."],["Flag everything","Your clarity's elevated right now. Flag what feels alive for when the fire fades."],["Body check","Water, food, standing up. Ninety seconds. The fire will still be here."],["Wind down","Body's done, mind isn't. Capture one sentence as tomorrow's way back in."]].map(([tool,desc])=>{
+                    const infoOpen=!!infernoToolInfoOpen[tool];
+                    return <div key={tool}>
+                      <div style={{display:"flex",alignItems:"stretch",background:"var(--bg-card)",border:"1px solid "+(infoOpen?"#C07848":"#C0784815"),borderRadius:infoOpen?"5px 5px 0 0":5}}>
+                        <div onClick={()=>{
+                          setFinnOpen(true);
+                          const msg=`INFERNO TOOL: ${tool}`;
+                          setContainerMsgs(prev=>[...prev,{role:"user",content:msg}]);
+                          setInfernoSuggestion(null);
+                        }} style={{flex:1,padding:"9px 10px",fontSize:12,color:"#C07848",cursor:"pointer",fontFamily:"'DM Sans',sans-serif"}}>
+                          {tool}
+                        </div>
+                        <div onClick={()=>setInfernoToolInfoOpen(prev=>({...prev,[tool]:!prev[tool]}))} style={{padding:"9px 10px",color:infoOpen?"#C07848":"var(--text-dim)",fontSize:14,cursor:"pointer",borderLeft:"1px solid "+(infoOpen?"#C0784850":"#C0784815")}}>&#9432;</div>
                       </div>
-                      <div className="inferno-tooltip">
-                        <div style={{fontSize:8,textTransform:"uppercase",letterSpacing:"0.1em",color:"#C07848",fontWeight:600,marginBottom:3}}>What it's for</div>
-                        {desc}
-                      </div>
-                    </div>
-                  ))}
+                      {infoOpen&&<div style={{background:"var(--bg-deepest)",border:"1px solid #C07848",borderTop:"none",borderRadius:"0 0 5px 5px",padding:10}}>
+                        <div style={{fontSize:8,textTransform:"uppercase",letterSpacing:"0.1em",color:"#C07848",fontWeight:600,marginBottom:4}}>What it's for</div>
+                        <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:12,color:"var(--text-primary)",lineHeight:1.5}}>{desc}</div>
+                      </div>}
+                    </div>;
+                  })}
                 </div>
               </div>
               <div style={{borderTop:"1px solid var(--border)",paddingTop:10,marginTop:"auto"}}>
