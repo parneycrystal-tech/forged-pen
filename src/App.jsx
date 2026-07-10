@@ -453,6 +453,13 @@ function clearLocalUserData() {
 }
 
 // Strip em dashes and asterisk emphasis from all Finn responses
+function InfoIcon({size=14,color="currentColor"}){
+  return <svg width={size} height={size} viewBox="0 0 16 16" fill="none" style={{verticalAlign:"-2px"}}>
+    <circle cx="8" cy="8" r="6.5" stroke={color} strokeWidth="1.2"/>
+    <circle cx="8" cy="5" r="0.9" fill={color}/>
+    <rect x="7.3" y="7" width="1.4" height="4.5" rx="0.6" fill={color}/>
+  </svg>;
+}
 function finnClean(text) {
   if(!text) return text;
   return text
@@ -4626,7 +4633,7 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
                 <div style={{background:"var(--bg-card)",border:"1px solid #C0784820",borderRadius:8,padding:10,marginBottom:8}}>
                   <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:12,color:"#C07848",fontStyle:"italic",lineHeight:1.6}}>Don't stop. Don't edit. Just burn.</div>
                 </div>
-                <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:13,color:"var(--text-dim)",fontStyle:"italic",lineHeight:1.5,marginBottom:12}}>Tap the &#9432; to see what a tool's for, or just start typing and Finn will read along and check in.</div>
+                <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:13,color:"var(--text-dim)",fontStyle:"italic",lineHeight:1.5,marginBottom:12}}>Tap the <InfoIcon size={12} color="#8A7A60"/> to see what a tool's for, or just start typing and Finn will read along and check in.</div>
                 {infernoSuggestion&&<div style={{background:"var(--bg-card-alt)",border:"1px solid #C0784850",borderRadius:8,padding:"10px 12px",marginBottom:10}}>
                   <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:12,color:"var(--text-primary)",lineHeight:1.6,marginBottom:8}}>{infernoSuggestion.message}</div>
                   <div style={{display:"flex",gap:6}}>
@@ -4647,7 +4654,7 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
                         }} style={{flex:1,padding:"9px 10px",fontSize:12,color:"#C07848",cursor:"pointer",fontFamily:"'DM Sans',sans-serif"}}>
                           {tool}
                         </div>
-                        <div onClick={()=>setInfernoToolInfoOpen(prev=>({...prev,[tool]:!prev[tool]}))} style={{padding:"9px 10px",color:infoOpen?"#C07848":"var(--text-dim)",fontSize:14,cursor:"pointer",borderLeft:"1px solid "+(infoOpen?"#C0784850":"#C0784815")}}>&#9432;</div>
+                        <div onClick={()=>setInfernoToolInfoOpen(prev=>({...prev,[tool]:!prev[tool]}))} style={{padding:"9px 10px",display:"flex",alignItems:"center",cursor:"pointer",borderLeft:"1px solid "+(infoOpen?"#C0784850":"#C0784815")}}><InfoIcon size={15} color={infoOpen?"#C07848":"var(--text-dim)"}/></div>
                       </div>
                       {infoOpen&&<div style={{background:"var(--bg-deepest)",border:"1px solid #C07848",borderTop:"none",borderRadius:"0 0 5px 5px",padding:10}}>
                         <div style={{fontSize:8,textTransform:"uppercase",letterSpacing:"0.1em",color:"#C07848",fontWeight:600,marginBottom:4}}>What it's for</div>
