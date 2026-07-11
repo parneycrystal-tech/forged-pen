@@ -803,6 +803,11 @@ export default function App() {
   const [emberPlacerOpen, setEmberPlacerOpen] = useState(false);
   const [ideaLabText, setIdeaLabText] = useState("");
   const [ideaLabBuckets, setIdeaLabBuckets] = useState({characters:[],plot:[],world:[],questions:[],fragments:[]});
+  const [labSessions, setLabSessions] = useState([]); // [{id,name,text,buckets,createdAt,updatedAt}]
+  const [activeLabSessionId, setActiveLabSessionId] = useState(null); // null = current field is an unsaved new draft
+  const [unsavedLabDraft, setUnsavedLabDraft] = useState(null); // {text,buckets,activeLabSessionId} or null
+  const [labSessionNaming, setLabSessionNaming] = useState(false);
+  const [infernoToLabPrompt, setInfernoToLabPrompt] = useState(null); // {step:"save-current"|"choose"} or null
   const [highlightPopup, setHighlightPopup] = useState({visible:false,x:0,y:0,text:""});
   // Marginalia: writer/Agnes/Finn notes anchored to a specific passage in the manuscript, or general
   // to a chapter. The manuscript editor is a plain textarea, so notes can't render inline as marks in
@@ -925,8 +930,22 @@ export default function App() {
     if (sb) setSidebarCtx(sb);
     if (th) setTheme(th);
     if (nb) setAgnesBrief(nb);
-    if (ilt) setIdeaLabText(ilt);
-    if (ilb) setIdeaLabBuckets(ilb);
+    // Idea Lab session migration: the first time this loads after the update, any existing single-blob
+    // content becomes "Session 1" in the new sessions list, and the active field starts fresh — treating
+    // old content as if it had already been saved to the sidebar once. After that first migration,
+    // sessions load normally and the active field just holds whatever draft was last being worked on.
+    const savedLabSessions = loadStored("tt-lab-sessions");
+    if (savedLabSessions && Array.isArray(savedLabSessions) && savedLabSessions.length > 0) {
+      setLabSessions(savedLabSessions);
+      if (ilt) setIdeaLabText(ilt);
+      if (ilb) setIdeaLabBuckets(ilb);
+    } else if (ilt && ilt.trim()) {
+      const migrated = [{id:"lab_migrated_1", name:"Session 1", text:ilt, buckets: ilb || {characters:[],plot:[],world:[],questions:[],fragments:[]}, createdAt:Date.now(), updatedAt:Date.now()}];
+      setLabSessions(migrated);
+      saveStored("tt-lab-sessions", migrated);
+      saveStored("tt-idealab-text","");
+      saveStored("tt-idealab-buckets",{characters:[],plot:[],world:[],questions:[],fragments:[]});
+    }
     if (inft) setInfernoText(inft);
     const emb = loadStored("tt-embers");
     if (emb && Array.isArray(emb)) setEmbers(emb);
@@ -1456,6 +1475,99 @@ The writer has been away. Reconstruct where they are RIGHT NOW. Orient to the fu
     } else if(mode.id==="diagnose"&&project&&project.stuck&&project.stuck.trim()){
       setMsgs([{role:"assistant",content:`I know what you were working on. ${project.stuck}\n\nLet me ask you something about that. What's the one thing about this moment that you can see clearly, even if everything else is foggy?`}]);
     } else { setMsgs([{role:"assistant",content:(INTROS[mode.id]||"").replace(/\[name\]/g,userName||"there")}]); }
+  };
+
+  // Generates a short name for a Lab session from its own content, so naming never becomes a decision
+  // the writer has to make. Falls back to a plain truncation if the call fails, so saving never blocks.
+  const generateLabSessionName=async(text)=>{
+    try{
+      const r=await fetch("/api/chat",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({
+        max_tokens:40,
+        system:`Write a short session name, 4-6 words, capturing the core of what this idea dump is actually about. No quotes, no punctuation at the end, no em dashes. Respond ONLY with a JSON object.`,
+        messages:[{role:"user",content:`${text.substring(0,2000)}\n\nRespond with ONLY this JSON: {"name":"the short name"}`}]
+      })});
+      const d=await r.json();
+      if(!d.error){
+        const raw=finnClean(d.content?.filter(b=>b.type==="text").map(b=>b.text).join(""))||"";
+        const cleaned=raw.replace(/```json\s*/g,"").replace(/```\s*/g,"").trim();
+        const parsed=JSON.parse(cleaned);
+        if(parsed.name)return parsed.name;
+      }
+    }catch(e){console.log("Lab session naming error:",e);}
+    return text.trim().substring(0,40)+(text.length>40?"...":"");
+  };
+
+  // "Save to sidebar" — clears the active field for something new, but never means the content is
+  // closed off. If activeLabSessionId is already set, this updates that same session rather than
+  // creating a duplicate, so reopening and continuing to work in a session behaves correctly.
+  const saveLabSessionToSidebar=async()=>{
+    if(!ideaLabText.trim())return;
+    setLabSessionNaming(true);
+    const existing=[...labSessions];
+    const idx=activeLabSessionId?existing.findIndex(s=>s.id===activeLabSessionId):-1;
+    if(idx>=0){
+      existing[idx]={...existing[idx],text:ideaLabText,buckets:ideaLabBuckets,updatedAt:Date.now()};
+    }else{
+      const name=await generateLabSessionName(ideaLabText);
+      existing.push({id:"lab_"+Date.now(),name,text:ideaLabText,buckets:ideaLabBuckets,createdAt:Date.now(),updatedAt:Date.now()});
+    }
+    setLabSessions(existing);
+    saveStored("tt-lab-sessions",existing);
+    setIdeaLabText("");setIdeaLabBuckets({characters:[],plot:[],world:[],questions:[],fragments:[]});setActiveLabSessionId(null);
+    saveStored("tt-idealab-text","");saveStored("tt-idealab-buckets",{characters:[],plot:[],world:[],questions:[],fragments:[]});
+    setLabSessionNaming(false);
+  };
+
+  // Opening a different session never silently discards unsaved work — if the active field has content
+  // that isn't already saved as-is, it gets held quietly so "Back to unsaved draft" can restore it.
+  const openLabSession=(id)=>{
+    const target=labSessions.find(s=>s.id===id);
+    if(!target)return;
+    const currentMatchesSaved=activeLabSessionId&&labSessions.find(s=>s.id===activeLabSessionId)?.text===ideaLabText;
+    if(ideaLabText.trim()&&!currentMatchesSaved){
+      setUnsavedLabDraft({text:ideaLabText,buckets:ideaLabBuckets,activeLabSessionId});
+    }else if(!ideaLabText.trim()){
+      setUnsavedLabDraft(null);
+    }
+    setIdeaLabText(target.text);setIdeaLabBuckets(target.buckets||{characters:[],plot:[],world:[],questions:[],fragments:[]});setActiveLabSessionId(id);
+    saveStored("tt-idealab-text",target.text);saveStored("tt-idealab-buckets",target.buckets);
+  };
+
+  const returnToUnsavedLabDraft=()=>{
+    if(!unsavedLabDraft)return;
+    setIdeaLabText(unsavedLabDraft.text);setIdeaLabBuckets(unsavedLabDraft.buckets);setActiveLabSessionId(unsavedLabDraft.activeLabSessionId);
+    saveStored("tt-idealab-text",unsavedLabDraft.text);saveStored("tt-idealab-buckets",unsavedLabDraft.buckets);
+    setUnsavedLabDraft(null);
+  };
+
+  const initiateSendToLab=()=>{
+    if(!infernoText.trim())return;
+    setInfernoToLabPrompt(ideaLabText.trim()?{step:"save-current"}:{step:"choose"});
+  };
+  const sendInfernoAsNewSession=()=>{
+    setIdeaLabText(infernoText);setActiveLabSessionId(null);
+    saveStored("tt-idealab-text",infernoText);
+    setInfernoText("");saveStored("tt-inferno-text","");
+    setInfernoToLabPrompt(null);
+    setForgeMode("idealab");
+  };
+  const mergeInfernoIntoSession=(sessionId)=>{
+    if(activeLabSessionId===sessionId){
+      const merged=ideaLabText+"\n\n"+infernoText;
+      setIdeaLabText(merged);
+      saveStored("tt-idealab-text",merged);
+    }else{
+      const existing=[...labSessions];
+      const idx=existing.findIndex(s=>s.id===sessionId);
+      if(idx>=0){
+        existing[idx]={...existing[idx],text:existing[idx].text+"\n\n"+infernoText,updatedAt:Date.now()};
+        setLabSessions(existing);
+        saveStored("tt-lab-sessions",existing);
+      }
+    }
+    setInfernoText("");saveStored("tt-inferno-text","");
+    setInfernoToLabPrompt(null);
+    setForgeMode("idealab");
   };
 
   const handleOrganize=async()=>{
@@ -4610,16 +4722,32 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
 
             {/* Idea Lab nav */}
             {forgeMode==="idealab"&&<>
-              <div style={{flex:1}}>
+              <div style={{flex:1,overflowY:"auto"}}>
                 <div style={{fontSize:9,textTransform:"uppercase",letterSpacing:"0.18em",color:"#9A8AB0",fontWeight:500,marginBottom:8}}>Your idea</div>
                 <div style={{background:"var(--bg-card)",border:"1px solid var(--border)",borderRadius:8,padding:10,marginBottom:10}}>
                   <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:12,color:"var(--text-dim)",fontStyle:"italic",lineHeight:1.6}}>Pour everything out. No structure needed.</div>
                 </div>
                 <div style={{fontSize:9,color:"var(--text-dim)",marginBottom:10}}>{ideaLabText.split(/\s+/).filter(w=>w).length} words</div>
                 <div style={{fontSize:9,color:"var(--text-faint)",fontStyle:"italic",marginBottom:10,fontFamily:"'Cormorant Garamond',serif",lineHeight:1.5}}>Your Idea Lab stays exactly as it is. Finn copies, never moves.</div>
-                <div onClick={ideaLabText.trim()?handleOrganize:undefined} style={{background:"none",border:"1px solid #9A8AB040",borderRadius:6,padding:"8px 10px",color:ideaLabText.trim()?"#9A8AB0":"var(--text-faint)",fontFamily:"'DM Sans',sans-serif",fontSize:11,cursor:ideaLabText.trim()?"pointer":"default",textAlign:"center"}}>
+                <div onClick={ideaLabText.trim()?handleOrganize:undefined} style={{background:"none",border:"1px solid #9A8AB040",borderRadius:6,padding:"8px 10px",color:ideaLabText.trim()?"#9A8AB0":"var(--text-faint)",fontFamily:"'DM Sans',sans-serif",fontSize:11,cursor:ideaLabText.trim()?"pointer":"default",textAlign:"center",marginBottom:8}}>
                   {organizeLoading?"Reading your idea...":"Organize with Finn"}
                 </div>
+                <div onClick={ideaLabText.trim()&&!labSessionNaming?saveLabSessionToSidebar:undefined} style={{background:ideaLabText.trim()?"#9A8AB0":"none",border:"1px solid #9A8AB040",borderRadius:6,padding:"8px 10px",color:ideaLabText.trim()?"#1E1C14":"var(--text-faint)",fontFamily:"'DM Sans',sans-serif",fontSize:11,cursor:ideaLabText.trim()&&!labSessionNaming?"pointer":"default",textAlign:"center",marginBottom:14}}>
+                  {labSessionNaming?"Naming this session...":"Save to sidebar"}
+                </div>
+
+                {unsavedLabDraft&&<div onClick={returnToUnsavedLabDraft} style={{fontSize:10,color:"#9A8AB0",cursor:"pointer",marginBottom:12,textDecoration:"underline",fontFamily:"'DM Sans',sans-serif"}}>&larr; Back to unsaved draft</div>}
+
+                {labSessions.length>0&&<>
+                  <div style={{fontSize:9,textTransform:"uppercase",letterSpacing:"0.14em",color:"var(--text-dim)",fontFamily:"'DM Sans',sans-serif",marginBottom:8,borderTop:"1px solid var(--border)",paddingTop:12}}>Sessions</div>
+                  <div style={{display:"flex",flexDirection:"column",gap:4}}>
+                    {[...labSessions].sort((a,b)=>b.updatedAt-a.updatedAt).map(s=>(
+                      <div key={s.id} onClick={()=>openLabSession(s.id)} style={{background:activeLabSessionId===s.id?"#9A8AB025":"var(--bg-card)",border:"1px solid "+(activeLabSessionId===s.id?"#9A8AB0":"var(--border)"),borderRadius:6,padding:"7px 10px",cursor:"pointer",fontFamily:"'Cormorant Garamond',serif",fontSize:12,color:"var(--text-primary)"}}>
+                        {s.name}
+                      </div>
+                    ))}
+                  </div>
+                </>}
               </div>
               <div style={{borderTop:"1px solid var(--border)",paddingTop:10,marginTop:"auto"}}>
                 <div style={{fontSize:9,color:"var(--text-dim)"}}>Auto-saving</div>
@@ -4762,6 +4890,7 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
                 <div style={{display:"flex",gap:8,alignItems:"center"}}>
                   <span style={{fontSize:10,color:"var(--text-dim)"}}>{infernoText.split(/\s+/).filter(w=>w).length} words</span>
                   <span onClick={()=>{if(infernoText){const t=infernoText.substring(0,200);const ns=[...sparks,{text:t,date:new Date().toLocaleDateString(),mode:"The Inferno",modeId:"inferno"}];setSparks(ns);saveStored("tt-sparks",ns)}}} style={{fontSize:10,color:"var(--text-dim)",background:"var(--bg-card)",border:"1px solid #C0784820",borderRadius:4,padding:"3px 8px",cursor:"pointer"}}>Flag this</span>
+                  <span onClick={initiateSendToLab} style={{fontSize:10,color:infernoText.trim()?"var(--text-dim)":"var(--text-faint)",background:"var(--bg-card)",border:"1px solid #C0784820",borderRadius:4,padding:"3px 8px",cursor:infernoText.trim()?"pointer":"default"}}>Send to Lab</span>
                 </div>
               </div>
               <div style={{flex:1,overflow:"auto",padding:"24px 40px"}}>
@@ -5462,6 +5591,32 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
       </div>}
 
       {/* CAPTURE TO BIBLE OVERLAY */}
+      {infernoToLabPrompt&&<div style={{position:"fixed",top:0,left:0,right:0,bottom:0,background:"rgba(0,0,0,0.7)",zIndex:300,display:"flex",alignItems:"center",justifyContent:"center",padding:20}} onClick={()=>setInfernoToLabPrompt(null)}>
+        <div onClick={e=>e.stopPropagation()} style={{background:"var(--bg-card)",border:"1px solid var(--border)",borderRadius:10,padding:20,maxWidth:360,width:"100%"}}>
+          {infernoToLabPrompt.step==="save-current"?<>
+            <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:14,color:"var(--text-primary)",lineHeight:1.6,marginBottom:14}}>You have a session open in Lab. Save it to the sidebar first, then send this over?</div>
+            <div style={{display:"flex",gap:8}}>
+              <Btn onClick={async()=>{await saveLabSessionToSidebar();setInfernoToLabPrompt({step:"choose"});}} s={{flex:1}}>Save & continue</Btn>
+              <Btn onClick={()=>setInfernoToLabPrompt(null)} s={{background:"none",borderColor:"var(--border)",color:"var(--text-dim)"}}>Cancel</Btn>
+            </div>
+          </>:<>
+            <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:14,color:"var(--text-primary)",lineHeight:1.6,marginBottom:14}}>New session, or merge with one that's already there?</div>
+            <div onClick={sendInfernoAsNewSession} style={{background:"#9A8AB0",borderRadius:6,padding:"10px 12px",textAlign:"center",color:"#1E1C14",fontSize:12,cursor:"pointer",marginBottom:10,fontFamily:"'DM Sans',sans-serif"}}>New session</div>
+            {labSessions.length>0&&<>
+              <div style={{fontSize:9,textTransform:"uppercase",letterSpacing:"0.12em",color:"var(--text-dim)",fontFamily:"'DM Sans',sans-serif",marginBottom:8}}>Or merge with</div>
+              <div style={{display:"flex",flexDirection:"column",gap:6,marginBottom:14,maxHeight:200,overflowY:"auto"}}>
+                {[...labSessions].sort((a,b)=>b.updatedAt-a.updatedAt).map(s=>(
+                  <div key={s.id} onClick={()=>mergeInfernoIntoSession(s.id)} style={{background:"var(--bg-card-alt)",border:"1px solid var(--border)",borderRadius:6,padding:"8px 10px",fontFamily:"'Cormorant Garamond',serif",fontSize:12,color:"var(--text-primary)",cursor:"pointer"}}>
+                    {s.name}
+                  </div>
+                ))}
+              </div>
+            </>}
+            <Btn onClick={()=>setInfernoToLabPrompt(null)} s={{background:"none",borderColor:"var(--border)",color:"var(--text-dim)",width:"100%"}}>Cancel</Btn>
+          </>}
+        </div>
+      </div>}
+
       {extractOpen&&<div style={{position:"fixed",top:0,left:0,right:0,bottom:0,background:"rgba(0,0,0,0.7)",zIndex:300,display:"flex",alignItems:"center",justifyContent:"center",padding:20}}>
         <div style={{background:"var(--bg-dark)",border:"1px solid var(--border)",borderRadius:12,padding:24,maxWidth:600,width:"100%",maxHeight:"85vh",overflowY:"auto",animation:"fu .3s ease-out"}}>
           <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}>
