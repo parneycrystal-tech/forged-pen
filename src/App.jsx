@@ -750,6 +750,7 @@ export default function App() {
   const [bibViewTab, setBibViewTab] = useState("overview");
   const [selectedCharKey, setSelectedCharKey] = useState("protagonist"); // "protagonist" or a character's id
   const [expandedFieldHistory, setExpandedFieldHistory] = useState({}); // fieldKey -> bool
+  const [protagHistoryView, setProtagHistoryView] = useState("field"); // "field" | "chapter" — Character Arc Timeline toggle
   const [bibExpanded, setBibExpanded] = useState(false);
   const [bibleSearch, setBibleSearch] = useState("");
   const [subMenu, setSubMenu] = useState(null);
@@ -1259,7 +1260,9 @@ export default function App() {
   },[screen,scenes]);
 
   // Container Finn
-  const CONTAINER_FINN=`${FINN}\n\nMODE: CONTAINER COACHING. You are coaching the writer WHILE they write. They are mid-scene. Be quick and precise. Read their current scene text and Story Bible. You can do anything the regular coaching modes do: diagnose blocks, do scene surgery, deep-dive characters, check plot, analyze voice. The writer doesn't need to leave the container. Adapt to what they ask. If they say "this scene needs surgery," do scene surgery. If they say "I'm stuck," diagnose the block. If they say "break this down," go comprehensive. Default: short, sharp, actionable. Get them back to writing fast. Under 150 words unless they ask for more.`;
+  const CONTAINER_FINN=`${FINN}\n\nMODE: CONTAINER COACHING. You are coaching the writer WHILE they write. They are mid-scene. Be quick and precise. Read their current scene text and Story Bible. You can do anything the regular coaching modes do: diagnose blocks, do scene surgery, deep-dive characters, check plot, analyze voice. The writer doesn't need to leave the container. Adapt to what they ask. If they say "this scene needs surgery," do scene surgery. If they say "I'm stuck," diagnose the block. If they say "break this down," go comprehensive. Default: short, sharp, actionable. Get them back to writing fast. Under 150 words unless they ask for more.
+
+INFERNO TOOLS: If a message begins with "INFERNO TOOL:", the writer tapped a tool during a high-energy writing session. Run that tool immediately, no preamble, no asking if they're sure. Keep it under 80 words, they are mid-fire. The tools: "Capture the flood" = tell them to dump every idea one line each with no explaining, you'll hold them. "Channel the heat" = look at their recent text and flood, help them sort what moves the story NOW from fuel for later. "Ride the wave, 25 min" = set them loose on a timed sprint, name the scene they're riding based on their current text, no editing allowed. "Flag everything" = remind them their clarity is elevated, tell them to flag what feels alive, point at one specific thing in their current text worth flagging. "Body check" = water, food, stand up, ninety seconds, the fire keeps. Be warm and brief. "Wind down" = help them capture one sentence as tomorrow's way back in, then release them without guilt.`;
 
   // "Note this" on a coaching message: Finn proposes a specific, concise note rather than saving the
   // raw message verbatim, and the writer can edit it before confirming. Nothing saves silently.
@@ -1326,9 +1329,12 @@ export default function App() {
     return ()=>{if(infernoCheckTimerRef.current)clearTimeout(infernoCheckTimerRef.current);};
   },[infernoText,forgeMode]);
 
-  const sendContainer=async()=>{
-    if(!containerInput.trim()||loading)return;
-    const userText=containerInput.trim();
+  // Core send: takes the message text directly so it can be called both from the input box
+  // and programmatically (Inferno tool clicks, Finn's proactive suggestion "Yes"). The tool-click
+  // bug was that those paths appended the trigger message to the display but never called the API.
+  const sendContainerMessage=async(userText)=>{
+    if(!userText||!userText.trim()||loading)return;
+    userText=userText.trim();
     setLastThought(userText);saveStored("tt-lastthought",userText);
     const currentScene=scenes.find(s=>s.id===activeScene);
     // When in Embers, pass the active ember as context instead of manuscript scene
@@ -1360,6 +1366,8 @@ export default function App() {
     }catch(e){if(e.name!=="AbortError")setContainerMsgs(p=>[...p,{role:"assistant",content:"Connection hiccup. Try again."}])}
     setLoading(false);abortRef.current=null;
   };
+  // Thin wrapper: the input box path, unchanged behavior
+  const sendContainer=()=>sendContainerMessage(containerInput);
 
   const pick=(m)=>{
     setMode(m);setScreen("chat");saveSession(m.id);
@@ -4326,6 +4334,50 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
               </div>}
             </div>;
           };
+          // Character Arc Timeline: the same stored {chapterNum, text} history, flipped to group by
+          // chapter instead of by field. Zero new AI generation — purely a different read of saved data.
+          // Only chapters where at least one field actually got an entry appear; Legacy (pre-tracking)
+          // text has no chapter number and stays in the per-field view only.
+          const PROTAG_FIELDS=[["Protagonist","protagonist"],["Goal","protagonistGoal"],["Dream","protagonistDream"],["Fear","protagonistFear"],["Wound","protagonistWound"],["Backstory","protagonistBackstory"],["The lie they believe","protagonistMisbelief"]];
+          const buildArcTimeline=()=>{
+            const byChapter={};
+            PROTAG_FIELDS.forEach(([label,key])=>{
+              const hist=project[key+"History"];
+              if(Array.isArray(hist))hist.forEach(h=>{
+                if(!h||!h.text)return;
+                const num=(typeof h.chapterNum==="number"&&h.chapterNum>0)?h.chapterNum:0;
+                if(!byChapter[num])byChapter[num]=[];
+                byChapter[num].push({label,text:h.text});
+              });
+            });
+            return Object.keys(byChapter).map(Number).sort((a,b)=>a-b).map(num=>({num,entries:byChapter[num]}));
+          };
+          const hasLegacyHidden=PROTAG_FIELDS.some(([_,key])=>project[key+"Legacy"]);
+          const renderArcTimeline=()=>{
+            const timeline=buildArcTimeline();
+            if(timeline.length===0)return <p style={{fontFamily:"'Cormorant Garamond',serif",fontSize:13,color:"var(--text-dim)",fontStyle:"italic"}}>No chapter-tracked entries yet. As Agnes captures chapters, the arc builds here on its own.</p>;
+            return <div>
+              {timeline.map(({num,entries})=>(
+                <div key={num} style={{display:"flex",gap:12,marginBottom:2}}>
+                  {/* timeline spine */}
+                  <div style={{display:"flex",flexDirection:"column",alignItems:"center",width:14,flexShrink:0}}>
+                    <div style={{width:9,height:9,borderRadius:"50%",background:"var(--accent)",marginTop:4,flexShrink:0}}/>
+                    <div style={{width:1,flex:1,background:"var(--border)",minHeight:14}}/>
+                  </div>
+                  <div style={{flex:1,paddingBottom:16}}>
+                    <div style={{fontSize:9,textTransform:"uppercase",letterSpacing:"0.14em",color:"var(--accent)",fontFamily:"'DM Sans',sans-serif",fontWeight:500,marginBottom:6}}>{num===0?"Chapter not recorded":`Chapter ${num}`}</div>
+                    {entries.map((e,i)=>(
+                      <div key={i} style={{background:"var(--bg-card)",border:"1px solid var(--border)",borderRadius:8,padding:"9px 12px",marginBottom:6}}>
+                        <div style={{fontSize:9,textTransform:"uppercase",letterSpacing:"0.1em",color:"var(--text-dim)",fontFamily:"'DM Sans',sans-serif",marginBottom:3}}>{e.label}</div>
+                        <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:13,color:"var(--text-primary)",lineHeight:1.65}}>{e.text}</div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ))}
+              {hasLegacyHidden&&<div style={{fontSize:10,color:"var(--text-dim)",fontStyle:"italic",fontFamily:"'DM Sans',sans-serif",marginTop:2}}>Notes from before chapter tracking live in the field view.</div>}
+            </div>;
+          };
           return <><div style={{display:"grid",gridTemplateColumns:"150px 1fr",gap:16}}>
             <div>
               <div style={{fontSize:9,textTransform:"uppercase",letterSpacing:"0.14em",color:"var(--text-dim)",fontFamily:"'DM Sans',sans-serif",marginBottom:8}}>Characters</div>
@@ -4351,13 +4403,22 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
                   {renderCharacterSummary(target)}
                   {expanded&&<div style={{borderTop:"1px solid var(--border)",paddingTop:12,marginTop:4}}>
                     {isProtagonist?<>
-                      {renderFieldHistory("Protagonist","protagonist")}
-                      {renderFieldHistory("Goal","protagonistGoal")}
-                      {renderFieldHistory("Dream","protagonistDream")}
-                      {renderFieldHistory("Fear","protagonistFear")}
-                      {renderFieldHistory("Wound","protagonistWound")}
-                      {renderFieldHistory("Backstory","protagonistBackstory")}
-                      {renderFieldHistory("The lie they believe","protagonistMisbelief")}
+                      {/* View toggle: per-field history vs Character Arc Timeline. Only shown when
+                          there's chapter-tracked data for the timeline to display. */}
+                      {buildArcTimeline().length>0&&<div style={{display:"flex",gap:6,marginBottom:14}}>
+                        {[["field","By field"],["chapter","By chapter"]].map(([v,vLabel])=>(
+                          <div key={v} onClick={()=>setProtagHistoryView(v)} style={{fontSize:10,padding:"5px 12px",borderRadius:5,cursor:"pointer",fontFamily:"'DM Sans',sans-serif",background:protagHistoryView===v?"var(--accent-15)":"transparent",border:"1px solid "+(protagHistoryView===v?"var(--accent)":"var(--border)"),color:protagHistoryView===v?"var(--accent)":"var(--text-dim)"}}>{vLabel}</div>
+                        ))}
+                      </div>}
+                      {protagHistoryView==="chapter"&&buildArcTimeline().length>0?renderArcTimeline():<>
+                        {renderFieldHistory("Protagonist","protagonist")}
+                        {renderFieldHistory("Goal","protagonistGoal")}
+                        {renderFieldHistory("Dream","protagonistDream")}
+                        {renderFieldHistory("Fear","protagonistFear")}
+                        {renderFieldHistory("Wound","protagonistWound")}
+                        {renderFieldHistory("Backstory","protagonistBackstory")}
+                        {renderFieldHistory("The lie they believe","protagonistMisbelief")}
+                      </>}
                       {!project.protagonist&&<p style={{fontFamily:"'Cormorant Garamond',serif",fontSize:14,color:"var(--text-dim)",fontStyle:"italic"}}>Nothing captured yet. Tap Edit to add your protagonist.</p>}
                     </>:<>
                       <div style={{fontSize:9,textTransform:"uppercase",letterSpacing:"0.12em",color:"var(--text-dim)",fontFamily:"'DM Sans',sans-serif",marginBottom:4}}>Role</div>
@@ -4765,7 +4826,7 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
                 {infernoSuggestion&&<div style={{background:"var(--bg-card-alt)",border:"1px solid #C0784850",borderRadius:8,padding:"10px 12px",marginBottom:10}}>
                   <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:12,color:"var(--text-primary)",lineHeight:1.6,marginBottom:8}}>{infernoSuggestion.message}</div>
                   <div style={{display:"flex",gap:6}}>
-                    <span onClick={()=>{setFinnOpen(true);setContainerMsgs(prev=>[...prev,{role:"user",content:`INFERNO TOOL: ${infernoSuggestion.tool}`}]);setInfernoSuggestion(null);}} style={{fontSize:10,padding:"5px 12px",borderRadius:5,background:"#C07848",color:"#1E1C14",cursor:"pointer",fontFamily:"'DM Sans',sans-serif"}}>Yes</span>
+                    <span onClick={()=>{setFinnOpen(true);sendContainerMessage(`INFERNO TOOL: ${infernoSuggestion.tool}`);setInfernoSuggestion(null);}} style={{fontSize:10,padding:"5px 12px",borderRadius:5,background:"#C07848",color:"#1E1C14",cursor:"pointer",fontFamily:"'DM Sans',sans-serif"}}>Yes</span>
                     <span onClick={()=>setInfernoSuggestion(null)} style={{fontSize:10,padding:"5px 12px",borderRadius:5,border:"1px solid var(--border)",color:"var(--text-dim)",cursor:"pointer",fontFamily:"'DM Sans',sans-serif"}}>Not now</span>
                   </div>
                 </div>}
@@ -4776,8 +4837,7 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
                       <div style={{display:"flex",alignItems:"stretch",background:"var(--bg-card)",border:"1px solid "+(infoOpen?"#C07848":"#C0784815"),borderRadius:infoOpen?"5px 5px 0 0":5}}>
                         <div onClick={()=>{
                           setFinnOpen(true);
-                          const msg=`INFERNO TOOL: ${tool}`;
-                          setContainerMsgs(prev=>[...prev,{role:"user",content:msg}]);
+                          sendContainerMessage(`INFERNO TOOL: ${tool}`);
                           setInfernoSuggestion(null);
                         }} style={{flex:1,padding:"9px 10px",fontSize:12,color:"#C07848",cursor:"pointer",fontFamily:"'DM Sans',sans-serif"}}>
                           {tool}
