@@ -16,6 +16,8 @@ VOICE REGISTER: Finn is eloquent, not exclusionary. His lit-major mind shows in 
 
 NEVER USE THIS CADENCE, IN ANY MODE, EITHER VOICE: "That's not X. That's Y." Negating one framing and asserting another in a short parallel clause is one of the most recognizable AI patterns there is. It reads as performed no matter how true the content underneath it actually is. Finn and Agnes both avoid it entirely.
 
+THE FIRST SPARK: If the project context includes a First Spark, those are the writer's own words about why they're writing this story, captured at the beginning when they could see clearly. When the writer sounds like they're in the smoke, doubting the story, or returning after time away, you may quote the First Spark back to them WORD FOR WORD, in quotation marks. Never paraphrase it, never summarize it, never improve it. Its power is that it's theirs. Use it sparingly; it lands hardest when it isn't routine.
+
 ANTI-SYCOPHANCY — THIS IS CRITICAL: Finn is not a cheerleader. Flattery is a betrayal of trust. Writers can feel the difference between being seen and being managed, and they will leave if they sense they are being managed. These rules are absolute:
 
 Never use superlatives you cannot earn and defend with specific evidence. Do not say "one of the most human characters I've encountered," "extraordinary," "incredible," "brilliant," or any similar claim unless you can immediately follow it with the precise specific detail that earns it. Unearned superlatives are hollow and writers know it instantly.
@@ -502,6 +504,13 @@ function charactersCtx(project){
   return chars.map(c=>`${c.name} (${c.role}${c.relationship?", "+c.relationship:""})${c.description?": "+c.description:""}`).join(" | ");
 }
 
+// The First Spark: the writer's verbatim why, append-only. Quoted, never paraphrased.
+function firstSparkCtx(project){
+  const spark=project?.firstSpark;
+  if(!Array.isArray(spark)||spark.length===0)return "";
+  return spark.map(e=>`"${e.text}" (${e.date})`).join(" | ");
+}
+
 function FormField({label,k,ph,multi,value,onChange}){return <div style={{marginBottom:14}}><label style={{fontSize:12,color:"var(--text-muted)",display:"block",marginBottom:5,fontFamily:"'DM Sans',sans-serif"}}>{label}</label>{multi?<textarea className="fi" rows={4} placeholder={ph} value={value} onChange={e=>onChange(k,e.target.value)} style={{resize:"vertical"}}/>:<input className="fi" placeholder={ph} value={value} onChange={e=>onChange(k,e.target.value)}/>}</div>}
 function ReadField({label,value,multi}){if(!value)return null;return <div style={{marginBottom:14}}><label style={{fontSize:12,color:"var(--text-muted)",display:"block",marginBottom:5,fontFamily:"'DM Sans',sans-serif"}}>{label}</label><div style={{background:"var(--bg-card)",border:"1px solid var(--border)",borderRadius:8,padding:"10px 14px",fontFamily:"'Cormorant Garamond',serif",fontSize:15,color:"var(--text-primary)",lineHeight:1.7,minHeight:multi?60:40,whiteSpace:"pre-wrap"}}>{value}</div></div>}
 function WorldField({label,helper,example,k,value,onChange}){return <div style={{marginBottom:18}}><label style={{fontSize:13,color:"var(--accent)",display:"block",marginBottom:3,fontWeight:600,fontFamily:"'DM Sans',sans-serif"}}>{label}</label><p style={{fontSize:11,color:"var(--text-muted)",marginBottom:4,lineHeight:1.4,fontFamily:"'DM Sans',sans-serif"}}>{helper}</p><textarea className="fi" rows={2} placeholder={example} value={value} onChange={e=>onChange(k,e.target.value)} style={{resize:"vertical",fontSize:13}}/></div>}
@@ -753,6 +762,8 @@ export default function App() {
   const [protagHistoryView, setProtagHistoryView] = useState("field"); // "field" | "chapter" — Character Arc Timeline toggle
   const [bibExpanded, setBibExpanded] = useState(false);
   const [bibleSearch, setBibleSearch] = useState("");
+  const [sparkCapture, setSparkCapture] = useState(null); // {q1,q2} while the two-question capture is open, else null
+  const [sparkAddText, setSparkAddText] = useState(null); // string while "Add to the spark" is open, else null
   const [subMenu, setSubMenu] = useState(null);
   const [lastThought, setLastThought] = useState(null);
   const [scenes, setScenes] = useState([]);
@@ -1365,7 +1376,7 @@ INFERNO TOOLS: If a message begins with "INFERNO TOOL:", the writer tapped a too
       :""
       :currentScene?`\n\nCURRENT SCENE (Chapter ${currentScene.chapter}):\n${currentScene.text||"(empty, writer hasn't started yet)"}`:""
     const chapStr=project?.chapters?(Array.isArray(project.chapters)?project.chapters.filter(c=>c.summary).map(c=>`Ch${c.num}: ${c.summary}`).join(". "):project.chapters):"";
-    const pCtx=project?`\n\nPROJECT: "${project.title}". Genre: ${project.genre}. Synopsis: ${project.synopsis}. Themes: ${project.themes||"not yet captured"}. Protagonist: ${project.protagonist}. Goal: ${project.protagonistGoal||"not yet captured"}. Dream: ${project.protagonistDream||"not yet captured"}. Fear: ${project.protagonistFear||"not yet captured"}. Wound: ${project.protagonistWound||"not yet captured"}. Backstory: ${project.protagonistBackstory||"not yet captured"}. Misbelief: ${project.protagonistMisbelief||"not yet captured"}.${charactersCtx(project)?" Characters: "+charactersCtx(project)+".":""} Supporting: ${project.supporting}. Antagonist: ${project.antagonist}. Setting: ${project.worldSetting}. Rules: ${project.worldRules}. Mythology & Paranormal Rules: ${project.worldMythology||"not yet captured"}. Beliefs vs Reality: ${project.worldBeliefs}. Danger: ${project.worldDanger}. Tone: ${project.worldTone}. Chapters (these summaries are the authoritative record established by Agnes — treat them as ground truth, do not re-interpret or contradict them): ${chapStr}. Position: ${project.where}. Stuck: ${project.stuck}. Excites: ${project.excites}.`:"";
+    const pCtx=project?`\n\nPROJECT: "${project.title}". Genre: ${project.genre}.${firstSparkCtx(project)?" FIRST SPARK (the writer's own verbatim words on why they're writing this, quote word for word, never paraphrase): "+firstSparkCtx(project)+".":""} Synopsis: ${project.synopsis}. Themes: ${project.themes||"not yet captured"}. Protagonist: ${project.protagonist}. Goal: ${project.protagonistGoal||"not yet captured"}. Dream: ${project.protagonistDream||"not yet captured"}. Fear: ${project.protagonistFear||"not yet captured"}. Wound: ${project.protagonistWound||"not yet captured"}. Backstory: ${project.protagonistBackstory||"not yet captured"}. Misbelief: ${project.protagonistMisbelief||"not yet captured"}.${charactersCtx(project)?" Characters: "+charactersCtx(project)+".":""} Supporting: ${project.supporting}. Antagonist: ${project.antagonist}. Setting: ${project.worldSetting}. Rules: ${project.worldRules}. Mythology & Paranormal Rules: ${project.worldMythology||"not yet captured"}. Beliefs vs Reality: ${project.worldBeliefs}. Danger: ${project.worldDanger}. Tone: ${project.worldTone}. Chapters (these summaries are the authoritative record established by Agnes — treat them as ground truth, do not re-interpret or contradict them): ${chapStr}. Position: ${project.where}. Stuck: ${project.stuck}. Excites: ${project.excites}.`:"";
     const sparkCtx=sparks.length>0?`\n\nDOPAMINE MAP: ${sparks.map(s=>s.text).join(" | ")}`:"";
     // Different Finn framing for Embers vs manuscript
     const containerSys=forgeMode==="embers"
@@ -1414,7 +1425,7 @@ INFERNO TOOLS: If a message begins with "INFERNO TOOL:", the writer tapped a too
       const rekindleContext=`REKINDLE SESSION for ${userName||"this writer"}.
 
 PROJECT: "${project.title}" (${project.genre})
-PROTAGONIST: ${project.protagonist||"not yet captured"}
+${firstSparkCtx(project)?"FIRST SPARK (their own verbatim why, quote word for word, never paraphrase): "+firstSparkCtx(project)+"\n":""}PROTAGONIST: ${project.protagonist||"not yet captured"}
 WOUND: ${project.protagonistWound||"not yet captured"}
 MISBELIEF: ${project.protagonistMisbelief||"not yet captured"}
 FEAR: ${project.protagonistFear||"not yet captured"}
@@ -1470,7 +1481,7 @@ The writer has been away. Reconstruct where they are RIGHT NOW. Orient to the fu
       const rekindleContext=`REKINDLE SESSION for ${userName||"this writer"}.
 
 PROJECT: "${project.title}" (${project.genre})
-PROTAGONIST: ${project.protagonist||"not yet captured"}
+${firstSparkCtx(project)?"FIRST SPARK (their own verbatim why, quote word for word, never paraphrase): "+firstSparkCtx(project)+"\n":""}PROTAGONIST: ${project.protagonist||"not yet captured"}
 WOUND: ${project.protagonistWound||"not yet captured"}
 MISBELIEF: ${project.protagonistMisbelief||"not yet captured"}
 FEAR: ${project.protagonistFear||"not yet captured"}
@@ -2812,7 +2823,7 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
     const userText=input.trim();
     setLastThought(userText);saveStored("tt-lastthought",userText);
     const chapStr = project?.chapters ? (Array.isArray(project.chapters) ? project.chapters.filter(c=>c.summary).map(c=>`Ch${c.num}: ${c.summary}`).join(". ") : project.chapters) : "";
-    const pCtx = project ? `\n\nPROJECT: "${project.title}". Genre: ${project.genre}. Synopsis: ${project.synopsis}. Themes: ${project.themes||"not yet captured"}. Protagonist: ${project.protagonist}.${charactersCtx(project)?" Characters: "+charactersCtx(project)+".":""} Supporting Characters: ${project.supporting}. Antagonist: ${project.antagonist}. Core Setting: ${project.worldSetting}. World Rules: ${project.worldRules}. Mythology & Paranormal Rules: ${project.worldMythology||"not yet captured"}. What People Believe vs Reality: ${project.worldBeliefs}. What Makes This World Dangerous: ${project.worldDanger}. World Tone: ${project.worldTone}. Chapters so far (these summaries are the authoritative record established by Agnes — treat them as ground truth, do not re-interpret or contradict them): ${chapStr}. Current point: ${project.where}. Focused on: ${project.stuck}. What excites them: ${project.excites}.${project.currentChapter?` CURRENT CHAPTER TEXT (use this for line-level craft coaching only — for story facts and character psychology, defer to the chapter summaries above): ${project.currentChapter}`:""}` : "";
+    const pCtx = project ? `\n\nPROJECT: "${project.title}". Genre: ${project.genre}.${firstSparkCtx(project)?" FIRST SPARK (the writer's own verbatim words on why they're writing this, quote word for word, never paraphrase): "+firstSparkCtx(project)+".":""} Synopsis: ${project.synopsis}. Themes: ${project.themes||"not yet captured"}. Protagonist: ${project.protagonist}.${charactersCtx(project)?" Characters: "+charactersCtx(project)+".":""} Supporting Characters: ${project.supporting}. Antagonist: ${project.antagonist}. Core Setting: ${project.worldSetting}. World Rules: ${project.worldRules}. Mythology & Paranormal Rules: ${project.worldMythology||"not yet captured"}. What People Believe vs Reality: ${project.worldBeliefs}. What Makes This World Dangerous: ${project.worldDanger}. World Tone: ${project.worldTone}. Chapters so far (these summaries are the authoritative record established by Agnes — treat them as ground truth, do not re-interpret or contradict them): ${chapStr}. Current point: ${project.where}. Focused on: ${project.stuck}. What excites them: ${project.excites}.${project.currentChapter?` CURRENT CHAPTER TEXT (use this for line-level craft coaching only — for story facts and character psychology, defer to the chapter summaries above): ${project.currentChapter}`:""}` : "";
     const sparkCtx = sparks.length > 0 ? `\n\nDOPAMINE MAP (moments the writer flagged as exciting): ${sparks.map(s=>s.text).join(" | ")}` : "";
     const userCtx = userName ? `\n\nThe writer's name is ${userName}. Use their name naturally throughout your response, the way a good coach would. Not in every sentence, but enough to feel personal.` : "";
     const profileCtx = userProfile ? `\n\nWriter's profile — use this to calibrate your coaching approach:\n- Experience: ${userProfile.q1?.selected?.join(", ")||"not specified"}\n- Working style: ${userProfile.q2?.selected?.join(", ")||"not specified"}\n- Current goal: ${userProfile.q3?.selected?.join(", ")||"not specified"}\n- Coaching preference: ${userProfile.q4?.selected?.join(", ")||"not specified"}\n- Genres / what they write: ${userProfile.q5?.selected?.join(", ")||"not specified"}\n- Relationship with finishing: ${userProfile.q6?.selected?.join(", ")||"not specified"}${userProfile.q2?.text?`\nStyle notes: ${userProfile.q2.text}`:""}${userProfile.q4?.text?`\nCoaching notes: ${userProfile.q4.text}`:""}${userProfile.q5?.text?`\nWriting notes: ${userProfile.q5.text}`:""}${userProfile.q6?.text?`\nFinishing notes: ${userProfile.q6.text}`:""}` : "";
@@ -4258,6 +4269,67 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
           })()}
         </div>}
         {!bibleSearch&&bibViewTab==="overview"&&<div>
+          {/* THE FIRST SPARK — the writer's verbatim why, captured at the beginning, append-only.
+              Agnes never touches this field. Entries also seed the Dopamine Map: the origin spark
+              is literally the first spark, so Through the Smoke can reach it with zero extra wiring. */}
+          {(()=>{ 
+            const spark=Array.isArray(project.firstSpark)?project.firstSpark:[];
+            const saveSparkEntry=(text,isFirst)=>{
+              const t=(text||"").trim();if(!t)return;
+              const date=new Date().toLocaleDateString("en-US",{month:"long",day:"numeric",year:"numeric"});
+              const updated={...project,firstSpark:[...(Array.isArray(project.firstSpark)?project.firstSpark:[]),{text:t,date}]};
+              setProject(updated);saveStored("tt-project",updated);cloudSave("tt-project",updated);
+              const mapEntry={text:t.substring(0,200),date:new Date().toLocaleDateString(),mode:"The First Spark",modeId:"firstspark"};
+              const ns=isFirst?[mapEntry,...sparks]:[...sparks,mapEntry]; // the origin spark goes first in the map; later additions join in order
+              setSparks(ns);saveStored("tt-sparks",ns);
+            };
+            if(spark.length===0&&!sparkCapture){
+              return <div onClick={()=>setSparkCapture({q1:"",q2:""})} style={{background:"var(--bg-card)",border:"1px dashed var(--accent-80)",borderRadius:10,padding:"14px 16px",marginBottom:18,cursor:"pointer"}}>
+                <div style={{display:"flex",alignItems:"baseline",gap:8}}>
+                  <span style={{display:"inline-block",width:8,height:8,borderRadius:"50% 50% 50% 0",background:"var(--accent)",transform:"rotate(-45deg)"}}/>
+                  <span style={{fontSize:10,textTransform:"uppercase",letterSpacing:"0.2em",color:"var(--accent)",fontWeight:600,fontFamily:"'DM Sans',sans-serif"}}>The First Spark</span>
+                  <span style={{fontFamily:"'Cormorant Garamond',serif",fontSize:13,fontStyle:"italic",color:"var(--text-dim)"}}>why this story</span>
+                </div>
+                <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:14,color:"var(--text-secondary)",lineHeight:1.65,marginTop:8}}>One day this story will feel harder than it does right now. Leave yourself something, in your own words. Tap to catch it while it's hot.</div>
+              </div>;
+            }
+            if(sparkCapture){
+              return <div style={{background:"var(--bg-card)",border:"1px solid var(--accent)",borderRadius:10,padding:"16px 18px",marginBottom:18,boxShadow:"0 0 0 4px var(--accent-15)"}}>
+                <div style={{fontSize:10,textTransform:"uppercase",letterSpacing:"0.2em",color:"var(--accent)",fontWeight:600,fontFamily:"'DM Sans',sans-serif",marginBottom:10}}>The First Spark</div>
+                <div style={{fontSize:9,textTransform:"uppercase",letterSpacing:"0.14em",color:"var(--accent)",fontFamily:"'DM Sans',sans-serif",fontWeight:500,marginBottom:6}}>What moment made you know you had to write this?</div>
+                <textarea className="fi" rows={3} placeholder="Write it the way you'd tell a friend at midnight. Messy is right." value={sparkCapture.q1} onChange={e=>setSparkCapture({...sparkCapture,q1:e.target.value})} style={{resize:"vertical",marginBottom:12}}/>
+                <div style={{fontSize:9,textTransform:"uppercase",letterSpacing:"0.14em",color:"var(--accent)",fontFamily:"'DM Sans',sans-serif",fontWeight:500,marginBottom:6}}>What do you want a reader to feel when they close it?</div>
+                <textarea className="fi" rows={2} placeholder="One feeling is enough." value={sparkCapture.q2} onChange={e=>setSparkCapture({...sparkCapture,q2:e.target.value})} style={{resize:"vertical",marginBottom:8}}/>
+                <div style={{fontSize:10,color:"var(--text-dim)",fontFamily:"'DM Sans',sans-serif",marginBottom:12}}>Saved exactly as written. Nobody edits this, not even Agnes.</div>
+                <div style={{display:"flex",gap:8}}>
+                  <span onClick={()=>{const combined=[sparkCapture.q1.trim(),sparkCapture.q2.trim()].filter(Boolean).join("\n\n");if(!combined)return;saveSparkEntry(combined,true);setSparkCapture(null);}} style={{fontSize:11,padding:"7px 16px",borderRadius:6,background:"var(--accent)",color:"var(--bg-card)",cursor:"pointer",fontFamily:"'DM Sans',sans-serif"}}>Keep this spark</span>
+                  <span onClick={()=>setSparkCapture(null)} style={{fontSize:11,padding:"7px 16px",borderRadius:6,border:"1px solid var(--border)",color:"var(--text-dim)",cursor:"pointer",fontFamily:"'DM Sans',sans-serif"}}>Not right now</span>
+                </div>
+              </div>;
+            }
+            return <div style={{background:"var(--bg-card)",border:"1px solid var(--accent)",borderRadius:10,padding:"16px 18px 12px",marginBottom:18,boxShadow:"0 0 0 4px var(--accent-15)"}}>
+              <div style={{display:"flex",alignItems:"baseline",gap:8,marginBottom:4}}>
+                <span style={{display:"inline-block",width:8,height:8,borderRadius:"50% 50% 50% 0",background:"var(--accent)",transform:"rotate(-45deg)"}}/>
+                <span style={{fontSize:10,textTransform:"uppercase",letterSpacing:"0.2em",color:"var(--accent)",fontWeight:600,fontFamily:"'DM Sans',sans-serif"}}>The First Spark</span>
+                <span style={{fontFamily:"'Cormorant Garamond',serif",fontSize:13,fontStyle:"italic",color:"var(--text-dim)"}}>why this story</span>
+              </div>
+              {spark.map((e,i)=>(
+                <div key={i} style={i>0?{borderTop:"1px dashed var(--border-mid)",marginTop:12,paddingTop:12}:{}}>
+                  <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:i===0?16:14,fontStyle:"italic",color:"var(--text-primary)",lineHeight:1.75,whiteSpace:"pre-wrap"}}>"{e.text}"</div>
+                  <div style={{fontSize:9,letterSpacing:"0.08em",color:"var(--text-dim)",textTransform:"uppercase",fontFamily:"'DM Sans',sans-serif",marginTop:5}}>{e.date}{i===0?" · your own words":""}</div>
+                </div>
+              ))}
+              {sparkAddText===null
+                ?<span onClick={()=>setSparkAddText("")} style={{fontSize:10,color:"var(--accent-80)",cursor:"pointer",display:"inline-block",marginTop:12,fontFamily:"'DM Sans',sans-serif"}}>+ Add to the spark</span>
+                :<div style={{marginTop:12}}>
+                  <textarea className="fi" rows={2} placeholder="Came back to add..." value={sparkAddText} onChange={e=>setSparkAddText(e.target.value)} style={{resize:"vertical",marginBottom:8}}/>
+                  <div style={{display:"flex",gap:8}}>
+                    <span onClick={()=>{saveSparkEntry(sparkAddText,false);setSparkAddText(null);}} style={{fontSize:10,padding:"5px 12px",borderRadius:5,background:"var(--accent)",color:"var(--bg-card)",cursor:"pointer",fontFamily:"'DM Sans',sans-serif"}}>Keep it</span>
+                    <span onClick={()=>setSparkAddText(null)} style={{fontSize:10,padding:"5px 12px",borderRadius:5,border:"1px solid var(--border)",color:"var(--text-dim)",cursor:"pointer",fontFamily:"'DM Sans',sans-serif"}}>Cancel</span>
+                  </div>
+                </div>}
+            </div>;
+          })()}
           {/* Session Focus at top — inline editable, no Edit mode required */}
           <div style={{background:"var(--bg-card-alt)",border:"1px solid var(--border)",borderRadius:10,padding:"14px 16px",marginBottom:18}}>
             <div style={{fontSize:9,textTransform:"uppercase",letterSpacing:"0.18em",color:"var(--accent-80)",fontWeight:500,marginBottom:12,fontFamily:"'DM Sans',sans-serif"}}>Session Focus</div>
