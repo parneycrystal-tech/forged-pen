@@ -845,6 +845,17 @@ export default function App() {
   const [forgeMode, setForgeMode] = useState("manuscript");
   const [embers, setEmbers] = useState([]);
   const [activeEmber, setActiveEmber] = useState(null);
+  const [editingEmberTitle, setEditingEmberTitle] = useState(false); // is the title field in the ember header editable right now
+  const [emberAnalysisError, setEmberAnalysisError] = useState(null); // ember id whose last analysis attempt failed, for a visible retry instead of silent revert
+  const emberRef = useRef(null); // auto-grow ref for the ember writing field, same pattern as ideaLabRef/infernoRef
+  // Auto-select the most recently edited ember when arriving at Embers with nothing chosen yet.
+  // Previously the "no embers yet" empty state showed any time nothing was selected, even with
+  // embers already saved — this only shows that message when the list is genuinely empty.
+  useEffect(()=>{
+    if(forgeMode==="embers"&&!activeEmber&&embers.length>0){
+      setActiveEmber([...embers].sort((a,b)=>(b.lastEdited||b.createdAt||0)-(a.lastEdited||a.createdAt||0))[0].id);
+    }
+  },[forgeMode,embers,activeEmber]);
   const [emberAgnesLoading, setEmberAgnesLoading] = useState(null); // ember id being analyzed
   const [newEmberTitle, setNewEmberTitle] = useState("");
   const [newEmberText, setNewEmberText] = useState("");
@@ -912,12 +923,12 @@ export default function App() {
   // internal scrollbar and the bottom couldn't be reached. Runs on every text change and also
   // covers external loads (session switches, Send to Lab merges, restored drafts).
   useEffect(()=>{
-    [ideaLabRef.current,infernoRef.current].forEach(el=>{
+    [ideaLabRef.current,infernoRef.current,emberRef.current].forEach(el=>{
       if(!el)return;
       el.style.height="auto";
       el.style.height=Math.max(el.scrollHeight,el===infernoRef.current?400:300)+"px";
     });
-  },[ideaLabText,infernoText,forgeMode]);
+  },[ideaLabText,infernoText,forgeMode,activeEmber,embers]);
   const ideaLabContainerRef = useRef(null);
   const writeContainerRef = useRef(null);
   const cEndRef = useRef(null);
@@ -2269,16 +2280,17 @@ ${chapStr}
 SCENE FRAGMENT (THE EMBER):
 ${ember.text}
 
-Generate a brief analysis with four parts:
+Generate a brief analysis with five parts:
 1. placementHypothesis: Where does this scene most likely belong in the story? Reference specific chapters or story position. Be specific and direct. 1-2 sentences.
 2. characterTag: Which character(s) are present or central to this fragment? List names only, comma separated.
 3. tensionNote: What narrative tension or emotional undercurrent is alive in this fragment? 1 sentence. Direct. No flattery.
 4. proposedCharacters: Named characters in this fragment who do NOT already have a character card. Existing cards: ${[project?.protagonist?(project.protagonist.split(":")[0]||"").trim():null,...(project?.characters||[]).map(c=>c.name)].filter(Boolean).join(", ")||"none yet"}. Only genuinely named characters (never "the doctor" or "her friend"), and never anyone already listed. Empty array if none.
+5. suggestedTitle: A short, specific title for this fragment, 3-6 words, capturing what actually happens (e.g. "Emma Realizes Eva is Family", not a generic label like "Untitled Scene").
 
 Rules: Never use em dashes. Never invent details not present in the fragment or Bible. If the fragment is too sparse to analyze, say so plainly.
 
 Respond ONLY with a JSON object. No markdown. No backticks.
-{"placementHypothesis":"","characterTag":"","tensionNote":"","proposedCharacters":[{"name":"","role":"best guess: Antagonist / villain, Love interest, Mentor, Best friend / confidant, Foil, Family, or Secondary character","description":"what this fragment actually shows about them"}]}`;
+{"placementHypothesis":"","characterTag":"","tensionNote":"","proposedCharacters":[{"name":"","role":"best guess: Antagonist / villain, Love interest, Mentor, Best friend / confidant, Foil, Family, or Secondary character","description":"what this fragment actually shows about them"}],"suggestedTitle":""}`;
 
       const resp=await fetch("/api/chat",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({
         system:"You are Agnes, a meticulous literary analyst. Be direct, specific, and concise. Never use em dashes.",
@@ -2290,9 +2302,11 @@ Respond ONLY with a JSON object. No markdown. No backticks.
         const cleaned=raw.replace(/```json|```/g,"").trim();
         try{
           const parsed=JSON.parse(cleaned);
+          setEmberAnalysisError(null);
           setEmbers(prev=>{
             const updatedEmbers=prev.map(e=>e.id===ember.id?{
               ...e,
+              title:(!e.title||!e.title.trim())?(parsed.suggestedTitle||e.title):e.title, // only fill in a title the writer never set — never overwrite one they chose
               agnesAnalysis:{
                 placementHypothesis:parsed.placementHypothesis||"",
                 characterTag:parsed.characterTag||"",
@@ -2304,9 +2318,9 @@ Respond ONLY with a JSON object. No markdown. No backticks.
             saveStored("tt-embers",updatedEmbers);
             return updatedEmbers;
           });
-        }catch(e){console.log("Ember analysis parse error:",e);}
-      }
-    }catch(e){console.log("Ember analysis error:",e);}
+        }catch(e){console.log("Ember analysis parse error:",e);setEmberAnalysisError(ember.id);}
+      }else{setEmberAnalysisError(ember.id);}
+    }catch(e){console.log("Ember analysis error:",e);setEmberAnalysisError(ember.id);}
     setEmberAgnesLoading(null);
   };
   useEffect(()=>{
@@ -5285,7 +5299,12 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
                   {/* Ember header */}
                   <div style={{padding:"12px 40px 10px",borderBottom:"1px solid #8A7AAA30",display:"flex",justifyContent:"space-between",alignItems:"center",background:"var(--bg-write)"}}>
                     <div style={{display:"flex",alignItems:"center",gap:12}}>
-                      <div style={{fontSize:12,color:"#8A7AAA",fontWeight:500,fontFamily:"'DM Sans',sans-serif"}}>{ember.title||"Untitled ember"}</div>
+                      {editingEmberTitle===ember.id
+                        ?<input autoFocus defaultValue={ember.title||""} onBlur={e=>{
+                            const updatedEmbers=embers.map(em=>em.id===ember.id?{...em,title:e.target.value.trim()}:em);
+                            setEmbers(updatedEmbers);saveStored("tt-embers",updatedEmbers);setEditingEmberTitle(false);
+                          }} onKeyDown={e=>{if(e.key==="Enter")e.target.blur();}} placeholder="Name this ember..." style={{fontSize:12,color:"#8A7AAA",fontWeight:500,fontFamily:"'DM Sans',sans-serif",background:"var(--bg-card)",border:"1px solid #8A7AAA40",borderRadius:4,padding:"2px 6px",outline:"none",width:180}}/>
+                        :<div onClick={()=>setEditingEmberTitle(ember.id)} title="Tap to rename" style={{fontSize:12,color:"#8A7AAA",fontWeight:500,fontFamily:"'DM Sans',sans-serif",cursor:"pointer"}}>{ember.title||"Untitled ember"}</div>}
                       <span style={{fontSize:10,color:"var(--text-dim)"}}>{(ember.text||"").split(/\s+/).filter(w=>w).length} words</span>
                     </div>
                     <div style={{display:"flex",gap:8,alignItems:"center"}}>
@@ -5334,17 +5353,24 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
                       <span onClick={()=>generateEmberAnalysis(ember)} style={{fontSize:10,color:"var(--text-dim)",background:"var(--bg-card)",border:"1px solid var(--border)",borderRadius:4,padding:"3px 8px",cursor:"pointer",fontFamily:"'DM Sans',sans-serif"}}>Re-read</span>
                     </div>
                   </div>}
-                  {!ember.agnesAnalysis&&emberAgnesLoading!==ember.id&&<div style={{padding:"8px 40px",background:"#8A7AAA06",borderBottom:"1px solid #8A7AAA15"}}>
+                  {!ember.agnesAnalysis&&emberAgnesLoading!==ember.id&&emberAnalysisError!==ember.id&&<div style={{padding:"8px 40px",background:"#8A7AAA06",borderBottom:"1px solid #8A7AAA15"}}>
                     <span onClick={()=>generateEmberAnalysis(ember)} style={{fontSize:10,color:"#8A7AAA60",fontFamily:"'DM Sans',sans-serif",cursor:"pointer",fontStyle:"italic"}}>Let Agnes read this ember</span>
+                  </div>}
+                  {emberAgnesLoading===ember.id&&<div style={{padding:"8px 40px",background:"#8A7AAA06",borderBottom:"1px solid #8A7AAA15"}}>
+                    <span style={{fontSize:10,color:"#8A7AAA80",fontFamily:"'DM Sans',sans-serif",fontStyle:"italic"}}>Agnes is reading this ember...</span>
+                  </div>}
+                  {emberAnalysisError===ember.id&&<div style={{padding:"8px 40px",background:"#8A7AAA06",borderBottom:"1px solid #8A7AAA15"}}>
+                    <span style={{fontSize:10,color:"var(--text-dim)",fontFamily:"'DM Sans',sans-serif",fontStyle:"italic"}}>That didn't come through. </span>
+                    <span onClick={()=>{setEmberAnalysisError(null);generateEmberAnalysis(ember);}} style={{fontSize:10,color:"#8A7AAA",fontFamily:"'DM Sans',sans-serif",cursor:"pointer",textDecoration:"underline"}}>Try again</span>
                   </div>}
 
                   {/* Ember text — editable */}
                   <div style={{flex:1,overflow:"auto",padding:"24px 40px"}}>
-                    <textarea value={ember.text||""} onChange={e=>{
+                    <textarea ref={emberRef} value={ember.text||""} onChange={e=>{
                       const updatedEmbers=embers.map(em=>em.id===ember.id?{...em,text:e.target.value,lastEdited:Date.now()}:em);
                       setEmbers(updatedEmbers);
                       saveStored("tt-embers",updatedEmbers);
-                    }} style={{width:"100%",minHeight:300,background:"none",border:"none",outline:"none",resize:"none",fontFamily:"'Cormorant Garamond',serif",fontSize:18,color:"var(--text-primary)",lineHeight:2}}/>
+                    }} style={{width:"100%",minHeight:300,overflow:"hidden",background:"none",border:"none",outline:"none",resize:"none",fontFamily:"'Cormorant Garamond',serif",fontSize:18,color:"var(--text-primary)",lineHeight:2}}/>
                   </div>
 
                   <div style={{padding:"10px 40px 14px",borderTop:"1px solid #8A7AAA20",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
