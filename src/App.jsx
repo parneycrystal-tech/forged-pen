@@ -856,6 +856,18 @@ export default function App() {
   const taRef = useRef(null);
   const writeRef = useRef(null);
   const ideaLabRef = useRef(null);
+  const infernoRef = useRef(null);
+  // Auto-grow the Idea Lab and Inferno textareas to fit their content, so the outer container
+  // handles all scrolling. Fixes the bug where long content got trapped behind the textarea's
+  // internal scrollbar and the bottom couldn't be reached. Runs on every text change and also
+  // covers external loads (session switches, Send to Lab merges, restored drafts).
+  useEffect(()=>{
+    [ideaLabRef.current,infernoRef.current].forEach(el=>{
+      if(!el)return;
+      el.style.height="auto";
+      el.style.height=Math.max(el.scrollHeight,el===infernoRef.current?400:300)+"px";
+    });
+  },[ideaLabText,infernoText,forgeMode]);
   const ideaLabContainerRef = useRef(null);
   const writeContainerRef = useRef(null);
   const cEndRef = useRef(null);
@@ -1262,7 +1274,7 @@ export default function App() {
   // Container Finn
   const CONTAINER_FINN=`${FINN}\n\nMODE: CONTAINER COACHING. You are coaching the writer WHILE they write. They are mid-scene. Be quick and precise. Read their current scene text and Story Bible. You can do anything the regular coaching modes do: diagnose blocks, do scene surgery, deep-dive characters, check plot, analyze voice. The writer doesn't need to leave the container. Adapt to what they ask. If they say "this scene needs surgery," do scene surgery. If they say "I'm stuck," diagnose the block. If they say "break this down," go comprehensive. Default: short, sharp, actionable. Get them back to writing fast. Under 150 words unless they ask for more.
 
-INFERNO TOOLS: If a message begins with "INFERNO TOOL:", the writer tapped a tool during a high-energy writing session. Run that tool immediately, no preamble, no asking if they're sure. Keep it under 80 words, they are mid-fire. The tools: "Capture the flood" = tell them to dump every idea one line each with no explaining, you'll hold them. "Channel the heat" = look at their recent text and flood, help them sort what moves the story NOW from fuel for later. "Ride the wave, 25 min" = set them loose on a timed sprint, name the scene they're riding based on their current text, no editing allowed. "Flag everything" = remind them their clarity is elevated, tell them to flag what feels alive, point at one specific thing in their current text worth flagging. "Body check" = water, food, stand up, ninety seconds, the fire keeps. Be warm and brief. "Wind down" = help them capture one sentence as tomorrow's way back in, then release them without guilt.`;
+INFERNO TOOLS: If a message begins with "INFERNO TOOL:", the writer tapped a tool during a high-energy writing session. Run that tool immediately, no preamble, no asking if they're sure. Keep it under 80 words, they are mid-fire. The tools: "Capture the flood" = tell them to dump every idea one line each with no explaining, you'll hold them. "Channel the heat" = look at their recent text and flood, help them sort what moves the story NOW from fuel for later. "Ride the wave, 25 min" = set them loose on a timed sprint, pointing at where their own text or Story Bible leaves off, quoting or closely echoing what is already there, no editing allowed. "Flag everything" = remind them their clarity is elevated, tell them to flag what feels alive, point at one specific thing in their current text worth flagging. "Body check" = water, food, stand up, ninety seconds, the fire keeps. Be warm and brief. "Wind down" = help them capture one sentence as tomorrow's way back in, then release them without guilt. For every tool: reflect the writer's own momentum back to them. Never introduce story events, images, or lines that are not already in their text or Bible, however small or evocative. What happens next is theirs to write, not yours to seed.`;
 
   // "Note this" on a coaching message: Finn proposes a specific, concise note rather than saving the
   // raw message verbatim, and the writer can edit it before confirming. Nothing saves silently.
@@ -1319,7 +1331,8 @@ INFERNO TOOLS: If a message begins with "INFERNO TOOL:", the writer tapped a too
     if(forgeMode!=="inferno")return;
     if(infernoCheckTimerRef.current)clearTimeout(infernoCheckTimerRef.current);
     const newChars=infernoText.length-infernoLastCheckLength;
-    if(newChars>=600){ // roughly 100+ new words — check in even without a pause
+    const INFERNO_CHECK_CHARS=1200; // roughly 200 words — raised from 600 (~100 words), which felt too frequent in live testing. One number to change if it still needs tuning.
+    if(newChars>=INFERNO_CHECK_CHARS){ // check in even without a pause
       checkInferno();
       return;
     }
@@ -4902,7 +4915,7 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
                 <div style={{fontSize:11,color:"var(--text-dim)",fontStyle:"italic",fontFamily:"'DM Sans',sans-serif"}}>Tip: highlight any part of what you wrote to sort it into a bucket below.</div>
               </div>
               <div ref={ideaLabContainerRef} style={{flex:1,overflow:"auto",padding:"12px 40px 0",position:"relative"}}>
-                <textarea ref={ideaLabRef} value={ideaLabText} onChange={e=>{setIdeaLabText(e.target.value);saveStored("tt-idealab-text",e.target.value);}} onSelect={handleIdeaLabSelect} onMouseUp={handleIdeaLabSelect} onKeyUp={handleIdeaLabSelect} placeholder="Pour everything out. Characters, questions, fragments, feelings. No structure needed. Finn will help you make sense of it." style={{width:"100%",minHeight:300,background:"none",border:"none",outline:"none",resize:"none",fontFamily:"'Cormorant Garamond',serif",fontSize:18,color:"var(--text-primary)",lineHeight:2}}/>
+                <textarea ref={ideaLabRef} value={ideaLabText} onChange={e=>{setIdeaLabText(e.target.value);saveStored("tt-idealab-text",e.target.value);}} onSelect={handleIdeaLabSelect} onMouseUp={handleIdeaLabSelect} onKeyUp={handleIdeaLabSelect} placeholder="Pour everything out. Characters, questions, fragments, feelings. No structure needed. Finn will help you make sense of it." style={{width:"100%",minHeight:300,overflow:"hidden",background:"none",border:"none",outline:"none",resize:"none",fontFamily:"'Cormorant Garamond',serif",fontSize:18,color:"var(--text-primary)",lineHeight:2}}/>
               </div>
 
               {/* Buckets */}
@@ -4949,12 +4962,12 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
                 <div style={{fontSize:12,color:"#C07848",fontWeight:500,fontFamily:"'DM Sans',sans-serif"}}>Inferno</div>
                 <div style={{display:"flex",gap:8,alignItems:"center"}}>
                   <span style={{fontSize:10,color:"var(--text-dim)"}}>{infernoText.split(/\s+/).filter(w=>w).length} words</span>
-                  <span onClick={()=>{if(infernoText){const t=infernoText.substring(0,200);const ns=[...sparks,{text:t,date:new Date().toLocaleDateString(),mode:"The Inferno",modeId:"inferno"}];setSparks(ns);saveStored("tt-sparks",ns)}}} style={{fontSize:10,color:"var(--text-dim)",background:"var(--bg-card)",border:"1px solid #C0784820",borderRadius:4,padding:"3px 8px",cursor:"pointer"}}>Flag this</span>
+                  <span onClick={()=>{if(infernoText){const t=infernoText.substring(0,200);const ns=[...sparks,{text:t,date:new Date().toLocaleDateString(),mode:"The Inferno",modeId:"inferno"}];setSparks(ns);saveStored("tt-sparks",ns)}}} style={{fontSize:10,color:"var(--text-dim)",background:"var(--bg-card)",border:"1px solid #C0784820",borderRadius:4,padding:"3px 8px",cursor:"pointer"}}>This excites me</span>
                   <span onClick={initiateSendToLab} style={{fontSize:10,color:infernoText.trim()?"var(--text-dim)":"var(--text-faint)",background:"var(--bg-card)",border:"1px solid #C0784820",borderRadius:4,padding:"3px 8px",cursor:infernoText.trim()?"pointer":"default"}}>Send to Lab</span>
                 </div>
               </div>
               <div style={{flex:1,overflow:"auto",padding:"24px 40px"}}>
-                <textarea value={infernoText} onChange={e=>{setInfernoText(e.target.value);saveStored("tt-inferno-text",e.target.value);}} placeholder="Don't stop. Don't edit. Don't look back. Just burn." style={{width:"100%",height:"100%",minHeight:400,background:"none",border:"none",outline:"none",resize:"none",fontFamily:"'Cormorant Garamond',serif",fontSize:18,color:"var(--text-primary)",lineHeight:2}}/>
+                <textarea ref={infernoRef} value={infernoText} onChange={e=>{setInfernoText(e.target.value);saveStored("tt-inferno-text",e.target.value);}} placeholder="Don't stop. Don't edit. Don't look back. Just burn." style={{width:"100%",minHeight:400,overflow:"hidden",background:"none",border:"none",outline:"none",resize:"none",fontFamily:"'Cormorant Garamond',serif",fontSize:18,color:"var(--text-primary)",lineHeight:2}}/>
               </div>
               <div style={{padding:"10px 40px 14px",borderTop:"1px solid #C0784830",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
                 <div style={{fontSize:10,color:"var(--text-dim)"}}>Auto-saved</div>
