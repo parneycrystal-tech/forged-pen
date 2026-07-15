@@ -505,6 +505,41 @@ function charactersCtx(project){
 }
 
 // The First Spark: the writer's verbatim why, append-only. Quoted, never paraphrased.
+// Chapter-labeled display for story-wide fields (Themes, Main Plot) — same pattern the Characters
+// tab uses: latest entry with its chapter, older entries and the pre-tracking blob tucked behind
+// "Show earlier". The flat field keeps accumulating unchanged as Finn's context; this only changes
+// what the writer sees.
+function TrackedField({project,label,fieldKey,expandedMap,onToggle}){
+  const history=project[fieldKey+"History"];
+  const legacy=project[fieldKey+"Legacy"];
+  const flat=project[fieldKey];
+  const hasHistory=Array.isArray(history)&&history.length>0;
+  if(!hasHistory&&!flat)return null;
+  const expanded=!!expandedMap[fieldKey];
+  const earlierCount=hasHistory?(history.length-1+(legacy?1:0)):0;
+  return <div style={{marginBottom:20}}>
+    <div style={{fontSize:10,textTransform:"uppercase",letterSpacing:"0.12em",color:"var(--text-dim)",fontFamily:"'DM Sans',sans-serif",marginBottom:6}}>{label}</div>
+    {hasHistory?<>
+      <div style={{background:"var(--bg-card)",border:"1px solid var(--border)",borderRadius:8,padding:"12px 14px"}}>
+        <div style={{fontSize:9,color:"var(--text-dim)",marginBottom:3,fontFamily:"'DM Sans',sans-serif"}}>Chapter {history[history.length-1].chapterNum} &middot; latest</div>
+        <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:14,color:"var(--text-primary)",lineHeight:1.75,whiteSpace:"pre-wrap"}}>{history[history.length-1].text}</div>
+      </div>
+      {earlierCount>0&&<div onClick={()=>onToggle(fieldKey)} style={{fontSize:10,color:"var(--text-dim)",cursor:"pointer",padding:"5px 0",fontFamily:"'DM Sans',sans-serif"}}>{expanded?"Hide earlier":`Show ${earlierCount} earlier ${earlierCount===1?"entry":"entries"}`}</div>}
+      {expanded&&<div style={{display:"flex",flexDirection:"column",gap:8,marginTop:4}}>
+        {[...history].slice(0,-1).reverse().map((h,i)=>(
+          <div key={i} style={{background:"var(--bg-card-alt)",border:"1px solid var(--border)",borderRadius:8,padding:"12px 14px"}}>
+            <div style={{fontSize:9,color:"var(--text-dim)",marginBottom:3,fontFamily:"'DM Sans',sans-serif"}}>Chapter {h.chapterNum}</div>
+            <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:13,color:"var(--text-secondary)",lineHeight:1.7,whiteSpace:"pre-wrap"}}>{h.text}</div>
+          </div>
+        ))}
+        {legacy&&<div style={{background:"var(--bg-card-alt)",border:"1px dashed var(--border-mid)",borderRadius:8,padding:"12px 14px"}}>
+          <div style={{fontSize:9,color:"var(--text-dim)",marginBottom:3,fontFamily:"'DM Sans',sans-serif"}}>Earlier notes, before chapter tracking</div>
+          <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:13,color:"var(--text-secondary)",lineHeight:1.7,whiteSpace:"pre-wrap"}}>{legacy}</div>
+        </div>}
+      </div>}
+    </>:<div style={{background:"var(--bg-card)",border:"1px solid var(--border)",borderRadius:8,padding:"12px 14px",fontFamily:"'Cormorant Garamond',serif",fontSize:14,color:"var(--text-primary)",lineHeight:1.75,whiteSpace:"pre-wrap"}}>{flat}</div>}
+  </div>;
+}
 function firstSparkCtx(project){
   const spark=project?.firstSpark;
   if(!Array.isArray(spark)||spark.length===0)return "";
@@ -760,6 +795,8 @@ export default function App() {
   const [selectedCharKey, setSelectedCharKey] = useState("protagonist"); // "protagonist" or a character's id
   const [expandedFieldHistory, setExpandedFieldHistory] = useState({}); // fieldKey -> bool
   const [protagHistoryView, setProtagHistoryView] = useState("field"); // "field" | "chapter" — Character Arc Timeline toggle
+  const toggleFieldHistory=(key)=>setExpandedFieldHistory(prev=>({...prev,[key]:!prev[key]})); // shared with TrackedField on Overview/Plot tabs
+  const [noteSort, setNoteSort] = useState(null); // null | {loading:true} | {proposals:[{name,role,description}], remainingSupporting, remainingAntagonist, error?}
   const [bibExpanded, setBibExpanded] = useState(false);
   const [bibleSearch, setBibleSearch] = useState("");
   const [sparkCapture, setSparkCapture] = useState(null); // {q1,q2} while the two-question capture is open, else null
@@ -1958,8 +1995,15 @@ Main plot: ${project?.mainPlot||"none"}`;
         updated.timelineCaptures={...existingCaptures,[tag]:priorForTag+`[Chapter ${result.chapterNum}]\n`+captureLines};
       }
       // Themes and Main Plot are story-wide regardless of which timeline reveals them, so those still merge normally
-      if(result.themeReveal&&result.themeReveal.trim())updated.themes=(updated.themes?updated.themes+"\n\n"+result.themeReveal:result.themeReveal);
-      if(result.mainPlotUpdate&&result.mainPlotUpdate.trim())updated.mainPlot=(updated.mainPlot?updated.mainPlot+"\n\n"+result.mainPlotUpdate:result.mainPlotUpdate);
+      const appendStoryWide=(key,value)=>{
+        if(!value||!value.trim())return;
+        updated[key]=(updated[key]?updated[key]+"\n\n"+value:value);
+        const existingHist=Array.isArray(project[key+"History"])?project[key+"History"]:[];
+        if(existingHist.length===0&&project[key]&&project[key].trim())updated[key+"Legacy"]=project[key];
+        updated[key+"History"]=[...existingHist,{chapterNum:result.chapterNum,text:value.trim()}];
+      };
+      appendStoryWide("themes",result.themeReveal);
+      appendStoryWide("mainPlot",result.mainPlotUpdate);
     }else{
       // Merge new details into existing fields (append rather than replace)
       const appendField=(key,value)=>{if(value&&value.trim())updated[key]=(updated[key]?updated[key]+"\n\n"+value:value);};
@@ -2000,7 +2044,9 @@ Main plot: ${project?.mainPlot||"none"}`;
       appendField("worldDanger",result.worldDangerUpdate);
       appendField("worldTone",result.worldToneUpdate);
       appendField("themes",result.themeReveal);
+      appendHistory("themes",result.themeReveal);
       appendField("mainPlot",result.mainPlotUpdate);
+      appendHistory("mainPlot",result.mainPlotUpdate);
     }
     // Threads: auto-append this chapter to any already-tracked thread it continues. No approval needed
     // here, since the thread itself was already approved when created — this just extends where it's
@@ -2223,15 +2269,16 @@ ${chapStr}
 SCENE FRAGMENT (THE EMBER):
 ${ember.text}
 
-Generate a brief analysis with three parts:
+Generate a brief analysis with four parts:
 1. placementHypothesis: Where does this scene most likely belong in the story? Reference specific chapters or story position. Be specific and direct. 1-2 sentences.
 2. characterTag: Which character(s) are present or central to this fragment? List names only, comma separated.
 3. tensionNote: What narrative tension or emotional undercurrent is alive in this fragment? 1 sentence. Direct. No flattery.
+4. proposedCharacters: Named characters in this fragment who do NOT already have a character card. Existing cards: ${[project?.protagonist?(project.protagonist.split(":")[0]||"").trim():null,...(project?.characters||[]).map(c=>c.name)].filter(Boolean).join(", ")||"none yet"}. Only genuinely named characters (never "the doctor" or "her friend"), and never anyone already listed. Empty array if none.
 
 Rules: Never use em dashes. Never invent details not present in the fragment or Bible. If the fragment is too sparse to analyze, say so plainly.
 
 Respond ONLY with a JSON object. No markdown. No backticks.
-{"placementHypothesis":"","characterTag":"","tensionNote":""}`;
+{"placementHypothesis":"","characterTag":"","tensionNote":"","proposedCharacters":[{"name":"","role":"best guess: Antagonist / villain, Love interest, Mentor, Best friend / confidant, Foil, Family, or Secondary character","description":"what this fragment actually shows about them"}]}`;
 
       const resp=await fetch("/api/chat",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({
         system:"You are Agnes, a meticulous literary analyst. Be direct, specific, and concise. Never use em dashes.",
@@ -2250,6 +2297,7 @@ Respond ONLY with a JSON object. No markdown. No backticks.
                 placementHypothesis:parsed.placementHypothesis||"",
                 characterTag:parsed.characterTag||"",
                 tensionNote:parsed.tensionNote||"",
+                proposedCharacters:Array.isArray(parsed.proposedCharacters)?parsed.proposedCharacters.filter(pc=>pc&&pc.name):[],
                 generatedAt:Date.now()
               }
             }:e);
@@ -4377,7 +4425,7 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
           <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:22,fontWeight:500,color:"var(--text-primary)",marginBottom:16}}>{project.title||"Untitled"}</div>
           <ReadField label="Genre" value={project.genre}/>
           <ReadField label="What this story is about" value={project.synopsis} multi/>
-          <ReadField label="Themes" value={project.themes} multi/>
+          <TrackedField project={project} label="Themes" fieldKey="themes" expandedMap={expandedFieldHistory} onToggle={toggleFieldHistory}/>
           <ReadField label="What excites you most" value={project.excites} multi/>
           {(project.openQuestions||[]).length>0&&<div style={{marginTop:8,paddingTop:14,borderTop:"1px solid var(--border)"}}>
             <div style={{fontSize:9,textTransform:"uppercase",letterSpacing:"0.14em",color:"var(--text-dim)",fontFamily:"'DM Sans',sans-serif",marginBottom:10}}>Open questions</div>
@@ -4530,6 +4578,48 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
             <div style={{fontSize:9,textTransform:"uppercase",letterSpacing:"0.14em",color:"var(--text-dim)",fontFamily:"'DM Sans',sans-serif",marginBottom:8}}>Unsorted notes, not yet assigned to a specific character</div>
             <ReadField label="Other notes on supporting characters" value={project.supporting} multi/>
             <ReadField label="Other notes on the antagonist" value={project.antagonist} multi/>
+            {/* One-time cleanup for the pre-extraction-fix backlog: Agnes reads the unsorted blobs,
+                proposes real character cards, and drafts a trimmed version of the notes. Nothing is
+                removed automatically — Agnes paraphrases, so the writer reviews the trimmed text
+                before it replaces anything. */}
+            {(project.supporting||project.antagonist)&&!noteSort&&<span onClick={async()=>{
+              setNoteSort({loading:true});
+              try{
+                const existing=[project.protagonist?(project.protagonist.split(":")[0]||"").trim():null,...(project.characters||[]).map(c=>c.name)].filter(Boolean).join(", ")||"none yet";
+                const resp=await fetch("/api/chat",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({
+                  system:"You are Agnes, a meticulous literary archivist. Be direct, specific, and concise. Never use em dashes.",
+                  messages:[{role:"user",content:`These are a writer's unsorted character notes. Characters who already have cards: ${existing}.\n\nSUPPORTING NOTES:\n${project.supporting||"(empty)"}\n\nANTAGONIST NOTES:\n${project.antagonist||"(empty)"}\n\nDo two things.\n1. proposals: Every genuinely NAMED character in these notes who does not already have a card (never "the doctor" or unnamed figures, never anyone in the existing list). For each, gather everything the notes say about them into a description, preserving the notes' actual wording as closely as possible.\n2. remainingSupporting and remainingAntagonist: The same notes rewritten with the proposed characters' content removed, keeping everything else, preserving original wording exactly, not paraphrasing what stays. Empty string if nothing remains.\n\nRespond ONLY with JSON. No markdown. No backticks.\n{"proposals":[{"name":"","role":"best guess: Antagonist / villain, Love interest, Mentor, Best friend / confidant, Foil, Family, or Secondary character","description":""}],"remainingSupporting":"","remainingAntagonist":""}`}]
+                })});
+                const data=await resp.json();
+                const raw=data.content?.filter(b=>b.type==="text").map(b=>b.text).join("")||"";
+                const parsed=JSON.parse(raw.replace(/```json|```/g,"").trim());
+                setNoteSort({proposals:(Array.isArray(parsed.proposals)?parsed.proposals.filter(p=>p&&p.name):[]),remainingSupporting:parsed.remainingSupporting||"",remainingAntagonist:parsed.remainingAntagonist||"",added:{}});
+              }catch(e){setNoteSort({error:true});}
+            }} style={{fontSize:10,padding:"5px 12px",borderRadius:5,border:"1px solid var(--accent)",color:"var(--accent)",cursor:"pointer",display:"inline-block",marginTop:4,fontFamily:"'DM Sans',sans-serif"}}>Sort these into characters with Agnes</span>}
+            {noteSort?.loading&&<div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:13,color:"var(--text-dim)",fontStyle:"italic",marginTop:8}}>Agnes is reading the unsorted notes...</div>}
+            {noteSort?.error&&<div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:13,color:"var(--text-dim)",fontStyle:"italic",marginTop:8}}>Something went wrong. <span onClick={()=>setNoteSort(null)} style={{color:"var(--accent)",cursor:"pointer"}}>Try again</span></div>}
+            {noteSort?.proposals&&<div style={{background:"var(--bg-card-alt)",border:"1px solid var(--border)",borderRadius:8,padding:"12px 14px",marginTop:10}}>
+              <div style={{fontSize:9,textTransform:"uppercase",letterSpacing:"0.14em",color:"var(--accent)",fontFamily:"'DM Sans',sans-serif",fontWeight:500,marginBottom:8}}>Agnes found {noteSort.proposals.length===0?"no new named characters":noteSort.proposals.length===1?"1 character":`${noteSort.proposals.length} characters`} in the notes</div>
+              {noteSort.proposals.map((pc,pi)=>(
+                <div key={pi} style={{marginBottom:10}}>
+                  <div style={{display:"flex",alignItems:"center",gap:8,flexWrap:"wrap"}}>
+                    <span style={{fontFamily:"'Cormorant Garamond',serif",fontSize:14,color:"var(--text-primary)"}}>{pc.name} <span style={{fontSize:12,color:"var(--text-dim)",fontStyle:"italic"}}>({pc.role})</span></span>
+                    {noteSort.added[pi]
+                      ?<span style={{fontSize:9,color:"var(--text-dim)",fontFamily:"'DM Sans',sans-serif"}}>Added</span>
+                      :<span onClick={()=>{addProposedCharacter(pc.name,pc.role,pc.description);setNoteSort(prev=>({...prev,added:{...prev.added,[pi]:true}}));}} style={{fontSize:9,padding:"3px 9px",borderRadius:5,background:"var(--accent)",color:"var(--bg-deepest)",cursor:"pointer",fontFamily:"'DM Sans',sans-serif"}}>Add as character</span>}
+                  </div>
+                  <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:12,color:"var(--text-secondary)",lineHeight:1.6,marginTop:2}}>{pc.description}</div>
+                </div>
+              ))}
+              {noteSort.proposals.length>0&&Object.keys(noteSort.added).length>0&&<div style={{borderTop:"1px dashed var(--border-mid)",paddingTop:10,marginTop:4}}>
+                <div style={{fontSize:9,textTransform:"uppercase",letterSpacing:"0.12em",color:"var(--text-dim)",fontFamily:"'DM Sans',sans-serif",marginBottom:5}}>Trimmed notes, with sorted characters removed — review before applying, Agnes may have reworded</div>
+                <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:12,color:"var(--text-secondary)",lineHeight:1.6,whiteSpace:"pre-wrap",maxHeight:160,overflow:"auto",background:"var(--bg-card)",border:"1px solid var(--border)",borderRadius:6,padding:"8px 10px",marginBottom:8}}>{[noteSort.remainingSupporting,noteSort.remainingAntagonist].filter(Boolean).join("\n\n---\n\n")||"(nothing would remain)"}</div>
+                <div style={{display:"flex",gap:8}}>
+                  <span onClick={()=>{const updated={...project,supporting:noteSort.remainingSupporting,antagonist:noteSort.remainingAntagonist};setProject(updated);saveStored("tt-project",updated);cloudSave("tt-project",updated);setNoteSort(null);}} style={{fontSize:10,padding:"5px 12px",borderRadius:5,background:"var(--accent)",color:"var(--bg-deepest)",cursor:"pointer",fontFamily:"'DM Sans',sans-serif"}}>Apply trimmed notes</span>
+                  <span onClick={()=>setNoteSort(null)} style={{fontSize:10,padding:"5px 12px",borderRadius:5,border:"1px solid var(--border)",color:"var(--text-dim)",cursor:"pointer",fontFamily:"'DM Sans',sans-serif"}}>Keep original notes</span>
+                </div>
+              </div>}
+            </div>}
           </div>}
         </>;
         })()}
@@ -4543,10 +4633,7 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
           {!project.worldSetting&&!project.worldRules&&!project.worldTone&&<p style={{fontFamily:"'Cormorant Garamond',serif",fontSize:14,color:"var(--text-dim)",fontStyle:"italic"}}>No world details added yet. Tap Edit to add them.</p>}
         </div>}
         {!bibleSearch&&bibViewTab==="plot"&&<div>
-          {project.mainPlot&&<div style={{marginBottom:20}}>
-            <div style={{fontSize:10,textTransform:"uppercase",letterSpacing:"0.12em",color:"var(--text-dim)",fontFamily:"'DM Sans',sans-serif",marginBottom:6}}>Main plot</div>
-            <div style={{background:"var(--bg-card)",border:"1px solid var(--border)",borderRadius:8,padding:"12px 14px",fontFamily:"'Cormorant Garamond',serif",fontSize:14,color:"var(--text-primary)",lineHeight:1.75,whiteSpace:"pre-wrap"}}>{project.mainPlot}</div>
-          </div>}
+          <TrackedField project={project} label="Main plot" fieldKey="mainPlot" expandedMap={expandedFieldHistory} onToggle={toggleFieldHistory}/>
           {(project.threads||[]).length>0&&<div style={{marginBottom:20}}>
             <div style={{fontSize:10,textTransform:"uppercase",letterSpacing:"0.12em",color:"var(--text-dim)",fontFamily:"'DM Sans',sans-serif",marginBottom:8}}>Threads</div>
             {(()=>{
@@ -5232,6 +5319,12 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
                       </div>}
                     </div>
                     {ember.agnesAnalysis.characterTag&&<div style={{fontSize:10,color:"#8A7AAA60",fontFamily:"'DM Sans',sans-serif"}}>Characters: {ember.agnesAnalysis.characterTag}</div>}
+                    {(ember.agnesAnalysis.proposedCharacters||[]).filter(pc=>!(project.characters||[]).some(c=>c.name.toLowerCase()===pc.name.toLowerCase())).map((pc,pi)=>(
+                      <div key={pi} style={{display:"flex",alignItems:"center",gap:8,marginTop:6,flexWrap:"wrap"}}>
+                        <span style={{fontSize:11,fontFamily:"'Cormorant Garamond',serif",color:"var(--text-secondary)"}}>{pc.name} <span style={{color:"var(--text-dim)",fontStyle:"italic"}}>({pc.role})</span> isn't in the Bible yet.</span>
+                        <span onClick={()=>addProposedCharacter(pc.name,pc.role,pc.description)} style={{fontSize:9,padding:"3px 9px",borderRadius:5,background:"var(--accent)",color:"var(--bg-deepest)",cursor:"pointer",fontFamily:"'DM Sans',sans-serif"}}>Add as character</span>
+                      </div>
+                    ))}
                     <div style={{display:"flex",gap:6,marginTop:8}}>
                       <span onClick={()=>{
                         setFinnOpen(true);
