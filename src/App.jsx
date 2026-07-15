@@ -848,6 +848,8 @@ export default function App() {
   const [infernoText, setInfernoText] = useState("");
   const [infernoLastCheckLength, setInfernoLastCheckLength] = useState(0); // text length at last check-in
   const [infernoSuggestion, setInfernoSuggestion] = useState(null); // {tool, message} or null
+  const [infernoChecksOn, setInfernoChecksOn] = useState(true); // session-only: resets to On every fresh Inferno open, deliberately not a standing preference
+  const [infernoDotPeek, setInfernoDotPeek] = useState(false); // corner dot peek open
   const [infernoCheckLoading, setInfernoCheckLoading] = useState(false);
   const infernoCheckTimerRef = useRef(null);
   const [infernoToolInfoOpen, setInfernoToolInfoOpen] = useState({}); // tool name -> bool, independent toggles
@@ -1327,8 +1329,12 @@ INFERNO TOOLS: If a message begins with "INFERNO TOOL:", the writer tapped a too
     setInfernoCheckLoading(false);
   };
 
+  // Fresh Inferno open: checks always start On (the toggle is session-only by design), peek closed
+  useEffect(()=>{if(forgeMode==="inferno"){setInfernoChecksOn(true);setInfernoDotPeek(false);}},[forgeMode]);
+
   useEffect(()=>{
     if(forgeMode!=="inferno")return;
+    if(!infernoChecksOn)return; // writer turned Finn's check-ins off for this session
     if(infernoCheckTimerRef.current)clearTimeout(infernoCheckTimerRef.current);
     const newChars=infernoText.length-infernoLastCheckLength;
     const INFERNO_CHECK_CHARS=1200; // roughly 200 words — raised from 600 (~100 words), which felt too frequent in live testing. One number to change if it still needs tuning.
@@ -1336,11 +1342,13 @@ INFERNO TOOLS: If a message begins with "INFERNO TOOL:", the writer tapped a too
       checkInferno();
       return;
     }
-    if(newChars>=80){ // roughly 15+ new words — wait for a natural pause before checking
-      infernoCheckTimerRef.current=setTimeout(()=>{checkInferno();},12000);
+    const INFERNO_PAUSE_MIN_CHARS=150; // roughly 25-30 new words before a pause can trigger a check-in (was 80, ~15 words — fired mid-thought for slow, deliberate writers)
+    const INFERNO_PAUSE_MS=20000; // 20 seconds of stillness (was 12 — a thinking pause, not a stopped pause)
+    if(newChars>=INFERNO_PAUSE_MIN_CHARS){
+      infernoCheckTimerRef.current=setTimeout(()=>{checkInferno();},INFERNO_PAUSE_MS);
     }
     return ()=>{if(infernoCheckTimerRef.current)clearTimeout(infernoCheckTimerRef.current);};
-  },[infernoText,forgeMode]);
+  },[infernoText,forgeMode,infernoChecksOn]);
 
   // Core send: takes the message text directly so it can be called both from the input box
   // and programmatically (Inferno tool clicks, Finn's proactive suggestion "Yes"). The tool-click
@@ -4835,14 +4843,7 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
                 <div style={{background:"var(--bg-card)",border:"1px solid #C0784820",borderRadius:8,padding:10,marginBottom:8}}>
                   <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:12,color:"#C07848",fontStyle:"italic",lineHeight:1.6}}>Don't stop. Don't edit. Just burn.</div>
                 </div>
-                <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:13,color:"var(--text-dim)",fontStyle:"italic",lineHeight:1.5,marginBottom:12}}>Tap the <InfoIcon size={12} color="#8A7A60"/> to see what a tool's for, or just start typing and Finn will read along and check in.</div>
-                {infernoSuggestion&&<div style={{background:"var(--bg-card-alt)",border:"1px solid #C0784850",borderRadius:8,padding:"10px 12px",marginBottom:10}}>
-                  <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:12,color:"var(--text-primary)",lineHeight:1.6,marginBottom:8}}>{infernoSuggestion.message}</div>
-                  <div style={{display:"flex",gap:6}}>
-                    <span onClick={()=>{setFinnOpen(true);sendContainerMessage(`INFERNO TOOL: ${infernoSuggestion.tool}`);setInfernoSuggestion(null);}} style={{fontSize:10,padding:"5px 12px",borderRadius:5,background:"#C07848",color:"#1E1C14",cursor:"pointer",fontFamily:"'DM Sans',sans-serif"}}>Yes</span>
-                    <span onClick={()=>setInfernoSuggestion(null)} style={{fontSize:10,padding:"5px 12px",borderRadius:5,border:"1px solid var(--border)",color:"var(--text-dim)",cursor:"pointer",fontFamily:"'DM Sans',sans-serif"}}>Not now</span>
-                  </div>
-                </div>}
+                <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:13,color:"var(--text-dim)",fontStyle:"italic",lineHeight:1.5,marginBottom:12}}>Tap the <InfoIcon size={12} color="#8A7A60"/> to see what a tool's for, or just start typing. Finn reads along quietly; when the dot glows, he has a thought.</div>
                 <div style={{display:"flex",flexDirection:"column",gap:4}}>
                   {[["Capture the flood","Ideas arriving faster than you can develop them. Dump them, one line each, no explaining."],["Channel the heat","You've got a flood already. Sort what moves the story now from what's fuel for later."],["Ride the wave, 25 min","You know the scene. Timed, uninterrupted writing, no stopping to edit."],["Flag everything","Your clarity's elevated right now. Flag what feels alive for when the fire fades."],["Body check","Water, food, standing up. Ninety seconds. The fire will still be here."],["Wind down","Body's done, mind isn't. Capture one sentence as tomorrow's way back in."]].map(([tool,desc])=>{
                     const infoOpen=!!infernoToolInfoOpen[tool];
@@ -4961,13 +4962,31 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
               <div style={{padding:"12px 40px 10px",borderBottom:"1px solid #C0784830",display:"flex",justifyContent:"space-between",alignItems:"center",background:"var(--bg-write)"}}>
                 <div style={{fontSize:12,color:"#C07848",fontWeight:500,fontFamily:"'DM Sans',sans-serif"}}>Inferno</div>
                 <div style={{display:"flex",gap:8,alignItems:"center"}}>
+                  <span onClick={()=>{const next=!infernoChecksOn;setInfernoChecksOn(next);if(!next){setInfernoSuggestion(null);setInfernoDotPeek(false);if(infernoCheckTimerRef.current)clearTimeout(infernoCheckTimerRef.current);}}} style={{fontSize:10,color:infernoChecksOn?"#C07848":"var(--text-faint)",background:"var(--bg-card)",border:"1px solid "+(infernoChecksOn?"#C0784840":"var(--border)"),borderRadius:4,padding:"3px 8px",cursor:"pointer"}}>Finn checks in: {infernoChecksOn?"On":"Off"}</span>
                   <span style={{fontSize:10,color:"var(--text-dim)"}}>{infernoText.split(/\s+/).filter(w=>w).length} words</span>
                   <span onClick={()=>{if(infernoText){const t=infernoText.substring(0,200);const ns=[...sparks,{text:t,date:new Date().toLocaleDateString(),mode:"The Inferno",modeId:"inferno"}];setSparks(ns);saveStored("tt-sparks",ns)}}} style={{fontSize:10,color:"var(--text-dim)",background:"var(--bg-card)",border:"1px solid #C0784820",borderRadius:4,padding:"3px 8px",cursor:"pointer"}}>This excites me</span>
                   <span onClick={initiateSendToLab} style={{fontSize:10,color:infernoText.trim()?"var(--text-dim)":"var(--text-faint)",background:"var(--bg-card)",border:"1px solid #C0784820",borderRadius:4,padding:"3px 8px",cursor:infernoText.trim()?"pointer":"default"}}>Send to Lab</span>
                 </div>
               </div>
-              <div style={{flex:1,overflow:"auto",padding:"24px 40px"}}>
-                <textarea ref={infernoRef} value={infernoText} onChange={e=>{setInfernoText(e.target.value);saveStored("tt-inferno-text",e.target.value);}} placeholder="Don't stop. Don't edit. Don't look back. Just burn." style={{width:"100%",minHeight:400,overflow:"hidden",background:"none",border:"none",outline:"none",resize:"none",fontFamily:"'Cormorant Garamond',serif",fontSize:18,color:"var(--text-primary)",lineHeight:2}}/>
+              <div style={{flex:1,position:"relative",display:"flex",flexDirection:"column",minHeight:0}}>
+                <div style={{flex:1,overflow:"auto",padding:"24px 40px"}}>
+                  <textarea ref={infernoRef} value={infernoText} onChange={e=>{setInfernoText(e.target.value);saveStored("tt-inferno-text",e.target.value);}} placeholder="Don't stop. Don't edit. Don't look back. Just burn." style={{width:"100%",minHeight:400,overflow:"hidden",background:"none",border:"none",outline:"none",resize:"none",fontFamily:"'Cormorant Garamond',serif",fontSize:18,color:"var(--text-primary)",lineHeight:2}}/>
+                </div>
+                {/* Finn's presence in Inferno: a small quiet dot, right side. Dark when idle, terracotta
+                    with a soft pulse when he has a suggestion. Tap to peek; "Talk with Finn" expands to chat. */}
+                {infernoChecksOn&&<div onClick={()=>{
+                  if(infernoSuggestion){setInfernoDotPeek(!infernoDotPeek);}
+                  else{setFinnOpen(true);if(containerMsgs.length===0)setContainerMsgs([{role:"assistant",content:`You're in Inferno mode. The fire is real. I'm here when you need me. What do you need right now?`}]);}
+                }} title={infernoSuggestion?"Finn has a thought":"Finn is reading along"} style={{position:"absolute",top:16,right:18,width:12,height:12,borderRadius:"50%",cursor:"pointer",background:infernoSuggestion?"#C07848":"transparent",border:"1.5px solid "+(infernoSuggestion?"#C07848":"var(--border-mid, #C9BCA0)"),animation:infernoSuggestion?"pu 2s ease-in-out infinite":"none",boxShadow:infernoSuggestion?"0 0 8px #C0784860":"none"}}/>}
+                {infernoDotPeek&&infernoSuggestion&&<div style={{position:"absolute",top:14,right:40,width:250,background:"var(--bg-card-alt)",border:"1px solid #C0784850",borderRadius:8,padding:"12px 14px",boxShadow:"0 4px 16px rgba(0,0,0,0.08)",zIndex:5}}>
+                  <div style={{fontSize:9,textTransform:"uppercase",letterSpacing:"0.14em",color:"#C07848",fontFamily:"'DM Sans',sans-serif",fontWeight:500,marginBottom:6}}>Finn</div>
+                  <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:13,color:"var(--text-primary)",lineHeight:1.65,marginBottom:10}}>{infernoSuggestion.message}</div>
+                  <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
+                    <span onClick={()=>{setFinnOpen(true);sendContainerMessage(`INFERNO TOOL: ${infernoSuggestion.tool}`);setInfernoSuggestion(null);setInfernoDotPeek(false);}} style={{fontSize:10,padding:"5px 12px",borderRadius:5,background:"#C07848",color:"#1E1C14",cursor:"pointer",fontFamily:"'DM Sans',sans-serif"}}>Yes</span>
+                    <span onClick={()=>{setInfernoSuggestion(null);setInfernoDotPeek(false);}} style={{fontSize:10,padding:"5px 12px",borderRadius:5,border:"1px solid var(--border)",color:"var(--text-dim)",cursor:"pointer",fontFamily:"'DM Sans',sans-serif"}}>Not now</span>
+                    <span onClick={()=>{setFinnOpen(true);setContainerMsgs(prev=>[...prev,{role:"assistant",content:infernoSuggestion.message}]);setInfernoSuggestion(null);setInfernoDotPeek(false);}} style={{fontSize:10,padding:"5px 12px",borderRadius:5,border:"1px solid #C0784840",color:"#C07848",cursor:"pointer",fontFamily:"'DM Sans',sans-serif"}}>Talk with Finn</span>
+                  </div>
+                </div>}
               </div>
               <div style={{padding:"10px 40px 14px",borderTop:"1px solid #C0784830",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
                 <div style={{fontSize:10,color:"var(--text-dim)"}}>Auto-saved</div>
