@@ -540,6 +540,39 @@ function TrackedField({project,label,fieldKey,expandedMap,onToggle}){
     </>:<div style={{background:"var(--bg-card)",border:"1px solid var(--border)",borderRadius:8,padding:"12px 14px",fontFamily:"'Cormorant Garamond',serif",fontSize:14,color:"var(--text-primary)",lineHeight:1.75,whiteSpace:"pre-wrap"}}>{flat}</div>}
   </div>;
 }
+// Builds the "here's who already has a card" string every AI pass checks names against —
+// includes aliases so a fragment using a nickname (e.g. "Eva" for "Evangeline") doesn't
+// falsely read as a new character. One shared source so all three call sites stay in sync.
+function existingCharacterNamesList(project){
+  const protagName=project?.protagonist?(project.protagonist.split(":")[0]||"").trim():null;
+  const entries=[protagName,...(project?.characters||[]).map(c=>{
+    const aliases=(c.aliases||"").split(",").map(a=>a.trim()).filter(Boolean);
+    return aliases.length?`${c.name} (also called ${aliases.join(", ")})`:c.name;
+  })].filter(Boolean);
+  return entries.join(", ")||"none yet";
+}
+// Gates how much executive-dysfunction / RSD / neurological framing Finn leans on, based on what
+// the writer actually disclosed in Q2 ("how does your writing brain work"), instead of applying
+// that framing at full intensity to every writer regardless of profile. Craft-level coaching
+// (block diagnosis, Scene Surgery's feedback order, etc.) stays untouched either way — this only
+// tunes how readily Finn reaches for neurological language versus craft-first language.
+function ndFramingCtx(userProfile){
+  const selected=userProfile?.q2?.selected||[];
+  const ndSignals=["I get easily overwhelmed by too many options","I have a hard time starting even when I know what to write","I lose momentum quickly after a good session","I tend to jump around rather than write linearly"];
+  const flatSignals=["I write linearly, start to finish","I can write for long stretches when I'm in flow"];
+  const ndCount=selected.filter(s=>ndSignals.includes(s)).length;
+  const flatCount=selected.filter(s=>flatSignals.includes(s)).length;
+  if(!userProfile||selected.length===0){
+    return "\n\nND FRAMING CALIBRATION: This writer hasn't completed a profile yet. Default to craft-first language. Only reach for executive dysfunction, RSD, or dopamine-crash framing if the writer's own words in this session clearly signal it, not as a default assumption.";
+  }
+  if(ndCount>=2&&flatCount===0){
+    return "\n\nND FRAMING CALIBRATION: This writer's profile signals real executive dysfunction / momentum / overwhelm patterns. Neurological framing (naming executive dysfunction, RSD, the dopamine cycle) is appropriate and welcome here, not something to hold back.";
+  }
+  if(flatCount>=1&&ndCount===0){
+    return "\n\nND FRAMING CALIBRATION: This writer's profile signals a linear, sustained-flow working style with no disclosed executive dysfunction or momentum struggles. Default to craft-first language. Do not proactively frame blocks as executive dysfunction, RSD, or a dopamine crash unless the writer's own words this session clearly point there. If in doubt, name what's craft and what's true rather than reaching for neurological language.";
+  }
+  return "\n\nND FRAMING CALIBRATION: This writer's profile is mixed. Let the writer's own words in this specific session, not a blanket assumption, decide whether neurological framing (executive dysfunction, RSD, dopamine crash) or craft framing fits better right now.";
+}
 function firstSparkCtx(project){
   const spark=project?.firstSpark;
   if(!Array.isArray(spark)||spark.length===0)return "";
@@ -1799,7 +1832,7 @@ Themes: ${project?.themes||"none"}
 Main plot: ${project?.mainPlot||"none"}`;
 
     const existingThreadsList=(project?.threads||[]).filter(t=>t.status!=="resolved").map(t=>`- ${t.name}: ${t.description}`).join("\n")||"none tracked yet";
-    const existingCharacterNames=(project?.characters||[]).map(c=>c.name).filter(Boolean).join(", ")||"none yet";
+    const existingCharacterNames=existingCharacterNamesList(project);
 
     const driftInstructions=skipDrift?"":`
 
@@ -2284,7 +2317,7 @@ Generate a brief analysis with five parts:
 1. placementHypothesis: Where does this scene most likely belong in the story? Reference specific chapters or story position. Be specific and direct. 1-2 sentences.
 2. characterTag: Which character(s) are present or central to this fragment? List names only, comma separated.
 3. tensionNote: What narrative tension or emotional undercurrent is alive in this fragment? 1 sentence. Direct. No flattery.
-4. proposedCharacters: Named characters in this fragment who do NOT already have a character card. Existing cards: ${[project?.protagonist?(project.protagonist.split(":")[0]||"").trim():null,...(project?.characters||[]).map(c=>c.name)].filter(Boolean).join(", ")||"none yet"}. Only genuinely named characters (never "the doctor" or "her friend"), and never anyone already listed. Empty array if none.
+4. proposedCharacters: Named characters in this fragment who do NOT already have a character card. Existing cards: ${existingCharacterNamesList(project)}. Only genuinely named characters (never "the doctor" or "her friend"), and never anyone already listed, including anyone listed under a different name they're "also called." Empty array if none.
 5. suggestedTitle: A short, specific title for this fragment, 3-6 words, capturing what actually happens (e.g. "Emma Realizes Eva is Family", not a generic label like "Untitled Scene").
 
 Rules: Never use em dashes. Never invent details not present in the fragment or Bible. If the fragment is too sparse to analyze, say so plainly.
@@ -2654,7 +2687,7 @@ Under 120 words.`;
 
 You are trying to capture: protagonist name and description, protagonist goal (surface want), protagonist dream (deepest unspoken want), protagonist fear, protagonist wound (the experience that created the fear), protagonist backstory (childhood, family, psychological history, the wallpaper), the lie they believe about themselves (born from the wound), supporting characters, world and setting, core conflict, and themes.
 
-${profileCtxStr}
+${profileCtxStr}${ndFramingCtx(userProfile)}
 ${userName?`The writer's name is ${userName}.`:""}
 
 RULES:
@@ -2889,6 +2922,7 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
     const sparkCtx = sparks.length > 0 ? `\n\nDOPAMINE MAP (moments the writer flagged as exciting): ${sparks.map(s=>s.text).join(" | ")}` : "";
     const userCtx = userName ? `\n\nThe writer's name is ${userName}. Use their name naturally throughout your response, the way a good coach would. Not in every sentence, but enough to feel personal.` : "";
     const profileCtx = userProfile ? `\n\nWriter's profile — use this to calibrate your coaching approach:\n- Experience: ${userProfile.q1?.selected?.join(", ")||"not specified"}\n- Working style: ${userProfile.q2?.selected?.join(", ")||"not specified"}\n- Current goal: ${userProfile.q3?.selected?.join(", ")||"not specified"}\n- Coaching preference: ${userProfile.q4?.selected?.join(", ")||"not specified"}\n- Genres / what they write: ${userProfile.q5?.selected?.join(", ")||"not specified"}\n- Relationship with finishing: ${userProfile.q6?.selected?.join(", ")||"not specified"}${userProfile.q2?.text?`\nStyle notes: ${userProfile.q2.text}`:""}${userProfile.q4?.text?`\nCoaching notes: ${userProfile.q4.text}`:""}${userProfile.q5?.text?`\nWriting notes: ${userProfile.q5.text}`:""}${userProfile.q6?.text?`\nFinishing notes: ${userProfile.q6.text}`:""}` : "";
+    const ndCtx=ndFramingCtx(userProfile);
     const sessionCtx = sessionSummaries.length>0 ? `\n\nRECENT SESSION HISTORY (read before responding, use naturally without announcing it):\n${sessionSummaries.slice(0,5).map((s,i)=>`Session ${i+1}${i===0?" (most recent)":""}: ${s.date} in ${s.mode}. Worked on: ${s.storyElement}. Key insight: ${s.keyInsight}. Still sitting with: ${s.openQuestion}. Writer seemed: ${s.writerState}.${s.rawTexture?` In their own words: "${s.rawTexture}"`:""}`).join("\n")}` : "";
 
     // PATTERN DETECTION
@@ -2958,7 +2992,7 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
         method:"POST",
         headers:{"Content-Type":"application/json"},
         body:JSON.stringify({
-          system: mode.sys + pCtx + sparkCtx + containCtx + userCtx + profileCtx + sessionCtx + patternCtx,
+          system: mode.sys + pCtx + sparkCtx + containCtx + userCtx + profileCtx + ndCtx + sessionCtx + patternCtx,
           messages: nm.map(m=>({role:m.role,content:m.content}))
         }),
         signal:ctrl.signal
@@ -3027,11 +3061,11 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
   const [charFormEdit,setCharFormEdit]=useState(null); // index being edited, or null for a new character
   const [charForm,setCharForm]=useState({name:"",role:"Secondary character",relationship:"",description:""});
 
-  const openAddCharacter=()=>{setCharForm({name:"",role:"Secondary character",relationship:"",description:""});setCharFormEdit(null);setCharFormOpen(true);};
+  const openAddCharacter=()=>{setCharForm({name:"",role:"Secondary character",relationship:"",description:"",aliases:""});setCharFormEdit(null);setCharFormOpen(true);};
   const openEditCharacter=(idx)=>{
     const c=(project?.characters||[])[idx];
     if(!c)return;
-    setCharForm({name:c.name||"",role:c.role||"Secondary character",relationship:c.relationship||"",description:c.description||""});
+    setCharForm({name:c.name||"",role:c.role||"Secondary character",relationship:c.relationship||"",description:c.description||"",aliases:c.aliases||""});
     setCharFormEdit(idx);
     setCharFormOpen(true);
   };
@@ -4144,6 +4178,7 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
                   return <>
                     <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:16,color:"var(--accent)",marginBottom:2}}>{isProtagonist?(pForm.protagonist?pForm.protagonist.split(/[:.]/)[0].substring(0,30):"Protagonist"):(charForm.name||(charFormEdit===null?"New character":"Unnamed"))}</div>
                     {isProtagonist?<div style={{fontSize:10,color:"var(--accent)",marginBottom:10}}>Protagonist</div>:charForm.relationship&&<div style={{fontSize:12,fontStyle:"italic",color:"var(--text-dim)",marginBottom:10}}>{charForm.relationship}</div>}
+                    {!isProtagonist&&charForm.aliases&&<div style={{fontSize:11,color:"var(--text-faint)",marginBottom:10,marginTop:-6}}>also called {charForm.aliases}</div>}
                     {target&&renderCharacterSummary(target)}
                     {(expanded||!target)&&<div style={{borderTop:target?"1px solid var(--border)":"none",paddingTop:target?12:0,marginTop:4}}>
                       {isProtagonist?<>
@@ -4158,6 +4193,7 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
                       </>:charFormOpen?<>
                         <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:14,color:"var(--text-primary)",marginBottom:10}}>{charFormEdit===null?"New character":"Edit character"}</div>
                         <input className="fi" placeholder="Name" value={charForm.name} onChange={e=>setCharForm(prev=>({...prev,name:e.target.value}))} style={{width:"100%",marginBottom:8}}/>
+                        <input className="fi" placeholder="Also called (nicknames, comma separated — e.g. Eva, the Lady in the Trees)" value={charForm.aliases||""} onChange={e=>setCharForm(prev=>({...prev,aliases:e.target.value}))} style={{width:"100%",marginBottom:8}}/>
                         <select value={charForm.role} onChange={e=>setCharForm(prev=>({...prev,role:e.target.value}))} className="fi" style={{width:"100%",marginBottom:8}}>
                           {CHARACTER_ROLES.map(r=><option key={r} value={r}>{r}</option>)}
                         </select>
@@ -4599,7 +4635,7 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
             {(project.supporting||project.antagonist)&&!noteSort&&<span onClick={async()=>{
               setNoteSort({loading:true});
               try{
-                const existing=[project.protagonist?(project.protagonist.split(":")[0]||"").trim():null,...(project.characters||[]).map(c=>c.name)].filter(Boolean).join(", ")||"none yet";
+                const existing=existingCharacterNamesList(project);
                 const resp=await fetch("/api/chat",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({
                   system:"You are Agnes, a meticulous literary archivist. Be direct, specific, and concise. Never use em dashes.",
                   messages:[{role:"user",content:`These are a writer's unsorted character notes. Characters who already have cards: ${existing}.\n\nSUPPORTING NOTES:\n${project.supporting||"(empty)"}\n\nANTAGONIST NOTES:\n${project.antagonist||"(empty)"}\n\nDo two things.\n1. proposals: Every genuinely NAMED character in these notes who does not already have a card (never "the doctor" or unnamed figures, never anyone in the existing list). For each, gather everything the notes say about them into a description, preserving the notes' actual wording as closely as possible.\n2. remainingSupporting and remainingAntagonist: The same notes rewritten with the proposed characters' content removed, keeping everything else, preserving original wording exactly, not paraphrasing what stays. Empty string if nothing remains.\n\nRespond ONLY with JSON. No markdown. No backticks.\n{"proposals":[{"name":"","role":"best guess: Antagonist / villain, Love interest, Mentor, Best friend / confidant, Foil, Family, or Secondary character","description":""}],"remainingSupporting":"","remainingAntagonist":""}`}]
