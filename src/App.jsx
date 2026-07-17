@@ -3741,8 +3741,8 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
       {/* HEADER */}
       {screen!=="welcome"&&screen!=="container"&&<div style={{maxWidth:820,margin:"0 auto",padding:"20px 20px 0"}}>
         <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:screen==="chat"?0:20}}>
-          <div style={{cursor:"pointer",display:"flex",alignItems:"center",gap:9}} onClick={goHome}>
-            <img src={theme==="dark"?"/fp-monogram-white.svg":"/fp-monogram.svg"} alt="" style={{width:22,height:22,flexShrink:0}}/>
+          <div style={{cursor:"pointer",display:"flex",alignItems:"center",gap:14}} onClick={goHome}>
+            <img src={theme==="dark"?"/fp-monogram-white.svg":"/fp-monogram.svg"} alt="" style={{width:40,height:40,flexShrink:0}}/>
             <div>
               <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:22,fontWeight:600,color:"var(--accent)",letterSpacing:"0.04em"}}>Forged Pen</div>
               <div style={{fontSize:9,color:"var(--text-dim)",letterSpacing:"0.08em",marginTop:3}}>YOUR WRITING COACH, NOT YOUR GHOSTWRITER</div>
@@ -4892,8 +4892,8 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
         return <div style={{height:"100vh",display:"grid",gridTemplateColumns:finnOpen?`180px 1fr ${finnWidths[finnPanelSize]}px`:"180px 1fr",transition:"grid-template-columns .3s"}}>
           {/* Left: Scene Nav */}
           <div style={{background:"var(--bg-dark)",borderRight:"1px solid var(--border)",padding:"16px 12px",display:"flex",flexDirection:"column",overflowY:"auto"}}>
-            <div style={{marginBottom:14,display:"flex",alignItems:"center",gap:7}}>
-              <img src={theme==="dark"?"/fp-monogram-white.svg":"/fp-monogram.svg"} alt="" style={{width:16,height:16,flexShrink:0}}/>
+            <div style={{marginBottom:14,display:"flex",alignItems:"center",gap:10}}>
+              <img src={theme==="dark"?"/fp-monogram-white.svg":"/fp-monogram.svg"} alt="" style={{width:26,height:26,flexShrink:0}}/>
               <div onClick={goHome} style={{cursor:"pointer"}}>
                 <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:16,fontWeight:600,color:"var(--accent)"}}>Forged Pen</div>
                 <div style={{fontSize:8,color:"var(--text-dim)",marginTop:3}}>THE FORGE</div>
