@@ -545,6 +545,30 @@ function TrackedField({project,label,fieldKey,expandedMap,onToggle}){
 // Builds the "here's who already has a card" string every AI pass checks names against —
 // includes aliases so a fragment using a nickname (e.g. "Eva" for "Evangeline") doesn't
 // falsely read as a new character. One shared source so all three call sites stay in sync.
+// Agnes reads a raw dump of writer material (pasted notes, an old outline, whatever exists) and
+// proposes where each piece belongs across the whole Bible, not just characters. Shared by two
+// entry points: the "I have material" welcome route, and the standing "Sort with Agnes" tool on
+// Overview. Same contract as the original character sorter — nothing applies until the writer
+// reviews and approves, and Agnes reflects her understanding back FIRST so a misread gets caught
+// before any proposals are built on top of it.
+function buildBibleOrganizePrompt(rawText,project){
+  const existingChars=existingCharacterNamesList(project);
+  const hasExisting=project&&(project.protagonist||project.mainPlot||(project.characters||[]).length>0);
+  return `You are Agnes, a meticulous literary archivist for a fiction writer. Be direct, specific, concise. Never use em dashes.
+
+The writer pasted in material about their story below, either starting fresh or adding to an existing project. Read it and do three things.
+
+1. reflection: In 2-3 sentences, reflect the story back as you understood it, in your own words. This is checked by the writer before anything else happens, so be accurate and specific, not generic.
+2. proposals: Sort what you found into Bible fields. Each proposal needs a field (one of: protagonist, protagonistGoal, protagonistDream, protagonistFear, protagonistWound, protagonistBackstory, protagonistMisbelief, mainPlot, themes, worldSetting, or "new character" with a name), and the text for it, preserving the writer's actual wording as closely as possible rather than paraphrasing style. ${hasExisting?`Existing cards, do not re-propose these as new: ${existingChars}.`:"This is a fresh project with nothing existing yet."}
+3. unmatched: Anything genuinely in the material that does not fit a clean field (loose worldbuilding, questions, fragments) — keep as plain text, do not force it into a field it does not belong in.
+
+Respond ONLY with JSON. No markdown, no backticks.
+{"reflection":"","proposals":[{"field":"","name":"","text":""}],"unmatched":""}
+
+MATERIAL:
+${rawText}`;
+}
+
 function existingCharacterNamesList(project){
   const protagName=project?.protagonist?(project.protagonist.split(":")[0]||"").trim():null;
   const entries=[protagName,...(project?.characters||[]).map(c=>{
@@ -781,6 +805,8 @@ export default function App() {
   const [welcomeInput, setWelcomeInput] = useState("");
   const [welcomeStep, setWelcomeStep] = useState("intro");
   const [welcomeRoute, setWelcomeRoute] = useState(null);
+  const [welcomeDefsOpen, setWelcomeDefsOpen] = useState(false);
+  const [ideaSubChoice, setIdeaSubChoice] = useState(null); // "discover" | "plan" | null — sub-branch under the fresh-idea welcome route
   const [profileStep, setProfileStep] = useState(1);
   const [profileAnswers, setProfileAnswers] = useState({q1:{selected:[],text:""},q2:{selected:[],text:""},q3:{selected:[],text:""},q4:{selected:[],text:""},q5:{selected:[],text:""},q6:{selected:[],text:""}});
   const [userProfile, setUserProfile] = useState(null);
@@ -832,6 +858,7 @@ export default function App() {
   const [protagHistoryView, setProtagHistoryView] = useState("field"); // "field" | "chapter" — Character Arc Timeline toggle
   const toggleFieldHistory=(key)=>setExpandedFieldHistory(prev=>({...prev,[key]:!prev[key]})); // shared with TrackedField on Overview/Plot tabs
   const [noteSort, setNoteSort] = useState(null); // null | {loading:true} | {proposals:[{name,role,description}], remainingSupporting, remainingAntagonist, error?}
+  const [bibleOrganize, setBibleOrganize] = useState(null); // shared by welcome "I have material" and standing "Sort with Agnes": null | {step:"paste"} | {step:"loading"} | {step:"review",reflection,proposals:[{field,name,text,added}],unmatched,confirmed} | {step:"error"}
   const [bibExpanded, setBibExpanded] = useState(false);
   const [bibleSearch, setBibleSearch] = useState("");
   const [sparkCapture, setSparkCapture] = useState(null); // {q1,q2} while the two-question capture is open, else null
@@ -2168,6 +2195,53 @@ Main plot: ${project?.mainPlot||"none"}`;
     saveStored("tt-project",updated);
     cloudSave("tt-project",updated);
   };
+  // Runs Agnes's read-and-propose pass on pasted material. Shared by the welcome "I have material"
+  // flow and the standing "Sort with Agnes" tool on Overview — same call, two doors in.
+  const runBibleOrganize=async(rawText)=>{
+    if(!rawText||!rawText.trim()){return;}
+    setBibleOrganize({step:"loading"});
+    try{
+      const resp=await fetch("/api/chat",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({
+        system:"You are Agnes, a meticulous literary archivist. Be direct, specific, concise. Never use em dashes.",
+        messages:[{role:"user",content:buildBibleOrganizePrompt(rawText,project)}]
+      })});
+      const data=await resp.json();
+      const raw=data.content?.filter(b=>b.type==="text").map(b=>b.text).join("")||"";
+      const parsed=JSON.parse(raw.replace(/```json|```/g,"").trim());
+      setBibleOrganize({
+        step:"review",
+        reflection:parsed.reflection||"",
+        proposals:(Array.isArray(parsed.proposals)?parsed.proposals:[]).map(p=>({...p,added:false})),
+        unmatched:parsed.unmatched||"",
+        confirmed:false
+      });
+    }catch(e){console.log("Bible organize error:",e);setBibleOrganize({step:"error"});}
+  };
+  // Applies one approved proposal to its real field — protagonist fields get chapter-stamped
+  // history same as a normal capture, story-wide fields (mainPlot/themes/worldSetting) append,
+  // "new character" creates a card via the existing addProposedCharacter path.
+  const applyBibleProposal=(proposal)=>{
+    if(proposal.field==="new character"){
+      addProposedCharacter(proposal.name,"Secondary character",proposal.text);
+      return;
+    }
+    const key=proposal.field;
+    if(!key)return;
+    const updated={...project};
+    const isProtagField=["protagonist","protagonistGoal","protagonistDream","protagonistFear","protagonistWound","protagonistBackstory","protagonistMisbelief"].includes(key);
+    updated[key]=(project[key]?project[key]+"\n\n"+proposal.text:proposal.text);
+    if(isProtagField||["mainPlot","themes"].includes(key)){
+      const existingHist=Array.isArray(project[key+"History"])?project[key+"History"]:[];
+      if(existingHist.length===0&&project[key]&&project[key].trim())updated[key+"Legacy"]=project[key];
+      updated[key+"History"]=[...existingHist,{chapterNum:0,text:proposal.text.trim()}]; // 0 = pre-chapter-tracking, sorted in from raw material
+    }
+    updated.updated=Date.now();
+    setProject(updated);
+    setPForm(prev=>({...prev,[key]:updated[key]}));
+    saveStored("tt-project",updated);
+    cloudSave("tt-project",updated);
+  };
+
   const addThread=(name,description,chapterNum,type)=>{
     const existing=Array.isArray(project?.threads)?[...project.threads]:[];
     existing.push({id:"thread_"+Date.now(),name,description,status:"active",chapters:chapterNum?[chapterNum]:[],characterId:null,type:type||"Subplot"});
@@ -2574,7 +2648,8 @@ If there are no concrete sensory details actually present in the conversation (f
   const routeToDestination=()=>{
     setOnboardingDone(true);
     saveStored("tt-onboarding-done", true);
-    if(welcomeRoute==="idealab"){setForgeMode("idealab");initScenes();}
+    if(welcomeRoute==="idealab"&&ideaSubChoice==="plan"){saveSession(null);setScreen("setup");}
+    else if(welcomeRoute==="idealab"){setForgeMode("idealab");initScenes();}
     else if(welcomeRoute==="storybible"){saveSession(null);setScreen("setup");}
     else if(welcomeRoute==="manuscript"||welcomeRoute==="forge"){initScenes();}
     else{saveSession(null);setScreen("home");}
@@ -3575,29 +3650,62 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
                   </div>
                 ))}
               </div>
+              {!welcomeDefsOpen&&<div onClick={()=>setWelcomeDefsOpen(true)} style={{marginTop:14,fontSize:11,color:"#7A6E60",cursor:"pointer",fontFamily:"'DM Sans',sans-serif",textDecoration:"underline"}}>Curious what these are called?</div>}
+              {welcomeDefsOpen&&<div style={{marginTop:14,background:"#F0EAE0",border:"1px solid #D8CEB0",borderRadius:8,padding:"14px 16px"}}>
+                <p style={{fontFamily:"'Cormorant Garamond',serif",fontSize:13,lineHeight:1.7,color:"#3A3428",marginBottom:8}}><b>Planner (or plotter):</b> you map the story before you write it, outline, characters, arcs, mostly settled in advance.</p>
+                <p style={{fontFamily:"'Cormorant Garamond',serif",fontSize:13,lineHeight:1.7,color:"#3A3428",marginBottom:8}}><b>Discovery writer (or pantser):</b> you find the story by writing it, a spark, maybe a character, and the rest reveals itself on the page.</p>
+                <p style={{fontFamily:"'Cormorant Garamond',serif",fontSize:13,lineHeight:1.7,color:"#3A3428"}}><b>Plantser:</b> a real, recognized mix of both. Most writers land somewhere here, especially if your process runs hot then crashes then rebuilds. If that's you, there's already a word for it.</p>
+              </div>}
             </>}
 
             {welcomeStep==="response"&&welcomeRoute&&<>
               <div style={{borderTop:"1px solid #D8CEB0",paddingTop:24,marginBottom:24}}>
                 {welcomeRoute==="idealab"&&<>
-                  <p style={{fontFamily:"'Cormorant Garamond',serif",fontSize:16,fontWeight:300,color:"#3A3428",lineHeight:1.85,marginBottom:14}}>Good. Ideas are where everything starts. We don't need a full story yet, just the spark you already have.</p>
-                  <p style={{fontFamily:"'Cormorant Garamond',serif",fontSize:16,fontWeight:300,color:"#3A3428",lineHeight:1.85,marginBottom:14}}>I'm going to take you to The Forge. There's a space in there called the Idea Lab, and that's where we'll begin. No structure required. Just pour everything out, whatever you know, whatever you're feeling, whatever questions you're sitting with.</p>
-                  <p style={{fontFamily:"'Cormorant Garamond',serif",fontSize:16,fontWeight:300,color:"#3A3428",lineHeight:1.85}}>We'll build from there, {userName}.</p>
+                  <p style={{fontFamily:"'Cormorant Garamond',serif",fontSize:16,fontWeight:300,color:"#3A3428",lineHeight:1.85,marginBottom:14}}>Good. Ideas are where everything starts.</p>
+                  {!ideaSubChoice&&<>
+                    <p style={{fontFamily:"'Cormorant Garamond',serif",fontSize:16,fontWeight:300,color:"#3A3428",lineHeight:1.85,marginBottom:14}}>One more thing worth knowing before we begin: do you want to find the rest of this story as you write it, or would you rather map it out first, on your own?</p>
+                    <div style={{display:"flex",flexDirection:"column",gap:8,marginBottom:10}}>
+                      <div onClick={()=>setIdeaSubChoice("discover")} style={{border:"1px solid #C8BC9A",borderRadius:8,padding:"12px 14px",cursor:"pointer"}}>
+                        <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:15,color:"#1E1C14"}}>Find it as I write</div>
+                        <div style={{fontSize:11,color:"#7A6E60",fontFamily:"'DM Sans',sans-serif",marginTop:2}}>The Idea Lab, no structure required. Pour it out, we build from there.</div>
+                      </div>
+                      <div onClick={()=>setIdeaSubChoice("plan")} style={{border:"1px solid #C8BC9A",borderRadius:8,padding:"12px 14px",cursor:"pointer"}}>
+                        <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:15,color:"#1E1C14"}}>Map it out first, on my own</div>
+                        <div style={{fontSize:11,color:"#7A6E60",fontFamily:"'DM Sans',sans-serif",marginTop:2}}>Your Story Bible, open and unlocked. No guided prompts, just you and the fields.</div>
+                      </div>
+                    </div>
+                  </>}
+                  {ideaSubChoice==="discover"&&<>
+                    <p style={{fontFamily:"'Cormorant Garamond',serif",fontSize:16,fontWeight:300,color:"#3A3428",lineHeight:1.85,marginBottom:14}}>I'm going to take you to The Forge. There's a space in there called the Idea Lab, and that's where we'll begin. No structure required. Just pour everything out, whatever you know, whatever you're feeling, whatever questions you're sitting with.</p>
+                    <p style={{fontFamily:"'Cormorant Garamond',serif",fontSize:16,fontWeight:300,color:"#3A3428",lineHeight:1.85}}>We'll build from there, {userName}.</p>
+                  </>}
+                  {ideaSubChoice==="plan"&&<>
+                    <p style={{fontFamily:"'Cormorant Garamond',serif",fontSize:16,fontWeight:300,color:"#3A3428",lineHeight:1.85,marginBottom:14}}>Your Story Bible is yours to build. Fill in what you know, skip what you don't, come back any time. No guided path, just the fields and your story.</p>
+                    <p style={{fontFamily:"'Cormorant Garamond',serif",fontSize:16,fontWeight:300,color:"#3A3428",lineHeight:1.85}}>I'll be here when you want a second pair of eyes, {userName}.</p>
+                  </>}
                 </>}
                 {welcomeRoute==="storybible"&&<>
                   <p style={{fontFamily:"'Cormorant Garamond',serif",fontSize:16,fontWeight:300,color:"#3A3428",lineHeight:1.85,marginBottom:14}}>You know your story. You just haven't put it on the page yet.</p>
-                  <p style={{fontFamily:"'Cormorant Garamond',serif",fontSize:16,fontWeight:300,color:"#3A3428",lineHeight:1.85,marginBottom:14}}>Bring it into Forged Pen. Your Story Bible is where your characters, your world, and your plot live. You can upload documents, input things directly, or both. Once I can see your story, I can coach you.</p>
-                  <p style={{fontFamily:"'Cormorant Garamond',serif",fontSize:16,fontWeight:300,color:"#3A3428",lineHeight:1.85}}>The Forge is waiting when you're ready, {userName}.</p>
+                  <p style={{fontFamily:"'Cormorant Garamond',serif",fontSize:16,fontWeight:300,color:"#3A3428",lineHeight:1.85,marginBottom:14}}>Bring it into Forged Pen. Paste in whatever you've got, notes, an outline, character sketches, however messy. I'll read through it and show you what I found before anything gets built. Or, if you'd rather build it yourself field by field, that's here too, no pressure either way.</p>
+                  <div style={{display:"flex",gap:10,marginTop:16}}>
+                    <div onClick={()=>{setWelcomeStep("profile-prompt");setBibleOrganize({step:"paste"});}} style={{background:"var(--agnes,#7A6A8A)",borderRadius:7,padding:"11px 16px",textAlign:"center",cursor:"pointer",flex:1}}><span style={{fontSize:12,fontWeight:500,color:"#F0EAE0",fontFamily:"'DM Sans',sans-serif"}}>Paste in what I have</span></div>
+                    <div onClick={()=>setWelcomeStep("profile-prompt")} style={{background:"transparent",border:"1px solid #C8BC9A",borderRadius:7,padding:"11px 16px",textAlign:"center",cursor:"pointer",flex:1}}><span style={{fontSize:12,fontWeight:500,color:"#5A5040",fontFamily:"'DM Sans',sans-serif"}}>I'll build it myself</span></div>
+                  </div>
                 </>}
                 {welcomeRoute==="manuscript"&&<>
                   <p style={{fontFamily:"'Cormorant Garamond',serif",fontSize:16,fontWeight:300,color:"#3A3428",lineHeight:1.85,marginBottom:14}}>You can't let your story go, and it refuses to let you go. The only choice is forward, for both of you. I'm here to help you do that.</p>
-                  <p style={{fontFamily:"'Cormorant Garamond',serif",fontSize:16,fontWeight:300,color:"#3A3428",lineHeight:1.85}}>Bring your work into Forged Pen. You don't have to untangle everything today. We go one thread at a time. What do you need first, {userName}?</p>
+                  <p style={{fontFamily:"'Cormorant Garamond',serif",fontSize:16,fontWeight:300,color:"#3A3428",lineHeight:1.85,marginBottom:14}}>Bring your work into Forged Pen. Paste in your manuscript, your notes, whatever's built up so far. I'll read through it and show you what I found before anything gets built.</p>
+                  <div style={{display:"flex",gap:10,marginTop:16}}>
+                    <div onClick={()=>{setWelcomeStep("profile-prompt");setBibleOrganize({step:"paste"});}} style={{background:"var(--agnes,#7A6A8A)",borderRadius:7,padding:"11px 16px",textAlign:"center",cursor:"pointer",flex:1}}><span style={{fontSize:12,fontWeight:500,color:"#F0EAE0",fontFamily:"'DM Sans',sans-serif"}}>Paste in what I have</span></div>
+                    <div onClick={()=>setWelcomeStep("profile-prompt")} style={{background:"transparent",border:"1px solid #C8BC9A",borderRadius:7,padding:"11px 16px",textAlign:"center",cursor:"pointer",flex:1}}><span style={{fontSize:12,fontWeight:500,color:"#5A5040",fontFamily:"'DM Sans',sans-serif"}}>I'll build it myself</span></div>
+                  </div>
                 </>}
                 {welcomeRoute==="forge"&&<>
                   <p style={{fontFamily:"'Cormorant Garamond',serif",fontSize:16,fontWeight:300,color:"#3A3428",lineHeight:1.85,marginBottom:14}}>You know your story. You know what needs to be written. The only thing standing between you and the page is getting there.</p>
                   <p style={{fontFamily:"'Cormorant Garamond',serif",fontSize:16,fontWeight:300,color:"#3A3428",lineHeight:1.85}}>The Forge is yours, {userName}. No detours, no setup, just you and your story. I'll be here when you need me and out of your way when you don't.</p>
                 </>}
-                <div onClick={()=>setWelcomeStep("profile-prompt")} style={{background:"#5A6B3A",borderRadius:7,padding:"11px",textAlign:"center",cursor:"pointer",marginTop:20}}><span style={{fontSize:13,fontWeight:500,color:"#F0EAE0",fontFamily:"'DM Sans',sans-serif"}}>Continue</span></div>
+                {welcomeRoute==="idealab"&&ideaSubChoice&&<div onClick={()=>setWelcomeStep("profile-prompt")} style={{background:"#5A6B3A",borderRadius:7,padding:"11px",textAlign:"center",cursor:"pointer",marginTop:20}}><span style={{fontSize:13,fontWeight:500,color:"#F0EAE0",fontFamily:"'DM Sans',sans-serif"}}>Continue</span></div>}
+                {welcomeRoute!=="storybible"&&welcomeRoute!=="manuscript"&&welcomeRoute!=="idealab"&&<div onClick={()=>setWelcomeStep("profile-prompt")} style={{background:"#5A6B3A",borderRadius:7,padding:"11px",textAlign:"center",cursor:"pointer",marginTop:20}}><span style={{fontSize:13,fontWeight:500,color:"#F0EAE0",fontFamily:"'DM Sans',sans-serif"}}>Continue</span></div>}
                 <div style={{textAlign:"center",marginTop:12}}><span onClick={()=>setWelcomeStep("routing")} style={{fontSize:11,color:"#908878",cursor:"pointer",fontFamily:"'DM Sans',sans-serif"}}>That's not quite right</span></div>
               </div>
             </>}
@@ -4110,8 +4218,58 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
         </>}
         </div>}
 
+      {/* AGNES READS YOUR BIBLE / SORT WITH AGNES — shared paste-read-review flow.
+          Intercepts whatever screen would otherwise show, so it works both from the welcome
+          route ("I have material") and from the standing Overview tool, regardless of where
+          each entry point would normally land. */}
+      {bibleOrganize&&<div style={{maxWidth:680,margin:"0 auto",padding:"20px"}}>
+        {bibleOrganize.step==="paste"&&<div style={{background:"var(--bg-card)",border:"1px solid var(--border)",borderRadius:12,padding:"24px 28px"}}>
+          <div style={{fontSize:9,textTransform:"uppercase",letterSpacing:"0.18em",color:"var(--text-dim)",fontFamily:"'DM Sans',sans-serif",marginBottom:10}}>Agnes</div>
+          <p style={{fontFamily:"'Cormorant Garamond',serif",fontSize:16,lineHeight:1.7,marginBottom:16}}>Paste in whatever you've got. Doesn't need to be organized, a notes app dump, an old outline, character sketches, all of it. I'll read through it and show you what I found before anything gets built.</p>
+          <textarea autoFocus id="bible-organize-paste" placeholder="Paste your notes here..." style={{width:"100%",minHeight:220,background:"var(--bg-card-alt)",border:"1px solid var(--border)",borderRadius:8,padding:12,fontFamily:"'Cormorant Garamond',serif",fontSize:15,lineHeight:1.7,outline:"none",resize:"vertical"}}/>
+          <div style={{display:"flex",gap:8,marginTop:14}}>
+            <span onClick={()=>{const t=document.getElementById("bible-organize-paste").value;runBibleOrganize(t);}} style={{fontSize:11,padding:"8px 18px",borderRadius:6,background:"var(--agnes,#7A6A8A)",color:"#F4EEDF",cursor:"pointer",fontFamily:"'DM Sans',sans-serif"}}>Let Agnes read it</span>
+            <span onClick={()=>{setBibleOrganize(null);goHome();}} style={{fontSize:11,padding:"8px 18px",borderRadius:6,border:"1px solid var(--border)",color:"var(--text-dim)",cursor:"pointer",fontFamily:"'DM Sans',sans-serif"}}>Not right now</span>
+          </div>
+        </div>}
+        {bibleOrganize.step==="loading"&&<div style={{textAlign:"center",padding:"60px 20px",fontFamily:"'Cormorant Garamond',serif",fontStyle:"italic",color:"var(--text-dim)"}}>Agnes is reading through it...</div>}
+        {bibleOrganize.step==="error"&&<div style={{textAlign:"center",padding:"40px 20px"}}>
+          <p style={{fontFamily:"'Cormorant Garamond',serif",color:"var(--text-dim)",marginBottom:12}}>That didn't come through.</p>
+          <span onClick={()=>setBibleOrganize({step:"paste"})} style={{fontSize:11,color:"var(--agnes,#7A6A8A)",cursor:"pointer",fontFamily:"'DM Sans',sans-serif",textDecoration:"underline"}}>Try again</span>
+        </div>}
+        {bibleOrganize.step==="review"&&<>
+          <div style={{background:"var(--bg-card)",border:"1px solid var(--border)",borderRadius:12,padding:"20px 24px",marginBottom:16}}>
+            <div style={{fontSize:9,textTransform:"uppercase",letterSpacing:"0.18em",color:"var(--agnes,#7A6A8A)",fontFamily:"'DM Sans',sans-serif",marginBottom:8}}>Agnes &middot; your story, as I read it</div>
+            <p style={{fontFamily:"'Cormorant Garamond',serif",fontSize:15,lineHeight:1.75,marginBottom:14}}>{bibleOrganize.reflection}</p>
+            {!bibleOrganize.confirmed&&<div style={{display:"flex",gap:8}}>
+              <span onClick={()=>setBibleOrganize(prev=>({...prev,confirmed:true}))} style={{fontSize:10,padding:"5px 14px",borderRadius:5,background:"var(--agnes,#7A6A8A)",color:"#F4EEDF",cursor:"pointer",fontFamily:"'DM Sans',sans-serif"}}>That's my story</span>
+              <span onClick={()=>setBibleOrganize({step:"paste"})} style={{fontSize:10,padding:"5px 14px",borderRadius:5,border:"1px solid var(--border)",color:"var(--text-dim)",cursor:"pointer",fontFamily:"'DM Sans',sans-serif"}}>Something's off, let me try again</span>
+            </div>}
+          </div>
+          {bibleOrganize.confirmed&&<>
+            <div style={{fontSize:9,textTransform:"uppercase",letterSpacing:"0.14em",color:"var(--text-dim)",fontFamily:"'DM Sans',sans-serif",marginBottom:10}}>{bibleOrganize.proposals.length} things found</div>
+            {bibleOrganize.proposals.map((p,i)=>(
+              <div key={i} style={{background:"var(--bg-card)",border:"1px solid var(--border)",borderRadius:8,padding:"12px 14px",marginBottom:8}}>
+                <div style={{display:"flex",justifyContent:"space-between",alignItems:"baseline",gap:8,flexWrap:"wrap",marginBottom:5}}>
+                  <span style={{fontSize:9,textTransform:"uppercase",letterSpacing:"0.1em",color:"var(--accent)",fontFamily:"'DM Sans',sans-serif",fontWeight:600}}>{p.field==="new character"?`New character: ${p.name}`:p.field}</span>
+                  {p.added
+                    ?<span style={{fontSize:9,color:"var(--text-dim)",fontFamily:"'DM Sans',sans-serif"}}>Added</span>
+                    :<span onClick={()=>{applyBibleProposal(p);setBibleOrganize(prev=>({...prev,proposals:prev.proposals.map((pp,pi)=>pi===i?{...pp,added:true}:pp)}));}} style={{fontSize:9,padding:"3px 10px",borderRadius:5,background:"var(--accent)",color:"var(--bg-deepest,#1E1C14)",cursor:"pointer",fontFamily:"'DM Sans',sans-serif"}}>Approve</span>}
+                </div>
+                <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:14,color:"var(--text-primary)",lineHeight:1.65}}>{p.text}</div>
+              </div>
+            ))}
+            {bibleOrganize.unmatched&&<div style={{background:"var(--bg-card-alt)",border:"1px dashed var(--border-mid)",borderRadius:8,padding:"12px 14px",marginBottom:14}}>
+              <div style={{fontSize:9,textTransform:"uppercase",letterSpacing:"0.1em",color:"var(--text-dim)",fontFamily:"'DM Sans',sans-serif",marginBottom:5}}>Didn't fit a clean field, kept as-is</div>
+              <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:13,color:"var(--text-secondary)",lineHeight:1.6,whiteSpace:"pre-wrap"}}>{bibleOrganize.unmatched}</div>
+            </div>}
+            <span onClick={()=>{setBibleOrganize(null);goHome();}} style={{fontSize:11,padding:"8px 18px",borderRadius:6,background:"var(--accent)",color:"#F4EEDF",cursor:"pointer",fontFamily:"'DM Sans',sans-serif",display:"inline-block"}}>Done, take me to my Bible</span>
+          </>}
+        </>}
+      </div>}
+
       {/* STORY BIBLE SETUP */}
-      {screen==="setup"&&<div style={{maxWidth:820,margin:"0 auto",padding:"0 20px 20px",animation:"fu .5s ease-out"}}>
+      {!bibleOrganize&&screen==="setup"&&<div style={{maxWidth:820,margin:"0 auto",padding:"0 20px 20px",animation:"fu .5s ease-out"}}>
         <div onClick={goHome} style={{fontSize:12,color:"var(--text-dim)",cursor:"pointer",marginBottom:16}}>Back</div>
         <div style={{fontSize:8,textTransform:"uppercase",letterSpacing:"0.25em",color:"#5A7A8A",fontWeight:500,marginBottom:8}}>Story Bible</div>
         <p style={{fontSize:13,color:"var(--text-muted)",marginBottom:10,lineHeight:1.6}}>Fill in what you can. Skip what you can't. Come back later. None of this has to be perfect.</p>
@@ -4433,6 +4591,13 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
                 </div>}
             </div>;
           })()}
+          {/* SORT WITH AGNES — standing tool, always here. Not onboarding-only. Serves the writer
+              who builds a hyperfocus pile mid-project and needs it organized whenever the crash
+              hits, not just at day one. Reuses the exact same engine as the welcome-flow version. */}
+          {!bibleOrganize&&<div style={{background:"var(--bg-card)",border:"1px dashed var(--border-mid)",borderRadius:10,padding:"12px 16px",marginBottom:18,display:"flex",justifyContent:"space-between",alignItems:"center",flexWrap:"wrap",gap:8}}>
+            <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:13,color:"var(--text-dim)",fontStyle:"italic"}}>Written or pasted a pile of new material? Agnes can read it and show you where it belongs.</div>
+            <span onClick={()=>setBibleOrganize({step:"paste"})} style={{fontSize:10,padding:"6px 14px",borderRadius:5,border:"1px solid var(--agnes,#7A6A8A)",color:"var(--agnes,#7A6A8A)",cursor:"pointer",fontFamily:"'DM Sans',sans-serif",whiteSpace:"nowrap"}}>Sort with Agnes</span>
+          </div>}
           {/* Session Focus at top — inline editable, no Edit mode required */}
           <div style={{background:"var(--bg-card-alt)",border:"1px solid var(--border)",borderRadius:10,padding:"14px 16px",marginBottom:18}}>
             <div style={{fontSize:9,textTransform:"uppercase",letterSpacing:"0.18em",color:"var(--accent-80)",fontWeight:500,marginBottom:12,fontFamily:"'DM Sans',sans-serif"}}>Session Focus</div>
