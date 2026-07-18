@@ -609,6 +609,21 @@ function ndFramingCtx(userProfile){
   }
   return "\n\nND FRAMING CALIBRATION: This writer's profile is mixed. Let the writer's own words in this specific session, not a blanket assumption, decide whether neurological framing (executive dysfunction, RSD, dopamine crash) or craft framing fits better right now.";
 }
+// Detects whether enough new, unsorted material has piled up to be worth surfacing "File new
+// material" proactively. Signal is deliberately simple and honest: unreviewed ember volume since
+// the last completed organize pass, either a real word-count threshold OR a meaningful return
+// after absence with something new waiting. Silence with nothing new stays silent either way —
+// this never fires on elapsed time alone.
+const NEW_MATERIAL_WORD_THRESHOLD=800; // ~ a solid hyperfocus session's worth of loose fragments
+const NEW_MATERIAL_RETURN_DAYS=14;
+function computeNewMaterialSignal(project,embers){
+  const since=project?.lastBibleOrganizeAt||0;
+  const newOnes=(embers||[]).filter(e=>(e.createdAt||0)>since);
+  const words=newOnes.reduce((sum,e)=>sum+(e.text||"").split(/\s+/).filter(Boolean).length,0);
+  const daysSince=since?(Date.now()-since)/86400000:Infinity;
+  const shouldAlert=words>=NEW_MATERIAL_WORD_THRESHOLD||(daysSince>=NEW_MATERIAL_RETURN_DAYS&&newOnes.length>0);
+  return {shouldAlert,words,count:newOnes.length};
+}
 function firstSparkCtx(project){
   const spark=project?.firstSpark;
   if(!Array.isArray(spark)||spark.length===0)return "";
@@ -850,6 +865,7 @@ export default function App() {
   const [userProfile, setUserProfile] = useState(null);
   const [onboardingDone, setOnboardingDone] = useState(false);
   const [agnesInvolvement, setAgnesInvolvement] = useState("full"); // "full" | "quiet" | "off" — gates AUTOMATIC surfacing only. Manual asks always work at full quality in every mode.
+  const [newMaterialAlert, setNewMaterialAlert] = useState(null); // {words,count} | null — Full-tier proactive banner for "File new material"
   const [driftBadges, setDriftBadges] = useState([]); // chapter nums with a waiting (unopened) drift note, shown only in "quiet" mode
   const [involvementEditChoice, setInvolvementEditChoice] = useState("full"); // scratch value while editing in onboarding/profile
   // Landing screen: read synchronously so there's no flash between "haven't seen it" and "have seen it" on first paint.
@@ -2720,6 +2736,16 @@ Respond ONLY with a JSON object. No markdown. No backticks. No explanation.
       generateAgnesBrief();
     }
   },[screen,project?.updated,agnesInvolvement]);
+  // File new material, surfaced proactively — Full only. Quiet gets a passive badge on the
+  // standing Overview card instead (computed inline there, no state needed). Off never checks.
+  useEffect(()=>{
+    if(screen==="home"&&project&&agnesInvolvement==="full"&&!bibleOrganize){
+      const signal=computeNewMaterialSignal(project,embers);
+      setNewMaterialAlert(signal.shouldAlert?signal:null);
+    }else if(agnesInvolvement!=="full"){
+      setNewMaterialAlert(null);
+    }
+  },[screen,project?.updated,agnesInvolvement,embers.length]);
 
   const generateSidebarContext=async(sessionMsgs,sessionMode,sceneText,sessionModeId,chapterTag)=>{
     if(!project||sessionMsgs.length<2)return;
@@ -3999,7 +4025,7 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
       </div>}
 
       {/* HOME */}
-      {screen==="home"&&<div style={{display:"flex",minHeight:"calc(100vh - 60px)"}}>
+      {!bibleOrganize&&screen==="home"&&<div style={{display:"flex",minHeight:"calc(100vh - 60px)"}}>
 
         {/* Left Image Panel */}
         <div style={{width:220,flexShrink:0,position:"sticky",top:60,height:"calc(100vh - 60px)",overflow:"hidden",display:"none"}} className="left-panel">
@@ -4032,6 +4058,22 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
               <div onClick={openFirstSession} style={{padding:"7px 18px",background:"var(--accent)",borderRadius:6,fontSize:12,fontWeight:500,color:"#F0EAE0",cursor:"pointer",fontFamily:"'DM Sans',sans-serif"}}>Let's do it</div>
               <div onClick={()=>{setFirstSessionDismissed(true);saveStored("tt-first-session-dismissed",true);cloudSave("tt-first-session-dismissed",true)}} style={{padding:"7px 14px",background:"transparent",border:"1px solid var(--border)",borderRadius:6,fontSize:12,color:"var(--text-dim)",cursor:"pointer",fontFamily:"'DM Sans',sans-serif"}}>Maybe later</div>
             </div>
+          </div>
+        </div>}
+
+        {/* File new material — surfaced proactively, Full involvement only. Fires on real signal
+            (unreviewed volume or a meaningful return with something waiting), never on elapsed
+            time alone with nothing new. */}
+        {newMaterialAlert&&<div style={{background:"var(--bg-card)",border:"1px solid var(--agnes,#7A6A8A)",borderRadius:10,padding:"16px 20px",marginBottom:12}}>
+          <div style={{fontSize:8,textTransform:"uppercase",letterSpacing:"0.25em",color:"var(--agnes,#7A6A8A)",fontWeight:500,marginBottom:8}}>Agnes</div>
+          <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:15,color:"var(--text-primary)",lineHeight:1.7,marginBottom:12}}>{newMaterialAlert.count>1?`You've got ${newMaterialAlert.count} new fragments since we last sorted, ${newMaterialAlert.words} words or so of material waiting.`:"You've written a good amount since we last sorted."} Want me to read through it and show you where it belongs?</div>
+          <div style={{display:"flex",gap:8}}>
+            <span onClick={()=>{
+              const since=project?.lastBibleOrganizeAt||0;
+              const combined=embers.filter(e=>(e.createdAt||0)>since).map(e=>`${e.title?e.title+": ":""}${e.text||""}`).join("\n\n---\n\n");
+              runBibleOrganize(combined);
+            }} style={{fontSize:11,padding:"6px 16px",borderRadius:6,background:"var(--agnes,#7A6A8A)",color:"#F4EEDF",cursor:"pointer",fontFamily:"'DM Sans',sans-serif"}}>File it now</span>
+            <span onClick={()=>setNewMaterialAlert(null)} style={{fontSize:11,padding:"6px 16px",borderRadius:6,border:"1px solid var(--border)",color:"var(--text-dim)",cursor:"pointer",fontFamily:"'DM Sans',sans-serif"}}>Not right now</span>
           </div>
         </div>}
 
@@ -4215,7 +4257,7 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
       </div>}{/* end home flex */}
 
       {/* DESKTOP RIGHT SIDEBAR - SKELETON (no project yet) */}
-      {screen==="home"&&!project&&<div className="right-sb" style={{position:"fixed",right:0,top:0,bottom:0,width:260,background:"var(--bg-dark)",borderLeft:"1px solid var(--border)",padding:"22px 18px",flexDirection:"column",overflowY:"auto"}}>
+      {!bibleOrganize&&screen==="home"&&!project&&<div className="right-sb" style={{position:"fixed",right:0,top:0,bottom:0,width:260,background:"var(--bg-dark)",borderLeft:"1px solid var(--border)",padding:"22px 18px",flexDirection:"column",overflowY:"auto"}}>
 
         <div style={{textAlign:"center",marginBottom:16,opacity:.6}}>
           <div style={{fontSize:10,color:"var(--text-faint)",textTransform:"uppercase",letterSpacing:"0.15em"}}>Curious: Scene Atmosphere</div>
@@ -4250,7 +4292,7 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
       </div>}
 
       {/* DESKTOP RIGHT SIDEBAR */}
-      {screen==="home"&&project&&<div className="right-sb" style={{position:"fixed",right:0,top:0,bottom:0,width:260,background:"var(--bg-dark)",borderLeft:"1px solid var(--border)",padding:"22px 18px",flexDirection:"column",overflowY:"auto"}}>
+      {!bibleOrganize&&screen==="home"&&project&&<div className="right-sb" style={{position:"fixed",right:0,top:0,bottom:0,width:260,background:"var(--bg-dark)",borderLeft:"1px solid var(--border)",padding:"22px 18px",flexDirection:"column",overflowY:"auto"}}>
 
         {sidebarCtx?.toneWord?<>
           <div style={{textAlign:"center",marginBottom:16}}>
@@ -4390,7 +4432,7 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
               <div style={{fontSize:9,textTransform:"uppercase",letterSpacing:"0.1em",color:"var(--text-dim)",fontFamily:"'DM Sans',sans-serif",marginBottom:5}}>Didn't fit a clean field, kept as-is</div>
               <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:13,color:"var(--text-secondary)",lineHeight:1.6,whiteSpace:"pre-wrap"}}>{bibleOrganize.unmatched}</div>
             </div>}
-            <span onClick={()=>{setBibleOrganize(null);goHome();}} style={{fontSize:11,padding:"8px 18px",borderRadius:6,background:"var(--accent)",color:"#F4EEDF",cursor:"pointer",fontFamily:"'DM Sans',sans-serif",display:"inline-block"}}>Done, take me to my Bible</span>
+            <span onClick={()=>{const updated={...project,lastBibleOrganizeAt:Date.now(),updated:Date.now()};setProject(updated);saveStored("tt-project",updated);cloudSave("tt-project",updated);setBibleOrganize(null);goHome();}} style={{fontSize:11,padding:"8px 18px",borderRadius:6,background:"var(--accent)",color:"#F4EEDF",cursor:"pointer",fontFamily:"'DM Sans',sans-serif",display:"inline-block"}}>Done, take me to my Bible</span>
           </>}
         </>}
       </div>}
@@ -4723,7 +4765,10 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
               who builds a hyperfocus pile mid-project and needs it organized whenever the crash
               hits, not just at day one. Reuses the exact same engine as the welcome-flow version. */}
           {!bibleOrganize&&<div style={{background:"var(--bg-card)",border:"1px dashed var(--border-mid)",borderRadius:10,padding:"12px 16px",marginBottom:18,display:"flex",justifyContent:"space-between",alignItems:"center",flexWrap:"wrap",gap:8}}>
-            <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:13,color:"var(--text-dim)",fontStyle:"italic"}}>Written or pasted a pile of new material? Agnes can read it and show you where it belongs.</div>
+            <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:13,color:"var(--text-dim)",fontStyle:"italic",display:"flex",alignItems:"center",gap:8}}>
+              Written or pasted a pile of new material? Agnes can read it and show you where it belongs.
+              {agnesInvolvement==="quiet"&&computeNewMaterialSignal(project,embers).shouldAlert&&<span style={{fontSize:9,textTransform:"uppercase",letterSpacing:"0.06em",background:"var(--agnes,#7A6A8A)",color:"#F4EEDF",borderRadius:4,padding:"2px 8px",fontFamily:"'DM Sans',sans-serif",fontStyle:"normal",fontWeight:600}}>New</span>}
+            </div>
             <span onClick={()=>setBibleOrganize({step:"paste"})} style={{fontSize:10,padding:"6px 14px",borderRadius:5,border:"1px solid var(--agnes,#7A6A8A)",color:"var(--agnes,#7A6A8A)",cursor:"pointer",fontFamily:"'DM Sans',sans-serif",whiteSpace:"nowrap"}}>File new material</span>
           </div>}
           {/* Session Focus at top — inline editable, no Edit mode required */}
