@@ -901,7 +901,7 @@ export default function App() {
   // open add/edit form. researchChat holds the Ask Agnes conversation state, separate from
   // Finn's coaching chats since this is Agnes's own space, librarian voice, no live search.
   const [researchForm, setResearchForm] = useState(null); // null | {id:null|existingId, title, note, source, links, status}
-  const [researchChat, setResearchChat] = useState({open:false, msgs:[], loading:false, draft:null});
+  const [researchChat, setResearchChat] = useState({open:false, msgs:[], loading:false, draft:null, error:null});
   const [bibExpanded, setBibExpanded] = useState(false);
   const [bibleSearch, setBibleSearch] = useState("");
   const [sparkCapture, setSparkCapture] = useState(null); // {q1,q2} while the two-question capture is open, else null
@@ -2340,14 +2340,14 @@ Keep responses focused and useful, not exhaustive. This is a thinking partner, n
   const sendResearchChat=async(text)=>{
     if(!text||!text.trim())return;
     const userMsg={role:"user",content:text.trim()};
-    setResearchChat(prev=>({...prev,msgs:[...prev.msgs,userMsg],loading:true}));
+    setResearchChat(prev=>({...prev,msgs:[...prev.msgs,userMsg],loading:true,error:null}));
     try{
       const resp=await fetch("/api/chat",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({
         system:AGNES_RESEARCH_SYS+`\n\nSTORY CONTEXT:\n${bibleSummaryCtx(project)}`,
         messages:[...researchChat.msgs,userMsg]
       })});
       const data=await resp.json();
-      const raw=data.content?.filter(b=>b.type==="text").map(b=>b.text).join("")||"";
+      const raw=finnClean(data.content?.filter(b=>b.type==="text").map(b=>b.text).join(""))||"";
       setResearchChat(prev=>({...prev,msgs:[...prev.msgs,{role:"assistant",content:raw}],loading:false}));
     }catch(e){console.log("Research chat error:",e);setResearchChat(prev=>({...prev,loading:false}));}
   };
@@ -2355,8 +2355,8 @@ Keep responses focused and useful, not exhaustive. This is a thinking partner, n
   // pattern as everywhere else Agnes distills her own words down to something keepable.
   const draftResearchNoteFromChat=async()=>{
     const lastAgnes=[...researchChat.msgs].reverse().find(m=>m.role==="assistant");
-    if(!lastAgnes)return;
-    setResearchChat(prev=>({...prev,loading:true}));
+    if(!lastAgnes){setResearchChat(prev=>({...prev,error:"No response from Agnes yet to save."}));return;}
+    setResearchChat(prev=>({...prev,loading:true,error:null}));
     try{
       const resp=await fetch("/api/chat",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({
         system:"Condense the following into a short research note. Respond ONLY with JSON, no markdown, no backticks. {\"title\":\"short specific title, 3-8 words\",\"note\":\"2-3 sentences, the keepable substance\"}",
@@ -5174,7 +5174,8 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
                   <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:14,color:"var(--text-primary)",lineHeight:1.65,whiteSpace:"pre-wrap"}}>{m.content}</div>
                 </div>
               ))}
-              {researchChat.loading&&<div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:13,color:"var(--text-dim)",fontStyle:"italic"}}>Agnes is thinking...</div>}
+              {researchChat.loading&&<div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:13,color:"var(--text-dim)",fontStyle:"italic",display:"flex",alignItems:"center",gap:10}}>Agnes is thinking... <span onClick={()=>setResearchChat(prev=>({...prev,loading:false,error:"That took too long. Try again."}))} style={{fontSize:10,color:"var(--agnes,#7A6A8A)",cursor:"pointer",textDecoration:"underline",fontFamily:"'DM Sans',sans-serif",fontStyle:"normal"}}>taking a while? tap to reset</span></div>}
+              {researchChat.error&&<div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:13,color:"var(--text-dim)",fontStyle:"italic"}}>{researchChat.error}</div>}
             </div>
             {researchChat.draft&&<div style={{background:"var(--bg-card-alt)",border:"1px dashed var(--border-mid)",borderRadius:8,padding:"12px 14px",marginBottom:10}}>
               <div style={{fontSize:9,textTransform:"uppercase",letterSpacing:"0.1em",color:"var(--text-dim)",fontFamily:"'DM Sans',sans-serif",marginBottom:5}}>Drafted from your conversation</div>
