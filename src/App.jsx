@@ -857,7 +857,7 @@ export default function App() {
   const [expandedFieldHistory, setExpandedFieldHistory] = useState({}); // fieldKey -> bool
   const [protagHistoryView, setProtagHistoryView] = useState("field"); // "field" | "chapter" — Character Arc Timeline toggle
   const toggleFieldHistory=(key)=>setExpandedFieldHistory(prev=>({...prev,[key]:!prev[key]})); // shared with TrackedField on Overview/Plot tabs
-  const [noteSort, setNoteSort] = useState(null); // null | {loading:true} | {proposals:[{name,role,description}], remainingSupporting, remainingAntagonist, error?}
+  const [noteSort, setNoteSort] = useState(null); // null | {loading} | {error} | {proposals:[{name,role,description}], handled:{[i]:"added"|"skipped"}, trim: null | {loading} | {error} | {remainingSupporting, remainingAntagonist}}
   const [bibleOrganize, setBibleOrganize] = useState(null); // shared by welcome "I have material" and standing "Sort with Agnes": null | {step:"paste"} | {step:"loading"} | {step:"review",reflection,proposals:[{field,name,text,added}],unmatched,confirmed} | {step:"error"}
   const [bibExpanded, setBibExpanded] = useState(false);
   const [bibleSearch, setBibleSearch] = useState("");
@@ -4798,48 +4798,95 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
             <div style={{fontSize:9,textTransform:"uppercase",letterSpacing:"0.14em",color:"var(--text-dim)",fontFamily:"'DM Sans',sans-serif",marginBottom:8}}>Unsorted notes, not yet assigned to a specific character</div>
             <ReadField label="Other notes on supporting characters" value={project.supporting} multi/>
             <ReadField label="Other notes on the antagonist" value={project.antagonist} multi/>
-            {/* One-time cleanup for the pre-extraction-fix backlog: Agnes reads the unsorted blobs,
-                proposes real character cards, and drafts a trimmed version of the notes. Nothing is
-                removed automatically — Agnes paraphrases, so the writer reviews the trimmed text
-                before it replaces anything. */}
-            {(project.supporting||project.antagonist)&&!noteSort&&<span onClick={async()=>{
-              setNoteSort({loading:true});
-              try{
-                const existing=existingCharacterNamesList(project);
-                const resp=await fetch("/api/chat",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({
-                  system:"You are Agnes, a meticulous literary archivist. Be direct, specific, and concise. Never use em dashes.",
-                  messages:[{role:"user",content:`These are a writer's unsorted character notes. Characters who already have cards: ${existing}.\n\nSUPPORTING NOTES:\n${project.supporting||"(empty)"}\n\nANTAGONIST NOTES:\n${project.antagonist||"(empty)"}\n\nDo two things.\n1. proposals: Every genuinely NAMED character in these notes who does not already have a card (never "the doctor" or unnamed figures, never anyone in the existing list). For each, gather everything the notes say about them into a description, preserving the notes' actual wording as closely as possible.\n2. remainingSupporting and remainingAntagonist: The same notes rewritten with the proposed characters' content removed, keeping everything else, preserving original wording exactly, not paraphrasing what stays. Empty string if nothing remains.\n\nRespond ONLY with JSON. No markdown. No backticks.\n{"proposals":[{"name":"","role":"best guess: Antagonist / villain, Love interest, Mentor, Best friend / confidant, Foil, Family, or Secondary character","description":""}],"remainingSupporting":"","remainingAntagonist":""}`}]
-                })});
-                const data=await resp.json();
-                const raw=data.content?.filter(b=>b.type==="text").map(b=>b.text).join("")||"";
-                const parsed=JSON.parse(raw.replace(/```json|```/g,"").trim());
-                setNoteSort({proposals:(Array.isArray(parsed.proposals)?parsed.proposals.filter(p=>p&&p.name):[]),remainingSupporting:parsed.remainingSupporting||"",remainingAntagonist:parsed.remainingAntagonist||"",added:{}});
-              }catch(e){setNoteSort({error:true});}
-            }} style={{fontSize:10,padding:"5px 12px",borderRadius:5,border:"1px solid var(--accent)",color:"var(--accent)",cursor:"pointer",display:"inline-block",marginTop:4,fontFamily:"'DM Sans',sans-serif"}}>Sort these into characters with Agnes</span>}
+            {/* One-time cleanup for the pre-extraction-fix backlog. Two-step for data safety:
+                Step 1: Agnes proposes named characters from the blobs; the writer adds or skips each.
+                Step 2: Only after EVERY proposal is handled does Agnes trim the notes, in a second
+                call that removes ONLY the approved names' content, so skipped characters' notes are
+                never lost. Writer reviews before/after, then applies. Nothing moves automatically. */}
+            {(project.supporting||project.antagonist)&&!noteSort&&<div style={{marginTop:4}}>
+              <span onClick={async()=>{
+                setNoteSort({loading:true});
+                try{
+                  const existing=existingCharacterNamesList(project);
+                  const resp=await fetch("/api/chat",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({
+                    system:"You are Agnes, a meticulous literary archivist. Be direct, specific, and concise. Never use em dashes.",
+                    messages:[{role:"user",content:`These are a writer's unsorted character notes. Characters who already have cards: ${existing}.\n\nSUPPORTING NOTES:\n${project.supporting||"(empty)"}\n\nANTAGONIST NOTES:\n${project.antagonist||"(empty)"}\n\nList every genuinely NAMED character in these notes who does not already have a card (never "the doctor" or unnamed figures, never anyone in the existing list, including anyone listed under a different name they are "also called"). For each, gather everything the notes say about them into a description, preserving the notes' actual wording as closely as possible.\n\nRespond ONLY with JSON. No markdown. No backticks.\n{"proposals":[{"name":"","role":"best guess: Antagonist / villain, Love interest, Mentor, Best friend / confidant, Foil, Family, or Secondary character","description":""}]}`}]
+                  })});
+                  const data=await resp.json();
+                  const raw=data.content?.filter(b=>b.type==="text").map(b=>b.text).join("")||"";
+                  const parsed=JSON.parse(raw.replace(/```json|```/g,"").trim());
+                  setNoteSort({proposals:(Array.isArray(parsed.proposals)?parsed.proposals.filter(p=>p&&p.name):[]),handled:{},trim:null});
+                }catch(e){setNoteSort({error:true});}
+              }} style={{fontSize:10,padding:"5px 12px",borderRadius:5,border:"1px solid var(--accent)",color:"var(--accent)",cursor:"pointer",display:"inline-block",fontFamily:"'DM Sans',sans-serif"}}>Sort these into characters with Agnes</span>
+              <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:12,color:"var(--text-dim)",fontStyle:"italic",marginTop:5}}>Agnes proposes character cards from these notes. Nothing moves until you approve it.</div>
+            </div>}
             {noteSort?.loading&&<div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:13,color:"var(--text-dim)",fontStyle:"italic",marginTop:8}}>Agnes is reading the unsorted notes...</div>}
             {noteSort?.error&&<div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:13,color:"var(--text-dim)",fontStyle:"italic",marginTop:8}}>Something went wrong. <span onClick={()=>setNoteSort(null)} style={{color:"var(--accent)",cursor:"pointer"}}>Try again</span></div>}
-            {noteSort?.proposals&&<div style={{background:"var(--bg-card-alt)",border:"1px solid var(--border)",borderRadius:8,padding:"12px 14px",marginTop:10}}>
-              <div style={{fontSize:9,textTransform:"uppercase",letterSpacing:"0.14em",color:"var(--accent)",fontFamily:"'DM Sans',sans-serif",fontWeight:500,marginBottom:8}}>Agnes found {noteSort.proposals.length===0?"no new named characters":noteSort.proposals.length===1?"1 character":`${noteSort.proposals.length} characters`} in the notes</div>
-              {noteSort.proposals.map((pc,pi)=>(
-                <div key={pi} style={{marginBottom:10}}>
-                  <div style={{display:"flex",alignItems:"center",gap:8,flexWrap:"wrap"}}>
-                    <span style={{fontFamily:"'Cormorant Garamond',serif",fontSize:14,color:"var(--text-primary)"}}>{pc.name} <span style={{fontSize:12,color:"var(--text-dim)",fontStyle:"italic"}}>({pc.role})</span></span>
-                    {noteSort.added[pi]
-                      ?<span style={{fontSize:9,color:"var(--text-dim)",fontFamily:"'DM Sans',sans-serif"}}>Added</span>
-                      :<span onClick={()=>{addProposedCharacter(pc.name,pc.role,pc.description);setNoteSort(prev=>({...prev,added:{...prev.added,[pi]:true}}));}} style={{fontSize:9,padding:"3px 9px",borderRadius:5,background:"var(--accent)",color:"var(--bg-deepest)",cursor:"pointer",fontFamily:"'DM Sans',sans-serif"}}>Add as character</span>}
+            {noteSort?.proposals&&(()=>{
+              const total=noteSort.proposals.length;
+              const handledCount=Object.keys(noteSort.handled).length;
+              const approved=noteSort.proposals.filter((p,i)=>noteSort.handled[i]==="added");
+              const allHandled=total>0&&handledCount===total;
+              const runTrim=async()=>{
+                setNoteSort(prev=>({...prev,trim:{loading:true}}));
+                try{
+                  const resp=await fetch("/api/chat",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({
+                    system:"You are Agnes, a meticulous literary archivist. Precision matters more than tidiness. Never use em dashes.",
+                    messages:[{role:"user",content:`These are a writer's unsorted character notes. The following characters have just been given their own character cards: ${approved.map(p=>p.name).join(", ")}.\n\nSUPPORTING NOTES:\n${project.supporting||"(empty)"}\n\nANTAGONIST NOTES:\n${project.antagonist||"(empty)"}\n\nRewrite both notes with ONLY the content about those specific characters removed. Keep everything else, including notes about any other people, preserving the original wording exactly. Do not paraphrase, reorder, or clean up what stays. Use an empty string if nothing remains in a section.\n\nRespond ONLY with JSON. No markdown. No backticks.\n{"remainingSupporting":"","remainingAntagonist":""}`}]
+                  })});
+                  const data=await resp.json();
+                  const raw=data.content?.filter(b=>b.type==="text").map(b=>b.text).join("")||"";
+                  const parsed=JSON.parse(raw.replace(/```json|```/g,"").trim());
+                  setNoteSort(prev=>({...prev,trim:{remainingSupporting:parsed.remainingSupporting||"",remainingAntagonist:parsed.remainingAntagonist||""}}));
+                }catch(e){setNoteSort(prev=>({...prev,trim:{error:true}}));}
+              };
+              const noteBlockStyle={fontFamily:"'Cormorant Garamond',serif",fontSize:12,color:"var(--text-secondary)",lineHeight:1.6,whiteSpace:"pre-wrap",maxHeight:160,overflow:"auto",background:"var(--bg-card)",border:"1px solid var(--border)",borderRadius:6,padding:"8px 10px"};
+              return <div style={{background:"var(--bg-card-alt)",border:"1px solid var(--border)",borderRadius:8,padding:"12px 14px",marginTop:10}}>
+                <div style={{fontSize:9,textTransform:"uppercase",letterSpacing:"0.14em",color:"var(--accent)",fontFamily:"'DM Sans',sans-serif",fontWeight:500,marginBottom:8}}>Agnes found {total===0?"no new named characters":total===1?"1 character":`${total} characters`} in the notes</div>
+                {total>0&&!allHandled&&<div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:12,color:"var(--text-dim)",fontStyle:"italic",marginBottom:10}}>Add the ones you want as character cards, skip the rest. Once every one is handled, Agnes will trim the sorted content out of the notes for your review. ({handledCount} of {total} handled)</div>}
+                {noteSort.proposals.map((pc,pi)=>(
+                  <div key={pi} style={{marginBottom:10}}>
+                    <div style={{display:"flex",alignItems:"center",gap:8,flexWrap:"wrap"}}>
+                      <span style={{fontFamily:"'Cormorant Garamond',serif",fontSize:14,color:"var(--text-primary)"}}>{pc.name} <span style={{fontSize:12,color:"var(--text-dim)",fontStyle:"italic"}}>({pc.role})</span></span>
+                      {noteSort.handled[pi]==="added"&&<span style={{fontSize:9,color:"var(--accent)",fontFamily:"'DM Sans',sans-serif"}}>Added</span>}
+                      {noteSort.handled[pi]==="skipped"&&<span style={{fontSize:9,color:"var(--text-dim)",fontFamily:"'DM Sans',sans-serif"}}>Skipped, their notes stay put</span>}
+                      {!noteSort.handled[pi]&&<>
+                        <span onClick={()=>{addProposedCharacter(pc.name,pc.role,pc.description);setNoteSort(prev=>({...prev,handled:{...prev.handled,[pi]:"added"}}));}} style={{fontSize:9,padding:"3px 9px",borderRadius:5,background:"var(--accent)",color:"var(--bg-deepest)",cursor:"pointer",fontFamily:"'DM Sans',sans-serif"}}>Add as character</span>
+                        <span onClick={()=>setNoteSort(prev=>({...prev,handled:{...prev.handled,[pi]:"skipped"}}))} style={{fontSize:9,padding:"3px 9px",borderRadius:5,border:"1px solid var(--border)",color:"var(--text-dim)",cursor:"pointer",fontFamily:"'DM Sans',sans-serif"}}>Skip</span>
+                      </>}
+                    </div>
+                    <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:12,color:"var(--text-secondary)",lineHeight:1.6,marginTop:2}}>{pc.description}</div>
                   </div>
-                  <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:12,color:"var(--text-secondary)",lineHeight:1.6,marginTop:2}}>{pc.description}</div>
-                </div>
-              ))}
-              {noteSort.proposals.length>0&&Object.keys(noteSort.added).length>0&&<div style={{borderTop:"1px dashed var(--border-mid)",paddingTop:10,marginTop:4}}>
-                <div style={{fontSize:9,textTransform:"uppercase",letterSpacing:"0.12em",color:"var(--text-dim)",fontFamily:"'DM Sans',sans-serif",marginBottom:5}}>Trimmed notes, with sorted characters removed — review before applying, Agnes may have reworded</div>
-                <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:12,color:"var(--text-secondary)",lineHeight:1.6,whiteSpace:"pre-wrap",maxHeight:160,overflow:"auto",background:"var(--bg-card)",border:"1px solid var(--border)",borderRadius:6,padding:"8px 10px",marginBottom:8}}>{[noteSort.remainingSupporting,noteSort.remainingAntagonist].filter(Boolean).join("\n\n---\n\n")||"(nothing would remain)"}</div>
-                <div style={{display:"flex",gap:8}}>
-                  <span onClick={()=>{const updated={...project,supporting:noteSort.remainingSupporting,antagonist:noteSort.remainingAntagonist};setProject(updated);saveStored("tt-project",updated);cloudSave("tt-project",updated);setNoteSort(null);}} style={{fontSize:10,padding:"5px 12px",borderRadius:5,background:"var(--accent)",color:"var(--bg-deepest)",cursor:"pointer",fontFamily:"'DM Sans',sans-serif"}}>Apply trimmed notes</span>
-                  <span onClick={()=>setNoteSort(null)} style={{fontSize:10,padding:"5px 12px",borderRadius:5,border:"1px solid var(--border)",color:"var(--text-dim)",cursor:"pointer",fontFamily:"'DM Sans',sans-serif"}}>Keep original notes</span>
-                </div>
-              </div>}
-            </div>}
+                ))}
+                {total===0&&<div style={{marginTop:4}}><span onClick={()=>setNoteSort(null)} style={{fontSize:10,padding:"5px 12px",borderRadius:5,border:"1px solid var(--border)",color:"var(--text-dim)",cursor:"pointer",fontFamily:"'DM Sans',sans-serif"}}>Close</span></div>}
+                {allHandled&&approved.length===0&&<div style={{borderTop:"1px dashed var(--border-mid)",paddingTop:10,marginTop:4}}>
+                  <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:12,color:"var(--text-dim)",fontStyle:"italic",marginBottom:8}}>Nothing was added, so the notes stay exactly as they are.</div>
+                  <span onClick={()=>setNoteSort(null)} style={{fontSize:10,padding:"5px 12px",borderRadius:5,border:"1px solid var(--border)",color:"var(--text-dim)",cursor:"pointer",fontFamily:"'DM Sans',sans-serif"}}>Done</span>
+                </div>}
+                {allHandled&&approved.length>0&&<div style={{borderTop:"1px dashed var(--border-mid)",paddingTop:10,marginTop:4}}>
+                  {!noteSort.trim&&<span onClick={runTrim} style={{fontSize:10,padding:"5px 12px",borderRadius:5,background:"var(--accent)",color:"var(--bg-deepest)",cursor:"pointer",fontFamily:"'DM Sans',sans-serif"}}>Trim the sorted characters from the notes</span>}
+                  {noteSort.trim?.loading&&<div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:13,color:"var(--text-dim)",fontStyle:"italic"}}>Agnes is trimming only the characters you added...</div>}
+                  {noteSort.trim?.error&&<div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:13,color:"var(--text-dim)",fontStyle:"italic"}}>Something went wrong. <span onClick={runTrim} style={{color:"var(--accent)",cursor:"pointer"}}>Try again</span></div>}
+                  {noteSort.trim&&!noteSort.trim.loading&&!noteSort.trim.error&&<>
+                    <div style={{fontSize:9,textTransform:"uppercase",letterSpacing:"0.12em",color:"var(--text-dim)",fontFamily:"'DM Sans',sans-serif",marginBottom:5}}>Before and after. Review before applying, in case Agnes reworded anything that should stay.</div>
+                    <div style={{display:"flex",gap:10,flexWrap:"wrap",marginBottom:8}}>
+                      <div style={{flex:"1 1 220px",minWidth:0}}>
+                        <div style={{fontSize:9,color:"var(--text-dim)",fontFamily:"'DM Sans',sans-serif",marginBottom:3}}>Before</div>
+                        <div style={noteBlockStyle}>{[project.supporting,project.antagonist].filter(Boolean).join("\n\n---\n\n")||"(empty)"}</div>
+                      </div>
+                      <div style={{flex:"1 1 220px",minWidth:0}}>
+                        <div style={{fontSize:9,color:"var(--text-dim)",fontFamily:"'DM Sans',sans-serif",marginBottom:3}}>After</div>
+                        <div style={noteBlockStyle}>{[noteSort.trim.remainingSupporting,noteSort.trim.remainingAntagonist].filter(Boolean).join("\n\n---\n\n")||"(nothing would remain)"}</div>
+                      </div>
+                    </div>
+                    <div style={{display:"flex",gap:8}}>
+                      <span onClick={()=>{const updated={...project,supporting:noteSort.trim.remainingSupporting,antagonist:noteSort.trim.remainingAntagonist,updated:Date.now()};setProject(updated);saveStored("tt-project",updated);cloudSave("tt-project",updated);setNoteSort(null);}} style={{fontSize:10,padding:"5px 12px",borderRadius:5,background:"var(--accent)",color:"var(--bg-deepest)",cursor:"pointer",fontFamily:"'DM Sans',sans-serif"}}>Apply trimmed notes</span>
+                      <span onClick={()=>setNoteSort(null)} style={{fontSize:10,padding:"5px 12px",borderRadius:5,border:"1px solid var(--border)",color:"var(--text-dim)",cursor:"pointer",fontFamily:"'DM Sans',sans-serif"}}>Keep original notes</span>
+                    </div>
+                  </>}
+                </div>}
+              </div>;
+            })()}
           </div>}
         </>;
         })()}
