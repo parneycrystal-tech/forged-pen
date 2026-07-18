@@ -573,6 +573,12 @@ MATERIAL:
 ${rawText}`;
 }
 
+// Light story summary for Agnes's research chat — enough for her to give relevant answers
+// without needing the full field-by-field coaching context the main chat uses.
+function bibleSummaryCtx(project){
+  if(!project)return "No project yet.";
+  return `Title: "${project.title||"untitled"}". Genre: ${project.genre||"not specified"}. Synopsis: ${project.synopsis||"not yet captured"}. Protagonist: ${project.protagonist||"not yet captured"}. Main plot: ${project.mainPlot||"not yet captured"}. Themes: ${project.themes||"not yet captured"}. World/setting: ${project.worldSetting||"not yet captured"}.`;
+}
 function existingCharacterNamesList(project){
   const protagName=project?.protagonist?(project.protagonist.split(":")[0]||"").trim():null;
   const entries=[protagName,...(project?.characters||[]).map(c=>{
@@ -891,6 +897,11 @@ export default function App() {
   const toggleFieldHistory=(key)=>setExpandedFieldHistory(prev=>({...prev,[key]:!prev[key]})); // shared with TrackedField on Overview/Plot tabs
   const [noteSort, setNoteSort] = useState(null); // null | {loading} | {error} | {proposals:[{name,role,description}], handled:{[i]:"added"|"skipped"}, trim: null | {loading} | {error} | {remainingSupporting, remainingAntagonist}}
   const [bibleOrganize, setBibleOrganize] = useState(null); // shared by welcome "I have material" and standing "Sort with Agnes": null | {step:"paste"} | {step:"loading"} | {step:"review",reflection,proposals:[{field,name,text,added}],unmatched,confirmed} | {step:"error"}
+  // Research tab: project.researchNotes is the array of saved cards. researchForm holds an
+  // open add/edit form. researchChat holds the Ask Agnes conversation state, separate from
+  // Finn's coaching chats since this is Agnes's own space, librarian voice, no live search.
+  const [researchForm, setResearchForm] = useState(null); // null | {id:null|existingId, title, note, source, links, status}
+  const [researchChat, setResearchChat] = useState({open:false, msgs:[], loading:false, draft:null});
   const [bibExpanded, setBibExpanded] = useState(false);
   const [bibleSearch, setBibleSearch] = useState("");
   const [sparkCapture, setSparkCapture] = useState(null); // {q1,q2} while the two-question capture is open, else null
@@ -2294,6 +2305,68 @@ Main plot: ${project?.mainPlot||"none"}`;
     setPForm(prev=>({...prev,[key]:updated[key]}));
     saveStored("tt-project",updated);
     cloudSave("tt-project",updated);
+  };
+
+  // Research tab functions. Notes are simple cards, not chapter-tracked history — research doesn't
+  // evolve the way a Bible field does, a note is either still true or replaced by a new one.
+  const saveResearchNote=()=>{
+    if(!researchForm||!researchForm.title.trim())return;
+    const existing=Array.isArray(project?.researchNotes)?[...project.researchNotes]:[];
+    const noteObj={id:researchForm.id||"research_"+Date.now(),title:researchForm.title.trim(),note:researchForm.note||"",source:researchForm.source||"",links:researchForm.links||"",status:researchForm.status||"unused"};
+    const idx=existing.findIndex(n=>n.id===noteObj.id);
+    if(idx>-1)existing[idx]=noteObj;else existing.unshift(noteObj);
+    const updated={...project,researchNotes:existing,updated:Date.now()};
+    setProject(updated);saveStored("tt-project",updated);cloudSave("tt-project",updated);
+    setResearchForm(null);
+  };
+  const toggleResearchStatus=(id)=>{
+    const existing=(project?.researchNotes||[]).map(n=>n.id===id?{...n,status:n.status==="used"?"unused":"used"}:n);
+    const updated={...project,researchNotes:existing,updated:Date.now()};
+    setProject(updated);saveStored("tt-project",updated);cloudSave("tt-project",updated);
+  };
+  const deleteResearchNote=(id)=>{
+    const existing=(project?.researchNotes||[]).filter(n=>n.id!==id);
+    const updated={...project,researchNotes:existing,updated:Date.now()};
+    setProject(updated);saveStored("tt-project",updated);cloudSave("tt-project",updated);
+  };
+  // Ask Agnes, research context: works from training knowledge only, no live search. Her own
+  // system prompt keeps her explicitly honest about the difference between what she knows
+  // generally and what needs real verification before it goes in the manuscript.
+  const AGNES_RESEARCH_SYS=`You are Agnes, a meticulous literary archivist and research librarian for a fiction writer. You have no ability to search the internet, you work from what you already know. Be direct, warm underneath, never flattering. Never use em dashes.
+
+Help the writer think through research questions for their story, worldbuilding, historical detail, craft references, comp titles. Share what you genuinely know, but be explicit and honest when a detail is general knowledge versus something that would need real verification before it belongs in published prose. Never invent a fake citation, source, or statistic to sound more authoritative. When something is uncertain, say so plainly rather than hedging vaguely.
+
+Keep responses focused and useful, not exhaustive. This is a thinking partner, not a search engine.`;
+  const sendResearchChat=async(text)=>{
+    if(!text||!text.trim())return;
+    const userMsg={role:"user",content:text.trim()};
+    setResearchChat(prev=>({...prev,msgs:[...prev.msgs,userMsg],loading:true}));
+    try{
+      const resp=await fetch("/api/chat",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({
+        system:AGNES_RESEARCH_SYS+`\n\nSTORY CONTEXT:\n${bibleSummaryCtx(project)}`,
+        messages:[...researchChat.msgs,userMsg]
+      })});
+      const data=await resp.json();
+      const raw=data.content?.filter(b=>b.type==="text").map(b=>b.text).join("")||"";
+      setResearchChat(prev=>({...prev,msgs:[...prev.msgs,{role:"assistant",content:raw}],loading:false}));
+    }catch(e){console.log("Research chat error:",e);setResearchChat(prev=>({...prev,loading:false}));}
+  };
+  // Condenses the last Agnes research reply into a draft note, reviewed before saving, same
+  // pattern as everywhere else Agnes distills her own words down to something keepable.
+  const draftResearchNoteFromChat=async()=>{
+    const lastAgnes=[...researchChat.msgs].reverse().find(m=>m.role==="assistant");
+    if(!lastAgnes)return;
+    setResearchChat(prev=>({...prev,loading:true}));
+    try{
+      const resp=await fetch("/api/chat",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({
+        system:"Condense the following into a short research note. Respond ONLY with JSON, no markdown, no backticks. {\"title\":\"short specific title, 3-8 words\",\"note\":\"2-3 sentences, the keepable substance\"}",
+        messages:[{role:"user",content:lastAgnes.content}]
+      })});
+      const data=await resp.json();
+      const raw=data.content?.filter(b=>b.type==="text").map(b=>b.text).join("")||"";
+      const parsed=JSON.parse(raw.replace(/```json|```/g,"").trim());
+      setResearchChat(prev=>({...prev,loading:false,draft:{title:parsed.title||"Research note",note:parsed.note||lastAgnes.content.slice(0,300)}}));
+    }catch(e){setResearchChat(prev=>({...prev,loading:false,draft:{title:"Research note",note:lastAgnes.content.slice(0,300)}}));}
   };
 
   const addThread=(name,description,chapterNum,type)=>{
@@ -4574,6 +4647,7 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
           <BibTab id="world" label="World" active={bibViewTab==="world"} onClick={setBibViewTab}/>
           <BibTab id="plot" label="Plot & Structure" active={bibViewTab==="plot"} onClick={setBibViewTab}/>
           <BibTab id="chapters" label="Chapters" active={bibViewTab==="chapters"} onClick={setBibViewTab}/>
+          <BibTab id="research" label="Research" active={bibViewTab==="research"} onClick={setBibViewTab}/>
         </div>}
         {bibleSearch&&<div>
           {(()=>{
@@ -5067,6 +5141,75 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
               </div>
             ))}
           </div>}
+        </div>}
+        {/* RESEARCH TAB — sixth Bible section. Cards, not chapter-history; research either
+            gets used or sits waiting, tracked by a tap-to-toggle status chip. */}
+        {!bibleSearch&&bibViewTab==="research"&&<div>
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",flexWrap:"wrap",gap:8,marginBottom:16}}>
+            <div style={{fontSize:13,fontFamily:'Cormorant Garamond',color:"var(--text-dim)",fontStyle:"italic"}}>Worldbuilding, historical detail, craft references, comp titles — kept somewhere tighter than a browser tab.</div>
+            <div style={{display:"flex",gap:8}}>
+              <span onClick={()=>setResearchForm({id:null,title:"",note:"",source:"",links:"",status:"unused"})} style={{fontSize:11,padding:"6px 14px",borderRadius:6,border:"1px solid var(--border)",color:"var(--text-dim)",cursor:"pointer",fontFamily:"'DM Sans',sans-serif",whiteSpace:"nowrap"}}>+ Add note</span>
+              <span onClick={()=>setResearchChat(prev=>({...prev,open:!prev.open}))} style={{fontSize:11,padding:"6px 14px",borderRadius:6,background:"var(--agnes,#7A6A8A)",color:"#F4EEDF",cursor:"pointer",fontFamily:"'DM Sans',sans-serif",whiteSpace:"nowrap"}}>Ask Agnes</span>
+            </div>
+          </div>
+
+          {researchForm&&<div style={{background:"var(--bg-card)",border:"1px solid var(--border)",borderRadius:10,padding:"16px 18px",marginBottom:16}}>
+            <input value={researchForm.title} onChange={e=>setResearchForm(prev=>({...prev,title:e.target.value}))} placeholder="Title" style={{width:"100%",marginBottom:8,padding:"8px 10px",borderRadius:6,border:"1px solid var(--border)",background:"var(--bg-card-alt)",fontFamily:"'Cormorant Garamond',serif",fontSize:14,outline:"none"}}/>
+            <textarea value={researchForm.note} onChange={e=>setResearchForm(prev=>({...prev,note:e.target.value}))} placeholder="What did you find?" rows={3} style={{width:"100%",marginBottom:8,padding:"8px 10px",borderRadius:6,border:"1px solid var(--border)",background:"var(--bg-card-alt)",fontFamily:"'Cormorant Garamond',serif",fontSize:14,outline:"none",resize:"vertical"}}/>
+            <input value={researchForm.source} onChange={e=>setResearchForm(prev=>({...prev,source:e.target.value}))} placeholder="Source (a link, a book, or how you know it)" style={{width:"100%",marginBottom:8,padding:"8px 10px",borderRadius:6,border:"1px solid var(--border)",background:"var(--bg-card-alt)",fontFamily:"'Cormorant Garamond',serif",fontSize:13,outline:"none"}}/>
+            <input value={researchForm.links} onChange={e=>setResearchForm(prev=>({...prev,links:e.target.value}))} placeholder="Tags, comma separated (World, a character's name, Chapter 3, Craft reference)" style={{width:"100%",marginBottom:12,padding:"8px 10px",borderRadius:6,border:"1px solid var(--border)",background:"var(--bg-card-alt)",fontFamily:"'DM Sans',sans-serif",fontSize:12,outline:"none"}}/>
+            <div style={{display:"flex",gap:8}}>
+              <span onClick={saveResearchNote} style={{fontSize:11,padding:"6px 16px",borderRadius:6,background:"var(--accent)",color:"#F4EEDF",cursor:"pointer",fontFamily:"'DM Sans',sans-serif"}}>Save</span>
+              <span onClick={()=>setResearchForm(null)} style={{fontSize:11,padding:"6px 16px",borderRadius:6,border:"1px solid var(--border)",color:"var(--text-dim)",cursor:"pointer",fontFamily:"'DM Sans',sans-serif"}}>Cancel</span>
+            </div>
+          </div>}
+
+          {researchChat.open&&<div style={{background:"var(--bg-card)",border:"1px solid var(--agnes,#7A6A8A)",borderRadius:10,padding:"16px 18px",marginBottom:16}}>
+            <div style={{fontSize:9,textTransform:"uppercase",letterSpacing:"0.16em",color:"var(--agnes,#7A6A8A)",fontFamily:"'DM Sans',sans-serif",fontWeight:600,marginBottom:10}}>Ask Agnes</div>
+            <div style={{maxHeight:280,overflowY:"auto",marginBottom:10}}>
+              {researchChat.msgs.length===0&&<p style={{fontFamily:"'Cormorant Garamond',serif",fontSize:13,color:"var(--text-dim)",fontStyle:"italic"}}>Ask her anything worth thinking through, worldbuilding, a historical detail, a craft question. She works from what she already knows, not a live search, and she'll tell you plainly when something needs real verification before it goes in your manuscript.</p>}
+              {researchChat.msgs.map((m,i)=>(
+                <div key={i} style={{marginBottom:10,background:m.role==="user"?"var(--bg-card-alt)":"var(--agnes-15,rgba(122,106,138,0.08))",border:"1px solid "+(m.role==="user"?"var(--border)":"rgba(122,106,138,0.25)"),borderRadius:8,padding:"9px 12px"}}>
+                  <div style={{fontSize:8,textTransform:"uppercase",letterSpacing:"0.1em",color:"var(--text-dim)",fontFamily:"'DM Sans',sans-serif",marginBottom:3}}>{m.role==="user"?"You":"Agnes"}</div>
+                  <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:14,color:"var(--text-primary)",lineHeight:1.65,whiteSpace:"pre-wrap"}}>{m.content}</div>
+                </div>
+              ))}
+              {researchChat.loading&&<div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:13,color:"var(--text-dim)",fontStyle:"italic"}}>Agnes is thinking...</div>}
+            </div>
+            {researchChat.draft&&<div style={{background:"var(--bg-card-alt)",border:"1px dashed var(--border-mid)",borderRadius:8,padding:"12px 14px",marginBottom:10}}>
+              <div style={{fontSize:9,textTransform:"uppercase",letterSpacing:"0.1em",color:"var(--text-dim)",fontFamily:"'DM Sans',sans-serif",marginBottom:5}}>Drafted from your conversation</div>
+              <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:14,color:"var(--text-primary)",marginBottom:6}}><b>{researchChat.draft.title}</b></div>
+              <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:13,color:"var(--text-secondary)",lineHeight:1.6,marginBottom:8}}>{researchChat.draft.note}</div>
+              <span onClick={()=>{setResearchForm({id:null,title:researchChat.draft.title,note:researchChat.draft.note,source:"Agnes conversation, unverified — check before publishing specifics",links:"",status:"unused"});setResearchChat(prev=>({...prev,draft:null}));}} style={{fontSize:10,padding:"4px 12px",borderRadius:5,background:"var(--accent)",color:"#1E1C14",cursor:"pointer",fontFamily:"'DM Sans',sans-serif"}}>Keep this note</span>
+            </div>}
+            <div style={{display:"flex",gap:8}}>
+              <input id="research-chat-input" placeholder="Ask Agnes..." onKeyDown={e=>{if(e.key==="Enter"){const t=e.target.value;e.target.value="";sendResearchChat(t);}}} style={{flex:1,padding:"8px 10px",borderRadius:6,border:"1px solid var(--border)",background:"var(--bg-card-alt)",fontFamily:"'Cormorant Garamond',serif",fontSize:14,outline:"none"}}/>
+              {researchChat.msgs.some(m=>m.role==="assistant")&&!researchChat.draft&&<span onClick={draftResearchNoteFromChat} style={{fontSize:10,padding:"6px 12px",borderRadius:5,border:"1px solid var(--agnes,#7A6A8A)",color:"var(--agnes,#7A6A8A)",cursor:"pointer",fontFamily:"'DM Sans',sans-serif",whiteSpace:"nowrap"}}>Save as note</span>}
+            </div>
+          </div>}
+
+          {(project?.researchNotes||[]).length===0&&!researchForm&&<p style={{fontFamily:"'Cormorant Garamond',serif",fontSize:14,color:"var(--text-dim)",fontStyle:"italic"}}>Nothing here yet. Add a note, or ask Agnes to help you think one through.</p>}
+          {(project?.researchNotes||[]).map(n=>(
+            <div key={n.id} style={{background:"var(--bg-card)",border:"1px solid var(--border)",borderRadius:10,padding:"14px 16px",marginBottom:10}}>
+              <div style={{display:"flex",justifyContent:"space-between",alignItems:"baseline",gap:8,flexWrap:"wrap",marginBottom:6}}>
+                <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:16,color:"var(--text-primary)"}}>{n.title}</div>
+                <span onClick={()=>toggleResearchStatus(n.id)} style={{fontSize:9,textTransform:"uppercase",letterSpacing:"0.08em",padding:"3px 9px",borderRadius:4,fontFamily:"'DM Sans',sans-serif",fontWeight:500,cursor:"pointer",background:n.status==="used"?"rgba(110,138,106,0.14)":"rgba(176,151,90,0.16)",color:n.status==="used"?"#6E8A6A":"#B0975A"}}>{n.status==="used"?"Incorporated":"Not yet used"}</span>
+              </div>
+              {n.note&&<div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:14,color:"var(--text-secondary)",lineHeight:1.65,marginBottom:8}}>{n.note}</div>}
+              <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",flexWrap:"wrap",gap:6}}>
+                <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
+                  {n.source&&<span style={{fontSize:11,fontStyle:"italic",color:"var(--text-dim)",fontFamily:"'Cormorant Garamond',serif"}}>{n.source}</span>}
+                  {(n.links||"").split(",").map(l=>l.trim()).filter(Boolean).map((l,i)=>(
+                    <span key={i} style={{fontSize:9,textTransform:"uppercase",letterSpacing:"0.06em",background:"var(--accent-15,rgba(192,120,72,0.12))",color:"var(--accent)",borderRadius:4,padding:"2px 8px",fontFamily:"'DM Sans',sans-serif"}}>{l}</span>
+                  ))}
+                </div>
+                <div style={{display:"flex",gap:10}}>
+                  <span onClick={()=>setResearchForm({id:n.id,title:n.title,note:n.note,source:n.source,links:n.links,status:n.status})} style={{fontSize:10,color:"var(--text-dim)",cursor:"pointer",fontFamily:"'DM Sans',sans-serif"}}>Edit</span>
+                  <span onClick={()=>deleteResearchNote(n.id)} style={{fontSize:10,color:"var(--text-dim)",cursor:"pointer",fontFamily:"'DM Sans',sans-serif"}}>Delete</span>
+                </div>
+              </div>
+            </div>
+          ))}
         </div>}
       </div>}
 
