@@ -4796,8 +4796,6 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
           </div>
           {(project.supporting||project.antagonist)&&<div style={{marginTop:20,paddingTop:16,borderTop:"1px solid var(--border)"}}>
             <div style={{fontSize:9,textTransform:"uppercase",letterSpacing:"0.14em",color:"var(--text-dim)",fontFamily:"'DM Sans',sans-serif",marginBottom:8}}>Unsorted notes, not yet assigned to a specific character</div>
-            <ReadField label="Other notes on supporting characters" value={project.supporting} multi/>
-            <ReadField label="Other notes on the antagonist" value={project.antagonist} multi/>
             {/* One-time cleanup for the pre-extraction-fix backlog. Two-step for data safety:
                 Step 1: Agnes proposes named characters from the blobs; the writer adds or skips each.
                 Step 2: Only after EVERY proposal is handled does Agnes trim the notes, in a second
@@ -4818,7 +4816,7 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
                   setNoteSort({proposals:(Array.isArray(parsed.proposals)?parsed.proposals.filter(p=>p&&p.name):[]),handled:{},trim:null});
                 }catch(e){setNoteSort({error:true});}
               }} style={{fontSize:10,padding:"5px 12px",borderRadius:5,border:"1px solid var(--accent)",color:"var(--accent)",cursor:"pointer",display:"inline-block",fontFamily:"'DM Sans',sans-serif"}}>Sort these into characters with Agnes</span>
-              <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:12,color:"var(--text-dim)",fontStyle:"italic",marginTop:5}}>Agnes proposes character cards from these notes. Nothing moves until you approve it.</div>
+              <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:12,color:"var(--text-dim)",fontStyle:"italic",marginTop:5,marginBottom:10}}>Agnes proposes character cards from these notes. Nothing moves until you approve it.</div>
             </div>}
             {noteSort?.loading&&<div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:13,color:"var(--text-dim)",fontStyle:"italic",marginTop:8}}>Agnes is reading the unsorted notes...</div>}
             {noteSort?.error&&<div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:13,color:"var(--text-dim)",fontStyle:"italic",marginTop:8}}>Something went wrong. <span onClick={()=>setNoteSort(null)} style={{color:"var(--accent)",cursor:"pointer"}}>Try again</span></div>}
@@ -4887,6 +4885,8 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
                 </div>}
               </div>;
             })()}
+            <ReadField label="Other notes on supporting characters" value={project.supporting} multi/>
+            <ReadField label="Other notes on the antagonist" value={project.antagonist} multi/>
           </div>}
         </>;
         })()}
