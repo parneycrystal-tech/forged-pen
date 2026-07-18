@@ -121,6 +121,8 @@ Creativity anxiety as a layer: even when the primary block is craft or neurologi
 Reference the Story Bible throughout. Identify the block. Name it clearly. Offer one solution matched to that specific block. One thread at a time. Under 150 words per response.`) },
   { id:"craft", label:"Craft Challenge", icon:"\u26A1", cat:"craft", sub:"A targeted exercise for your story", ph:"Tell me what you're working on and where you want to get stronger.", sys: sp(`MODE: CRAFT CHALLENGE. You have full access to this writer's Story Bible. Use it.
 
+THE CLOCK: A vintage countdown clock is built into this mode, right above the writer's input. When you set the exercise, name its length in minutes plainly (for example "fifteen minutes") and tell the writer to tap the clock to begin; it presets itself from the number you name.
+
 You are Finn designing a targeted craft exercise for a writer. Never give a generic writing prompt. An exercise built around their specific characters, their specific world, their specific current challenge produces results that live directly in their manuscript and their craft simultaneously.
 
 What a good Craft Challenge includes: a clear skill target named explicitly, a time limit between ten and twenty five minutes, a specific constraint that forces the skill, a connection to their actual story wherever possible, and a note on what to look for when they are done.
@@ -241,6 +243,8 @@ Profile adaptation: for the spark-stage writer the step might be writing one sen
 After they take the step, notice it with specificity not cheerleading. That sentence exists now. It did not before. Under 150 words.`) },
   { id:"perfectionism", label:"Perfectionism Bypass", icon:"\uD83D\uDD13", cat:"neuro", sub:"Break the paralysis", ph:"Tell me what you can't move past.", sys: sp(`MODE: PERFECTIONISM BYPASS. You have full access to this writer's Story Bible. Use it.
 
+THE CLOCK: A vintage countdown clock is built into this mode, right above the writer's input. When you assign the timed freewrite, name the minutes plainly (for example "ten minutes") and tell the writer to tap the clock to begin; it presets itself from the number you name. When the clock settles they are done. Ending early and ending on time both count.
+
 You are Finn helping a writer break through perfectionism paralysis. Perfectionism in writers is not about high standards. It is about fear. The fear that finishing means being judged. The fear that starting means potentially failing. Recognize it for what it is without shaming it.
 
 The four patterns Finn watches for:
@@ -337,7 +341,7 @@ Capture the Flood: the writer has more ideas arriving than they can develop. Dum
 
 Channel the Heat: the writer has a flood of ideas and needs help identifying which ones move their story forward right now versus which ones are future fuel. Use the Story Bible to help prioritize without slowing momentum.
 
-Ride the Wave: the writer is ready to write but needs a container. Pick a scene. Set a timer for twenty five minutes. Write without stopping. No editing. No rereading. Just go.
+Ride the Wave: the writer is ready to write but needs a container. Pick a scene. A small clock is set for twenty five minutes; tap it to begin. Write without stopping. No editing. No rereading. Just go.
 
 Flag Everything: the writer's clarity is chemically elevated right now. Everything that feels alive should be flagged in the Dopamine Map. They are building their evidence locker for when the smoke comes.
 
@@ -766,6 +770,34 @@ function LandingScreen({onSignIn,onSubmitEmail}){
 
 
 const CHARACTER_ROLES=["Antagonist / villain","Love interest","Mentor","Best friend / confidant","Foil","Family","Secondary character","Other"];
+// Vintage countdown clock for timed writing containers (Perfectionism Bypass, Craft Challenge,
+// and Ride the Wave in the Inferno). The wedge drains as time passes so the writer can read time
+// at a glance. Ends softly, never with an alarm; ending early and on time look the same.
+function ClockFace({total,left,size=104,muted=false,color="var(--accent)"}){
+  const c=muted?"#C8A98E":color;
+  const frac=total>0?Math.max(0,Math.min(1,left/total)):0;
+  const ang=frac*360;
+  const rad=a=>a*Math.PI/180;
+  const hx=60+40*Math.sin(rad(ang)),hy=60-40*Math.cos(rad(ang));
+  const sx=60+44*Math.sin(rad(ang)),sy=60-44*Math.cos(rad(ang));
+  const ticks=[];
+  for(let i=0;i<60;i++){const a=rad(i*6);const r1=i%5===0?45:47.5;
+    ticks.push(<line key={i} x1={(60+r1*Math.sin(a)).toFixed(1)} y1={(60-r1*Math.cos(a)).toFixed(1)} x2={(60+49*Math.sin(a)).toFixed(1)} y2={(60-49*Math.cos(a)).toFixed(1)} stroke="var(--text-dim)" strokeWidth={i%5===0?1.2:0.5} opacity={muted?0.4:0.7}/>);}
+  return <svg viewBox="0 0 120 120" width={size} height={size} style={{display:"block",margin:"0 auto"}}>
+    <circle cx="60" cy="60" r="55" fill="var(--bg-card)" stroke={c} strokeWidth="3"/>
+    <circle cx="60" cy="60" r="49" fill="none" stroke="var(--border)" strokeWidth="1"/>
+    {ticks}
+    <text x="60" y="25" textAnchor="middle" fontFamily="'Cormorant Garamond',serif" fontSize="11" fill="var(--text-dim)">XII</text>
+    <text x="97" y="64" textAnchor="middle" fontFamily="'Cormorant Garamond',serif" fontSize="11" fill="var(--text-dim)">III</text>
+    <text x="60" y="102" textAnchor="middle" fontFamily="'Cormorant Garamond',serif" fontSize="11" fill="var(--text-dim)">VI</text>
+    <text x="23" y="64" textAnchor="middle" fontFamily="'Cormorant Garamond',serif" fontSize="11" fill="var(--text-dim)">IX</text>
+    {!muted&&left>0&&ang<359.9&&<path d={`M60,60 L60,16 A44,44 0 ${ang>180?1:0},1 ${sx.toFixed(1)},${sy.toFixed(1)} Z`} fill={c} fillOpacity="0.13"/>}
+    {!muted&&left>0&&ang>=359.9&&<circle cx="60" cy="60" r="44" fill={c} fillOpacity="0.13"/>}
+    <line x1="60" y1="60" x2={muted?60:hx.toFixed(1)} y2={muted?24:hy.toFixed(1)} stroke={c} strokeWidth="2.5" strokeLinecap="round"/>
+    {muted&&<line x1="60" y1="60" x2="84" y2="72" stroke={c} strokeWidth="2" strokeLinecap="round"/>}
+    <circle cx="60" cy="60" r="3.5" fill={c}/>
+  </svg>;
+}
 const THREAD_TYPES=[{id:"Subplot",color:"#5A6B3A"},{id:"Question",color:"#7A6EA0"},{id:"Object",color:"#907860"},{id:"Relationship",color:"#A8884A"}];
 
 const AGNES_INVOLVEMENT_LEVELS=[
@@ -977,6 +1009,10 @@ export default function App() {
   const finnWidths = {small:300,medium:360,large:460};
   const endRef = useRef(null);
   const taRef = useRef(null);
+  const [writeClock,setWriteClock]=useState(null); // null | {site:"chat"|"inferno", total, left, running, done:false|"soft"}
+  const [clockPreset,setClockPreset]=useState(null); // writer-nudged minutes for the chat clock chip
+  const clockIntervalRef=useRef(null);
+  const lastInfernoTypeRef=useRef(0);
   const writeRef = useRef(null);
   const ideaLabRef = useRef(null);
   const infernoRef = useRef(null);
@@ -1137,6 +1173,24 @@ export default function App() {
   useEffect(()=>{endRef.current?.scrollIntoView({behavior:"smooth"})},[msgs]);
   useEffect(()=>{if(mode&&msgs.length>0)saveStored("tt-chat-"+mode.id,msgs)},[msgs]);
   useEffect(()=>{if(taRef.current){taRef.current.style.height="auto";taRef.current.style.height=Math.min(taRef.current.scrollHeight,200)+"px"}},[input]);
+  useEffect(()=>{
+    if(writeClock?.running){
+      clockIntervalRef.current=setInterval(()=>{
+        setWriteClock(prev=>{
+          if(!prev||!prev.running)return prev;
+          const nl=prev.left-1;
+          if(nl<=0){
+            if(prev.site==="inferno"&&Date.now()-lastInfernoTypeRef.current<8000)return null;
+            return {...prev,left:0,running:false,done:"soft"};
+          }
+          return {...prev,left:nl};
+        });
+      },1000);
+      return ()=>clearInterval(clockIntervalRef.current);
+    }
+  },[writeClock?.running]);
+  useEffect(()=>{setWriteClock(prev=>{if(!prev)return prev;if(prev.site==="chat"&&screen!=="chat")return null;if(prev.site==="inferno"&&(screen!=="container"||forgeMode!=="inferno"))return null;return prev;});},[screen,forgeMode]);
+  useEffect(()=>{setClockPreset(null);setWriteClock(prev=>prev&&prev.site==="chat"?null:prev);},[mode?.id]);
   useEffect(()=>{setSceneNotesOpen(false)},[activeScene]);
   useEffect(()=>{if(screen==="setup"){setBibExpanded(!!project);setBibTab("overview");}if(screen!=="project")setBibleSearch("");},[screen]);
 
@@ -1397,7 +1451,7 @@ export default function App() {
   // Container Finn
   const CONTAINER_FINN=`${FINN}\n\nMODE: CONTAINER COACHING. You are coaching the writer WHILE they write. They are mid-scene. Be quick and precise. Read their current scene text and Story Bible. You can do anything the regular coaching modes do: diagnose blocks, do scene surgery, deep-dive characters, check plot, analyze voice. The writer doesn't need to leave the container. Adapt to what they ask. If they say "this scene needs surgery," do scene surgery. If they say "I'm stuck," diagnose the block. If they say "break this down," go comprehensive. Default: short, sharp, actionable. Get them back to writing fast. Under 150 words unless they ask for more.
 
-INFERNO TOOLS: If a message begins with "INFERNO TOOL:", the writer tapped a tool during a high-energy writing session. Run that tool immediately, no preamble, no asking if they're sure. Keep it under 80 words, they are mid-fire. The tools: "Capture the flood" = tell them to dump every idea one line each with no explaining, you'll hold them. "Channel the heat" = look at their recent text and flood, help them sort what moves the story NOW from fuel for later. "Ride the wave, 25 min" = set them loose on a timed sprint, pointing at where their own text or Story Bible leaves off, quoting or closely echoing what is already there, no editing allowed. "Flag everything" = remind them their clarity is elevated, tell them to flag what feels alive, point at one specific thing in their current text worth flagging. "Body check" = water, food, stand up, ninety seconds, the fire keeps. Be warm and brief. "Wind down" = help them capture one sentence as tomorrow's way back in, then release them without guilt. For every tool: reflect the writer's own momentum back to them. Never introduce story events, images, or lines that are not already in their text or Bible, however small or evocative. What happens next is theirs to write, not yours to seed.`;
+INFERNO TOOLS: If a message begins with "INFERNO TOOL:", the writer tapped a tool during a high-energy writing session. Run that tool immediately, no preamble, no asking if they're sure. Keep it under 80 words, they are mid-fire. The tools: "Capture the flood" = tell them to dump every idea one line each with no explaining, you'll hold them. "Channel the heat" = look at their recent text and flood, help them sort what moves the story NOW from fuel for later. "Ride the wave, 25 min" = set them loose on a timed sprint (a small clock is armed at twenty five minutes in their sidebar, tell them to tap it when ready), pointing at where their own text or Story Bible leaves off, quoting or closely echoing what is already there, no editing allowed. "Flag everything" = remind them their clarity is elevated, tell them to flag what feels alive, point at one specific thing in their current text worth flagging. "Body check" = water, food, stand up, ninety seconds, the fire keeps. Be warm and brief. "Wind down" = help them capture one sentence as tomorrow's way back in, then release them without guilt. For every tool: reflect the writer's own momentum back to them. Never introduce story events, images, or lines that are not already in their text or Bible, however small or evocative. What happens next is theirs to write, not yours to seed.`;
 
   // "Note this" on a coaching message: Finn proposes a specific, concise note rather than saving the
   // raw message verbatim, and the writer can edit it before confirming. Nothing saves silently.
@@ -4596,7 +4650,7 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
               hits, not just at day one. Reuses the exact same engine as the welcome-flow version. */}
           {!bibleOrganize&&<div style={{background:"var(--bg-card)",border:"1px dashed var(--border-mid)",borderRadius:10,padding:"12px 16px",marginBottom:18,display:"flex",justifyContent:"space-between",alignItems:"center",flexWrap:"wrap",gap:8}}>
             <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:13,color:"var(--text-dim)",fontStyle:"italic"}}>Written or pasted a pile of new material? Agnes can read it and show you where it belongs.</div>
-            <span onClick={()=>setBibleOrganize({step:"paste"})} style={{fontSize:10,padding:"6px 14px",borderRadius:5,border:"1px solid var(--agnes,#7A6A8A)",color:"var(--agnes,#7A6A8A)",cursor:"pointer",fontFamily:"'DM Sans',sans-serif",whiteSpace:"nowrap"}}>Sort with Agnes</span>
+            <span onClick={()=>setBibleOrganize({step:"paste"})} style={{fontSize:10,padding:"6px 14px",borderRadius:5,border:"1px solid var(--agnes,#7A6A8A)",color:"var(--agnes,#7A6A8A)",cursor:"pointer",fontFamily:"'DM Sans',sans-serif",whiteSpace:"nowrap"}}>File new material</span>
           </div>}
           {/* Session Focus at top — inline editable, no Edit mode required */}
           <div style={{background:"var(--bg-card-alt)",border:"1px solid var(--border)",borderRadius:10,padding:"14px 16px",marginBottom:18}}>
@@ -5268,6 +5322,23 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
             {/* Inferno nav */}
             {forgeMode==="inferno"&&<>
               <div style={{flex:1}}>
+                {writeClock&&writeClock.site==="inferno"&&<div style={{textAlign:"center",marginBottom:12}}>
+                  {writeClock.done==="soft"?<>
+                    <ClockFace total={writeClock.total} left={0} size={56} muted/>
+                    <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:12,fontStyle:"italic",color:"#C07848",lineHeight:1.5,marginTop:4}}>The wave carried. Another one, or shift the heat?</div>
+                    <span onClick={()=>setWriteClock(null)} style={{fontSize:9,color:"var(--text-dim)",cursor:"pointer"}}>dismiss</span>
+                  </>:writeClock.running?<>
+                    <ClockFace total={writeClock.total} left={writeClock.left} size={64} color="#C07848"/>
+                    <div style={{fontSize:11,color:"#C07848",fontFamily:"'DM Sans',sans-serif",marginTop:2}}>{Math.floor(writeClock.left/60)}:{String(writeClock.left%60).padStart(2,"0")}</div>
+                    <span onClick={()=>setWriteClock(prev=>prev?{...prev,running:false,left:0,done:"soft"}:prev)} style={{fontSize:9,color:"var(--text-dim)",cursor:"pointer"}}>set it down</span>
+                  </>:<>
+                    <span onClick={()=>setWriteClock(prev=>prev?{...prev,running:true}:prev)} style={{display:"inline-flex",alignItems:"center",gap:6,border:"1px solid #C07848",color:"#C07848",borderRadius:16,padding:"4px 11px",fontSize:11,cursor:"pointer",fontFamily:"'DM Sans',sans-serif"}}>Begin {Math.round(writeClock.total/60)} min</span>
+                    <div style={{display:"flex",justifyContent:"center",gap:10,marginTop:4}}>
+                      <span onClick={()=>setWriteClock(prev=>prev?{...prev,total:Math.max(300,prev.total-300),left:Math.max(300,prev.total-300)}:prev)} style={{fontSize:11,color:"var(--text-dim)",cursor:"pointer"}}>{"\u2212"}5</span>
+                      <span onClick={()=>setWriteClock(prev=>prev?{...prev,total:Math.min(3600,prev.total+300),left:Math.min(3600,prev.total+300)}:prev)} style={{fontSize:11,color:"var(--text-dim)",cursor:"pointer"}}>+5</span>
+                    </div>
+                  </>}
+                </div>}
                 <div style={{fontSize:9,textTransform:"uppercase",letterSpacing:"0.18em",color:"#C07848",fontWeight:500,marginBottom:8}}>You're on fire</div>
                 <div style={{background:"var(--bg-card)",border:"1px solid #C0784820",borderRadius:8,padding:10,marginBottom:8}}>
                   <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:12,color:"#C07848",fontStyle:"italic",lineHeight:1.6}}>Don't stop. Don't edit. Just burn.</div>
@@ -5282,6 +5353,7 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
                           setFinnOpen(true);
                           sendContainerMessage(`INFERNO TOOL: ${tool}`);
                           setInfernoSuggestion(null);
+                          if(tool.indexOf("Ride the wave")===0)setWriteClock({site:"inferno",total:1500,left:1500,running:false,done:false});
                         }} style={{flex:1,padding:"9px 10px",fontSize:12,color:"#C07848",cursor:"pointer",fontFamily:"'DM Sans',sans-serif"}}>
                           {tool}
                         </div>
@@ -5399,7 +5471,7 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
               </div>
               <div style={{flex:1,position:"relative",display:"flex",flexDirection:"column",minHeight:0}}>
                 <div style={{flex:1,overflow:"auto",padding:"24px 40px"}}>
-                  <textarea ref={infernoRef} value={infernoText} onChange={e=>{setInfernoText(e.target.value);saveStored("tt-inferno-text",e.target.value);}} placeholder="Don't stop. Don't edit. Don't look back. Just burn." style={{width:"100%",minHeight:400,overflow:"hidden",background:"none",border:"none",outline:"none",resize:"none",fontFamily:"'Cormorant Garamond',serif",fontSize:18,color:"var(--text-primary)",lineHeight:2}}/>
+                  <textarea ref={infernoRef} value={infernoText} onChange={e=>{setInfernoText(e.target.value);saveStored("tt-inferno-text",e.target.value);lastInfernoTypeRef.current=Date.now();}} placeholder="Don't stop. Don't edit. Don't look back. Just burn." style={{width:"100%",minHeight:400,overflow:"hidden",background:"none",border:"none",outline:"none",resize:"none",fontFamily:"'Cormorant Garamond',serif",fontSize:18,color:"var(--text-primary)",lineHeight:2}}/>
                 </div>
                 {/* Finn's presence in Inferno: a small quiet dot, right side. Dark when idle, terracotta
                     with a soft pulse when he has a suggestion. Tap to peek; "Talk with Finn" expands to chat. */}
@@ -5937,6 +6009,41 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
           </div>}
           <div ref={endRef}/>
         </div>
+        {(mode.id==="perfectionism"||mode.id==="craft")&&(()=>{
+          if(writeClock&&writeClock.site==="chat"){
+            if(writeClock.done==="soft")return <div style={{textAlign:"center",padding:"10px 20px 4px"}}>
+              <ClockFace total={writeClock.total} left={0} size={72} muted/>
+              <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:15,fontStyle:"italic",color:"var(--text-primary)",maxWidth:430,margin:"6px auto 8px",lineHeight:1.6}}>The kettle's off. Whatever landed on the page, it exists now, and that was the whole assignment.</div>
+              <span onClick={()=>setWriteClock(null)} style={{fontSize:10,padding:"4px 13px",border:"1px solid var(--border)",borderRadius:14,color:"var(--text-dim)",cursor:"pointer",fontFamily:"'DM Sans',sans-serif"}}>Done</span>
+            </div>;
+            if(writeClock.running){const cm=Math.floor(writeClock.left/60),cs=writeClock.left%60;
+              return <div style={{textAlign:"center",padding:"6px 20px 2px"}}>
+                <ClockFace total={writeClock.total} left={writeClock.left} size={104}/>
+                <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:17,color:"var(--text-primary)",marginTop:2}}>{cm}:{cs<10?"0":""}{cs}</div>
+                <div style={{fontSize:10,color:"var(--text-dim)",marginTop:1}}>{mode.id==="perfectionism"?"Messy counts. Keep going.":"Stay with the exercise. It's working."}</div>
+                <span onClick={()=>setWriteClock(prev=>prev?{...prev,running:false,left:0,done:"soft"}:prev)} style={{display:"inline-block",marginTop:6,fontSize:10,color:"var(--text-dim)",border:"1px solid var(--border)",borderRadius:14,padding:"3px 11px",cursor:"pointer",fontFamily:"'DM Sans',sans-serif"}}>Set it down early</span>
+              </div>;}
+            return null;
+          }
+          const lastFinn=[...msgs].reverse().find(fm=>fm.role==="assistant");
+          const CLOCK_WORDS={five:5,ten:10,fifteen:15,twenty:20,"twenty five":25,"twenty-five":25,thirty:30,"forty five":45,"forty-five":45,sixty:60};
+          let cmins=null;
+          if(lastFinn){
+            const cn=lastFinn.content.match(/(\d{1,2})\s*-?\s*min/i);
+            if(cn)cmins=parseInt(cn[1]);
+            else{const cw=lastFinn.content.toLowerCase().match(/\b(twenty[- ]five|forty[- ]five|fifteen|twenty|thirty|sixty|five|ten)\s*-?\s*min/);if(cw)cmins=CLOCK_WORDS[cw[1]];}
+          }
+          if(cmins==null)cmins=mode.id==="perfectionism"?10:15;
+          cmins=Math.min(60,Math.max(2,cmins));
+          const cur=clockPreset!=null?clockPreset:cmins;
+          return <div style={{padding:"4px 20px 2px",display:"flex",justifyContent:"center"}}>
+            <span style={{display:"inline-flex",alignItems:"center",gap:7,border:"1px solid var(--accent)",color:"var(--accent)",borderRadius:20,padding:"5px 13px",fontSize:12,fontFamily:"'DM Sans',sans-serif"}}>
+              <span onClick={()=>setWriteClock({site:"chat",total:cur*60,left:cur*60,running:true,done:false})} style={{cursor:"pointer"}}>Begin {cur} minutes</span>
+              <span onClick={()=>setClockPreset(Math.max(2,cur-1))} style={{cursor:"pointer",color:"var(--text-dim)",padding:"0 3px"}}>{"\u2212"}</span>
+              <span onClick={()=>setClockPreset(Math.min(60,cur+1))} style={{cursor:"pointer",color:"var(--text-dim)",padding:"0 3px"}}>+</span>
+            </span>
+          </div>;
+        })()}
         <div style={{padding:"12px 20px 20px",borderTop:"1px solid var(--border)",background:"var(--bg-base)"}}>
           <div style={{display:"flex",gap:10,alignItems:"flex-end",background:"var(--bg-card)",border:"1px solid var(--border)",borderRadius:14,padding:"10px 14px"}}>
             <textarea ref={taRef} value={input} onChange={e=>setInput(e.target.value)} onKeyDown={e=>{if(e.key==="Enter"&&!e.shiftKey){e.preventDefault();send()}}} placeholder={mode.ph} style={{flex:1,background:"none",border:"none",outline:"none",color:"var(--text-primary)",fontFamily:"'Cormorant Garamond',serif",fontSize:15,lineHeight:1.6,resize:"none",maxHeight:200}} rows={1}/>
