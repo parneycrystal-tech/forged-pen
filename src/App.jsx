@@ -579,6 +579,51 @@ function bibleSummaryCtx(project){
   if(!project)return "No project yet.";
   return `Title: "${project.title||"untitled"}". Genre: ${project.genre||"not specified"}. Synopsis: ${project.synopsis||"not yet captured"}. Protagonist: ${project.protagonist||"not yet captured"}. Main plot: ${project.mainPlot||"not yet captured"}. Themes: ${project.themes||"not yet captured"}. World/setting: ${project.worldSetting||"not yet captured"}.`;
 }
+// Groups embers for the sidebar list. Reuses data Agnes already extracts on every ember (the
+// character tag, the placement hypothesis, the status field) rather than tracking anything new.
+// "position" does a light chapter-number extraction from the hypothesis text; anything that
+// doesn't parse cleanly just falls into "Not yet placed" rather than guessing.
+function groupEmbers(embers,groupBy){
+  const active=embers.filter(e=>e.status!=="archived");
+  if(groupBy==="none")return [{label:null,items:active}];
+  const buckets={};
+  const order=[];
+  const push=(label,e)=>{if(!buckets[label]){buckets[label]=[];order.push(label);}buckets[label].push(e);};
+  active.forEach(e=>{
+    if(groupBy==="character"){
+      push(e.agnesAnalysis?.characterTag?.trim()||"No character tagged yet",e);
+    }else if(groupBy==="status"){
+      push(e.status==="active"?"Active":(e.status||"Active"),e);
+    }else if(groupBy==="position"){
+      const hyp=e.agnesAnalysis?.placementHypothesis||"";
+      const match=hyp.match(/chapter\s+(\d+)/i);
+      if(!match)push("Not yet placed",e);
+      else{
+        const n=parseInt(match[1]);
+        push(n<=5?"Early (ch. 1-5)":n<=10?"Middle (ch. 6-10)":"Late (ch. 11+)",e);
+      }
+    }
+  });
+  // Keep "not yet" style catch-all buckets last, everything else in first-seen order
+  const sorted=order.sort((a,b)=>{
+    const aCatch=/no character|not yet/i.test(a),bCatch=/no character|not yet/i.test(b);
+    if(aCatch&&!bCatch)return 1;if(bCatch&&!aCatch)return -1;return 0;
+  });
+  return sorted.map(label=>({label,items:buckets[label]}));
+}
+// Shelves for research notes: the first tag on a note IS its shelf, nothing new to store. Notes
+// with no tags land on an honest "Unsorted" shelf rather than vanishing anywhere.
+function groupResearchNotes(notes){
+  const buckets={};const order=[];
+  const push=(label,n)=>{if(!buckets[label]){buckets[label]=[];order.push(label);}buckets[label].push(n);};
+  (notes||[]).forEach(n=>{
+    const tags=(n.links||"").split(",").map(t=>t.trim()).filter(Boolean);
+    push(tags[0]||"Unsorted",n);
+  });
+  const sorted=order.sort((a,b)=>a==="Unsorted"?1:b==="Unsorted"?-1:0);
+  return sorted.map(label=>({label,items:buckets[label]}));
+}
+
 function existingCharacterNamesList(project){
   const protagName=project?.protagonist?(project.protagonist.split(":")[0]||"").trim():null;
   const entries=[protagName,...(project?.characters||[]).map(c=>{
@@ -918,6 +963,7 @@ export default function App() {
   // Finn's coaching chats since this is Agnes's own space, librarian voice, no live search.
   const [researchForm, setResearchForm] = useState(null); // null | {id:null|existingId, title, note, source, links, status}
   const [researchChat, setResearchChat] = useState({open:false, msgs:[], loading:false, draft:null, error:null});
+  const [emberGroupBy, setEmberGroupBy] = useState("none"); // "none" | "character" | "position" | "status" — reads data Agnes already extracts, nothing new tracked
   const [bibExpanded, setBibExpanded] = useState(false);
   const [bibleSearch, setBibleSearch] = useState("");
   const [sparkCapture, setSparkCapture] = useState(null); // {q1,q2} while the two-question capture is open, else null
@@ -5202,7 +5248,7 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
             <input value={researchForm.title} onChange={e=>setResearchForm(prev=>({...prev,title:e.target.value}))} placeholder="Title" style={{width:"100%",marginBottom:8,padding:"8px 10px",borderRadius:6,border:"1px solid var(--border)",background:"var(--bg-card-alt)",fontFamily:"'Cormorant Garamond',serif",fontSize:14,outline:"none"}}/>
             <textarea value={researchForm.note} onChange={e=>setResearchForm(prev=>({...prev,note:e.target.value}))} placeholder="What did you find?" rows={3} style={{width:"100%",marginBottom:8,padding:"8px 10px",borderRadius:6,border:"1px solid var(--border)",background:"var(--bg-card-alt)",fontFamily:"'Cormorant Garamond',serif",fontSize:14,outline:"none",resize:"vertical"}}/>
             <input value={researchForm.source} onChange={e=>setResearchForm(prev=>({...prev,source:e.target.value}))} placeholder="Source (a link, a book, or how you know it)" style={{width:"100%",marginBottom:8,padding:"8px 10px",borderRadius:6,border:"1px solid var(--border)",background:"var(--bg-card-alt)",fontFamily:"'Cormorant Garamond',serif",fontSize:13,outline:"none"}}/>
-            <input value={researchForm.links} onChange={e=>setResearchForm(prev=>({...prev,links:e.target.value}))} placeholder="Tags, comma separated (World, a character's name, Chapter 3, Craft reference)" style={{width:"100%",marginBottom:12,padding:"8px 10px",borderRadius:6,border:"1px solid var(--border)",background:"var(--bg-card-alt)",fontFamily:"'DM Sans',sans-serif",fontSize:12,outline:"none"}}/>
+            <input value={researchForm.links} onChange={e=>setResearchForm(prev=>({...prev,links:e.target.value}))} placeholder="Shelf, then any other tags (Bees, World, Chapter 3 — first one becomes the shelf)" style={{width:"100%",marginBottom:12,padding:"8px 10px",borderRadius:6,border:"1px solid var(--border)",background:"var(--bg-card-alt)",fontFamily:"'DM Sans',sans-serif",fontSize:12,outline:"none"}}/>
             <div style={{display:"flex",gap:8}}>
               <span onClick={saveResearchNote} style={{fontSize:11,padding:"6px 16px",borderRadius:6,background:"var(--accent)",color:"#F4EEDF",cursor:"pointer",fontFamily:"'DM Sans',sans-serif"}}>Save</span>
               <span onClick={()=>setResearchForm(null)} style={{fontSize:11,padding:"6px 16px",borderRadius:6,border:"1px solid var(--border)",color:"var(--text-dim)",cursor:"pointer",fontFamily:"'DM Sans',sans-serif"}}>Cancel</span>
@@ -5235,25 +5281,34 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
           </div>}
 
           {(project?.researchNotes||[]).length===0&&!researchForm&&<p style={{fontFamily:"'Cormorant Garamond',serif",fontSize:14,color:"var(--text-dim)",fontStyle:"italic"}}>Nothing here yet. Add a note, or ask Agnes to help you think one through.</p>}
-          {(project?.researchNotes||[]).map(n=>(
-            <div key={n.id} style={{background:"var(--bg-card)",border:"1px solid var(--border)",borderRadius:10,padding:"14px 16px",marginBottom:10}}>
-              <div style={{display:"flex",justifyContent:"space-between",alignItems:"baseline",gap:8,flexWrap:"wrap",marginBottom:6}}>
-                <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:16,color:"var(--text-primary)"}}>{n.title}</div>
-                <span onClick={()=>toggleResearchStatus(n.id)} style={{fontSize:9,textTransform:"uppercase",letterSpacing:"0.08em",padding:"3px 9px",borderRadius:4,fontFamily:"'DM Sans',sans-serif",fontWeight:500,cursor:"pointer",background:n.status==="used"?"rgba(110,138,106,0.14)":"rgba(176,151,90,0.16)",color:n.status==="used"?"#6E8A6A":"#B0975A"}}>{n.status==="used"?"Incorporated":"Not yet used"}</span>
+          {groupResearchNotes(project?.researchNotes).map((shelf,si)=>(
+            <div key={si} style={{marginBottom:20}}>
+              <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:8}}>
+                <span style={{fontSize:10,textTransform:"uppercase",letterSpacing:"0.12em",color:shelf.label==="Unsorted"?"var(--text-dim)":"var(--accent)",fontFamily:"'DM Sans',sans-serif",fontWeight:600}}>{shelf.label}</span>
+                <span style={{fontSize:9,color:"var(--text-faint)",fontFamily:"'DM Sans',sans-serif"}}>{shelf.items.length} note{shelf.items.length!==1?"s":""}</span>
+                <div style={{flex:1,height:1,background:"var(--border-mid)"}}/>
               </div>
-              {n.note&&<div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:14,color:"var(--text-secondary)",lineHeight:1.65,marginBottom:8}}>{n.note}</div>}
-              <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",flexWrap:"wrap",gap:6}}>
-                <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
-                  {n.source&&<span style={{fontSize:11,fontStyle:"italic",color:"var(--text-dim)",fontFamily:"'Cormorant Garamond',serif"}}>{n.source}</span>}
-                  {(n.links||"").split(",").map(l=>l.trim()).filter(Boolean).map((l,i)=>(
-                    <span key={i} style={{fontSize:9,textTransform:"uppercase",letterSpacing:"0.06em",background:"var(--accent-15,rgba(192,120,72,0.12))",color:"var(--accent)",borderRadius:4,padding:"2px 8px",fontFamily:"'DM Sans',sans-serif"}}>{l}</span>
-                  ))}
+              {shelf.items.map(n=>(
+                <div key={n.id} style={{background:"var(--bg-card)",border:shelf.label==="Unsorted"?"1px dashed var(--border-mid)":"1px solid var(--border)",borderRadius:10,padding:"14px 16px",marginBottom:8,marginLeft:14}}>
+                  <div style={{display:"flex",justifyContent:"space-between",alignItems:"baseline",gap:8,flexWrap:"wrap",marginBottom:6}}>
+                    <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:16,color:"var(--text-primary)"}}>{n.title}</div>
+                    <span onClick={()=>toggleResearchStatus(n.id)} style={{fontSize:9,textTransform:"uppercase",letterSpacing:"0.08em",padding:"3px 9px",borderRadius:4,fontFamily:"'DM Sans',sans-serif",fontWeight:500,cursor:"pointer",background:n.status==="used"?"rgba(110,138,106,0.14)":"rgba(176,151,90,0.16)",color:n.status==="used"?"#6E8A6A":"#B0975A"}}>{n.status==="used"?"Incorporated":"Not yet used"}</span>
+                  </div>
+                  {n.note&&<div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:14,color:"var(--text-secondary)",lineHeight:1.65,marginBottom:8}}>{n.note}</div>}
+                  <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",flexWrap:"wrap",gap:6}}>
+                    <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
+                      {n.source&&<span style={{fontSize:11,fontStyle:"italic",color:"var(--text-dim)",fontFamily:"'Cormorant Garamond',serif"}}>{n.source}</span>}
+                      {(n.links||"").split(",").map(l=>l.trim()).filter(Boolean).map((l,i)=>(
+                        <span key={i} style={{fontSize:9,textTransform:"uppercase",letterSpacing:"0.06em",background:"var(--accent-15,rgba(192,120,72,0.12))",color:"var(--accent)",borderRadius:4,padding:"2px 8px",fontFamily:"'DM Sans',sans-serif"}}>{l}</span>
+                      ))}
+                    </div>
+                    <div style={{display:"flex",gap:10}}>
+                      <span onClick={()=>setResearchForm({id:n.id,title:n.title,note:n.note,source:n.source,links:n.links,status:n.status})} style={{fontSize:10,color:"var(--text-dim)",cursor:"pointer",fontFamily:"'DM Sans',sans-serif"}}>Edit</span>
+                      <span onClick={()=>deleteResearchNote(n.id)} style={{fontSize:10,color:"var(--text-dim)",cursor:"pointer",fontFamily:"'DM Sans',sans-serif"}}>Delete</span>
+                    </div>
+                  </div>
                 </div>
-                <div style={{display:"flex",gap:10}}>
-                  <span onClick={()=>setResearchForm({id:n.id,title:n.title,note:n.note,source:n.source,links:n.links,status:n.status})} style={{fontSize:10,color:"var(--text-dim)",cursor:"pointer",fontFamily:"'DM Sans',sans-serif"}}>Edit</span>
-                  <span onClick={()=>deleteResearchNote(n.id)} style={{fontSize:10,color:"var(--text-dim)",cursor:"pointer",fontFamily:"'DM Sans',sans-serif"}}>Delete</span>
-                </div>
-              </div>
+              ))}
             </div>
           ))}
         </div>}
@@ -5570,11 +5625,21 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
                   <div style={{fontSize:10,color:"#8A7AAA",fontFamily:"'DM Sans',sans-serif"}}>+ New ember</div>
                 </div>
                 {embers.length===0&&<div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:12,color:"var(--text-dim)",fontStyle:"italic",lineHeight:1.6}}>Scenes without a home. Drop them here. Agnes reads each one and suggests where it might belong.</div>}
-                {embers.filter(e=>e.status!=="archived").map(e=>(
-                  <div key={e.id} onClick={()=>setActiveEmber(e.id)} style={{background:activeEmber===e.id?"var(--bg-card-alt)":"var(--bg-card)",border:`1px solid ${activeEmber===e.id?"#8A7AAA60":"var(--border)"}`,borderLeft:activeEmber===e.id?"2px solid #8A7AAA":"2px solid transparent",borderRadius:6,padding:"8px 10px",marginBottom:6,cursor:"pointer"}}>
-                    <div style={{fontSize:11,color:"#8A7AAA",fontFamily:"'Cormorant Garamond',serif",fontWeight:600,marginBottom:2}}>{e.title||"Untitled ember"}</div>
-                    <div style={{fontSize:9,color:"var(--text-dim)",fontFamily:"'DM Sans',sans-serif"}}>{(e.text||"").split(/\s+/).filter(w=>w).length} words</div>
-                    {e.agnesAnalysis?.characterTag&&<div style={{fontSize:9,color:"#8A7AAA",marginTop:3,fontFamily:"'DM Sans',sans-serif",opacity:0.7}}>{e.agnesAnalysis.characterTag}</div>}
+                {embers.filter(e=>e.status!=="archived").length>2&&<div style={{display:"flex",flexWrap:"wrap",gap:4,marginBottom:10}}>
+                  {[["none","All"],["character","Character"],["position","Position"],["status","Status"]].map(([id,label])=>(
+                    <span key={id} onClick={()=>setEmberGroupBy(id)} style={{fontSize:9,padding:"3px 8px",borderRadius:4,cursor:"pointer",fontFamily:"'DM Sans',sans-serif",background:emberGroupBy===id?"#8A7AAA25":"transparent",border:"1px solid "+(emberGroupBy===id?"#8A7AAA":"var(--border)"),color:emberGroupBy===id?"#8A7AAA":"var(--text-dim)"}}>{label}</span>
+                  ))}
+                </div>}
+                {groupEmbers(embers,emberGroupBy).map((group,gi)=>(
+                  <div key={gi}>
+                    {group.label&&<div style={{fontSize:9,textTransform:"uppercase",letterSpacing:"0.08em",color:"var(--text-dim)",fontFamily:"'DM Sans',sans-serif",margin:"10px 0 5px",paddingTop:gi>0?4:0,borderTop:gi>0?"1px dashed var(--border)":"none"}}>{group.label}</div>}
+                    {group.items.map(e=>(
+                      <div key={e.id} onClick={()=>setActiveEmber(e.id)} style={{background:activeEmber===e.id?"var(--bg-card-alt)":"var(--bg-card)",border:`1px solid ${activeEmber===e.id?"#8A7AAA60":"var(--border)"}`,borderLeft:activeEmber===e.id?"2px solid #8A7AAA":"2px solid transparent",borderRadius:6,padding:"8px 10px",marginBottom:6,cursor:"pointer"}}>
+                        <div style={{fontSize:11,color:"#8A7AAA",fontFamily:"'Cormorant Garamond',serif",fontWeight:600,marginBottom:2}}>{e.title||"Untitled ember"}</div>
+                        <div style={{fontSize:9,color:"var(--text-dim)",fontFamily:"'DM Sans',sans-serif"}}>{(e.text||"").split(/\s+/).filter(w=>w).length} words</div>
+                        {emberGroupBy==="none"&&e.agnesAnalysis?.characterTag&&<div style={{fontSize:9,color:"#8A7AAA",marginTop:3,fontFamily:"'DM Sans',sans-serif",opacity:0.7}}>{e.agnesAnalysis.characterTag}</div>}
+                      </div>
+                    ))}
                   </div>
                 ))}
               </div>
