@@ -4107,22 +4107,6 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
           </div>
         </div>}
 
-        {/* File new material — surfaced proactively, Full involvement only. Fires on real signal
-            (unreviewed volume or a meaningful return with something waiting), never on elapsed
-            time alone with nothing new. */}
-        {newMaterialAlert&&<div style={{background:"var(--bg-card)",border:"1px solid var(--agnes,#7A6A8A)",borderRadius:10,padding:"16px 20px",marginBottom:12}}>
-          <div style={{fontSize:8,textTransform:"uppercase",letterSpacing:"0.25em",color:"var(--agnes,#7A6A8A)",fontWeight:500,marginBottom:8}}>Agnes</div>
-          <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:15,color:"var(--text-primary)",lineHeight:1.7,marginBottom:12}}>{newMaterialAlert.count>1?`You've got ${newMaterialAlert.count} new fragments since we last sorted, ${newMaterialAlert.words} words or so of material waiting.`:"You've written a good amount since we last sorted."} Want me to read through it and show you where it belongs?</div>
-          <div style={{display:"flex",gap:8}}>
-            <span onClick={()=>{
-              const since=project?.lastBibleOrganizeAt||0;
-              const combined=embers.filter(e=>(e.createdAt||0)>since).map(e=>`${e.title?e.title+": ":""}${e.text||""}`).join("\n\n---\n\n");
-              runBibleOrganize(combined);
-            }} style={{fontSize:11,padding:"6px 16px",borderRadius:6,background:"var(--agnes,#7A6A8A)",color:"#F4EEDF",cursor:"pointer",fontFamily:"'DM Sans',sans-serif"}}>File it now</span>
-            <span onClick={()=>setNewMaterialAlert(null)} style={{fontSize:11,padding:"6px 16px",borderRadius:6,border:"1px solid var(--border)",color:"var(--text-dim)",cursor:"pointer",fontFamily:"'DM Sans',sans-serif"}}>Not right now</span>
-          </div>
-        </div>}
-
         {/* Finn's Read */}
         {(()=>{
           const route=getSmartRoute();
@@ -4378,6 +4362,24 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
             <div style={{fontSize:11,textTransform:"uppercase",letterSpacing:"0.12em",color:"var(--accent-60)",fontWeight:500,marginBottom:8}}>Latest Spark</div>
             <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:13,color:"var(--text-muted)",fontStyle:"italic",lineHeight:1.6}}>"{(sparks[sparks.length-1]?.text||"").replace(/\*\*/g,"").replace(/\*/g,"").replace(/#{1,6}\s/g,"").replace(/\u2014/g,",").replace(/--/g,",").substring(0,100)}"</div>
             <div style={{fontSize:10,color:"var(--text-dim)",marginTop:6,animation:"wp 4s ease-in-out infinite"}}>{sparks.length} spark{sparks.length>1?"s":""}</div>
+          </div>
+          <div style={{height:1,background:"var(--border)",marginBottom:16}}/>
+        </>}
+
+        {/* File new material, surfaced here instead of at the top of the page — a quiet aside
+            among the other sidebar stats, not a greeting the writer has to walk past first. */}
+        {newMaterialAlert&&<>
+          <div style={{marginBottom:16}}>
+            <div style={{fontSize:11,textTransform:"uppercase",letterSpacing:"0.12em",color:"var(--agnes,#7A6A8A)",fontWeight:500,marginBottom:8}}>Agnes</div>
+            <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:13,color:"var(--text-muted)",fontStyle:"italic",lineHeight:1.6,marginBottom:8}}>{newMaterialAlert.count>1?`${newMaterialAlert.count} fragments waiting, ${newMaterialAlert.words} words or so, since we last sorted.`:"A good amount waiting since we last sorted."}</div>
+            <div style={{display:"flex",gap:10}}>
+              <span onClick={()=>{
+                const since=project?.lastBibleOrganizeAt||0;
+                const combined=embers.filter(e=>(e.createdAt||0)>since).map(e=>`${e.title?e.title+": ":""}${e.text||""}`).join("\n\n---\n\n");
+                runBibleOrganize(combined);
+              }} style={{fontSize:10,color:"var(--agnes,#7A6A8A)",cursor:"pointer",fontFamily:"'DM Sans',sans-serif",textDecoration:"underline"}}>File it now</span>
+              <span onClick={()=>setNewMaterialAlert(null)} style={{fontSize:10,color:"var(--text-dim)",cursor:"pointer",fontFamily:"'DM Sans',sans-serif"}}>Not right now</span>
+            </div>
           </div>
           <div style={{height:1,background:"var(--border)",marginBottom:16}}/>
         </>}
