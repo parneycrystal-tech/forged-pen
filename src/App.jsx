@@ -970,7 +970,7 @@ export default function App() {
   // Research tab: project.researchNotes is the array of saved cards. researchForm holds an
   // open add/edit form. researchChat holds the Ask Agnes conversation state, separate from
   // Finn's coaching chats since this is Agnes's own space, librarian voice, no live search.
-  const [researchForm, setResearchForm] = useState(null); // null | {id:null|existingId, title, note, source, links, status}
+  const [researchForm, setResearchForm] = useState(null); // null | {id:null|existingId, title, note, source, links, status, image} — image is a base64 data URL, stored directly on the note
   const [researchChat, setResearchChat] = useState({open:false, msgs:[], loading:false, draft:null, error:null});
   const [emberGroupBy, setEmberGroupBy] = useState("none"); // "none" | "character" | "position" | "status" | "shelf" — reads data Agnes already extracts, nothing new tracked
   const [editingShelfId, setEditingShelfId] = useState(null); // research note id whose shelf badge is currently an open input, or null
@@ -2406,7 +2406,7 @@ Main plot: ${project?.mainPlot||"none"}`;
   const saveResearchNote=()=>{
     if(!researchForm||!researchForm.title.trim())return;
     const existing=Array.isArray(project?.researchNotes)?[...project.researchNotes]:[];
-    const noteObj={id:researchForm.id||"research_"+Date.now(),title:researchForm.title.trim(),note:researchForm.note||"",source:researchForm.source||"",links:researchForm.links||"",status:researchForm.status||"unused"};
+    const noteObj={id:researchForm.id||"research_"+Date.now(),title:researchForm.title.trim(),note:researchForm.note||"",source:researchForm.source||"",links:researchForm.links||"",status:researchForm.status||"unused",image:researchForm.image||null};
     const idx=existing.findIndex(n=>n.id===noteObj.id);
     if(idx>-1)existing[idx]=noteObj;else existing.unshift(noteObj);
     const updated={...project,researchNotes:existing,updated:Date.now()};
@@ -3369,11 +3369,11 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
   const [charFormEdit,setCharFormEdit]=useState(null); // index being edited, or null for a new character
   const [charForm,setCharForm]=useState({name:"",role:"Secondary character",relationship:"",description:""});
 
-  const openAddCharacter=()=>{setCharForm({name:"",role:"Secondary character",relationship:"",description:"",aliases:""});setCharFormEdit(null);setCharFormOpen(true);};
+  const openAddCharacter=()=>{setCharForm({name:"",role:"Secondary character",relationship:"",appearance:"",description:"",aliases:""});setCharFormEdit(null);setCharFormOpen(true);};
   const openEditCharacter=(idx)=>{
     const c=(project?.characters||[])[idx];
     if(!c)return;
-    setCharForm({name:c.name||"",role:c.role||"Secondary character",relationship:c.relationship||"",description:c.description||"",aliases:c.aliases||""});
+    setCharForm({name:c.name||"",role:c.role||"Secondary character",relationship:c.relationship||"",appearance:c.appearance||"",description:c.description||"",aliases:c.aliases||""});
     setCharFormEdit(idx);
     setCharFormOpen(true);
   };
@@ -4593,6 +4593,10 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
                     <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:16,color:"var(--accent)",marginBottom:2}}>{isProtagonist?(pForm.protagonist?pForm.protagonist.split(/[:.]/)[0].substring(0,30):"Protagonist"):(charForm.name||(charFormEdit===null?"New character":"Unnamed"))}</div>
                     {isProtagonist?<div style={{fontSize:10,color:"var(--accent)",marginBottom:10}}>Protagonist</div>:charForm.relationship&&<div style={{fontSize:12,fontStyle:"italic",color:"var(--text-dim)",marginBottom:10}}>{charForm.relationship}</div>}
                     {!isProtagonist&&charForm.aliases&&<div style={{fontSize:11,color:"var(--text-faint)",marginBottom:10,marginTop:-6}}>also called {charForm.aliases}</div>}
+                    {!isProtagonist&&charForm.appearance&&<div style={{marginBottom:10}}>
+                      <div style={{fontSize:9,textTransform:"uppercase",letterSpacing:"0.1em",color:"var(--text-dim)",fontFamily:"'DM Sans',sans-serif",marginBottom:3}}>Appearance & identity</div>
+                      <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:13,color:"var(--text-secondary)",lineHeight:1.6}}>{charForm.appearance}</div>
+                    </div>}
                     {target&&renderCharacterSummary(target)}
                     {(expanded||!target)&&<div style={{borderTop:target?"1px solid var(--border)":"none",paddingTop:target?12:0,marginTop:4}}>
                       {isProtagonist?<>
@@ -4612,7 +4616,8 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
                           {CHARACTER_ROLES.map(r=><option key={r} value={r}>{r}</option>)}
                         </select>
                         <input className="fi" placeholder="Relationship to protagonist" value={charForm.relationship} onChange={e=>setCharForm(prev=>({...prev,relationship:e.target.value}))} style={{width:"100%",marginBottom:8}}/>
-                        <textarea className="fi" rows={3} placeholder="Description" value={charForm.description} onChange={e=>setCharForm(prev=>({...prev,description:e.target.value}))} style={{width:"100%",marginBottom:10,resize:"vertical"}}/>
+                        <textarea className="fi" rows={2} placeholder="Appearance & identity — how they look, dress, carry themselves" value={charForm.appearance} onChange={e=>setCharForm(prev=>({...prev,appearance:e.target.value}))} style={{width:"100%",marginBottom:8,resize:"vertical"}}/>
+                        <textarea className="fi" rows={3} placeholder="Psychology & role — goal, fear, how they fit the story" value={charForm.description} onChange={e=>setCharForm(prev=>({...prev,description:e.target.value}))} style={{width:"100%",marginBottom:10,resize:"vertical"}}/>
                         <div style={{display:"flex",gap:8,marginBottom:14}}>
                           <Btn onClick={()=>{saveCharacterForm();}} s={{flex:1}}>Save character</Btn>
                           {charFormEdit!==null&&<Btn onClick={()=>{removeCharacter(charFormEdit);setCharFormOpen(false);setSelectedCharKey("protagonist");}} s={{background:"none",borderColor:"var(--border)",color:"var(--text-dim)"}}>Remove</Btn>}
@@ -5297,7 +5302,7 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
           <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",flexWrap:"wrap",gap:8,marginBottom:16}}>
             <div style={{fontSize:13,fontFamily:'Cormorant Garamond',color:"var(--text-dim)",fontStyle:"italic"}}>Worldbuilding, historical detail, craft references, comp titles — kept somewhere tighter than a browser tab.</div>
             <div style={{display:"flex",gap:8}}>
-              <span onClick={()=>setResearchForm({id:null,title:"",note:"",source:"",links:"",status:"unused"})} style={{fontSize:11,padding:"6px 14px",borderRadius:6,border:"1px solid var(--border)",color:"var(--text-dim)",cursor:"pointer",fontFamily:"'DM Sans',sans-serif",whiteSpace:"nowrap"}}>+ Add note</span>
+              <span onClick={()=>setResearchForm({id:null,title:"",note:"",source:"",links:"",status:"unused",image:null})} style={{fontSize:11,padding:"6px 14px",borderRadius:6,border:"1px solid var(--border)",color:"var(--text-dim)",cursor:"pointer",fontFamily:"'DM Sans',sans-serif",whiteSpace:"nowrap"}}>+ Add note</span>
               <span onClick={()=>setResearchChat(prev=>({...prev,open:!prev.open}))} style={{fontSize:11,padding:"6px 14px",borderRadius:6,background:"var(--agnes,#7A6A8A)",color:"#F4EEDF",cursor:"pointer",fontFamily:"'DM Sans',sans-serif",whiteSpace:"nowrap"}}>Ask Agnes</span>
             </div>
           </div>
@@ -5307,6 +5312,23 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
             <textarea value={researchForm.note} onChange={e=>setResearchForm(prev=>({...prev,note:e.target.value}))} placeholder="What did you find?" rows={3} style={{width:"100%",marginBottom:8,padding:"8px 10px",borderRadius:6,border:"1px solid var(--border)",background:"var(--bg-card-alt)",fontFamily:"'Cormorant Garamond',serif",fontSize:14,outline:"none",resize:"vertical"}}/>
             <input value={researchForm.source} onChange={e=>setResearchForm(prev=>({...prev,source:e.target.value}))} placeholder="Source (a link, a book, or how you know it)" style={{width:"100%",marginBottom:8,padding:"8px 10px",borderRadius:6,border:"1px solid var(--border)",background:"var(--bg-card-alt)",fontFamily:"'Cormorant Garamond',serif",fontSize:13,outline:"none"}}/>
             <input value={researchForm.links} onChange={e=>setResearchForm(prev=>({...prev,links:e.target.value}))} placeholder="Shelf, then any other tags (Bees, World, Chapter 3 — first one becomes the shelf)" style={{width:"100%",marginBottom:12,padding:"8px 10px",borderRadius:6,border:"1px solid var(--border)",background:"var(--bg-card-alt)",fontFamily:"'DM Sans',sans-serif",fontSize:12,outline:"none"}}/>
+            {/* Image stored directly as base64 on the note — simplest version that works today
+                with no backend changes. Fine for a handful of reference images; would need real
+                file storage (Supabase) if writers start attaching many large photos per project. */}
+            {researchForm.image?<div style={{marginBottom:12}}>
+              <img src={researchForm.image} alt="" style={{maxWidth:"100%",maxHeight:160,borderRadius:8,border:"1px solid var(--border)",display:"block",marginBottom:6}}/>
+              <span onClick={()=>setResearchForm(prev=>({...prev,image:null}))} style={{fontSize:10,color:"var(--text-dim)",cursor:"pointer",fontFamily:"'DM Sans',sans-serif",textDecoration:"underline"}}>Remove image</span>
+            </div>:<label style={{display:"block",marginBottom:12,fontSize:11,color:"var(--text-dim)",cursor:"pointer",fontFamily:"'DM Sans',sans-serif",border:"1px dashed var(--border-mid)",borderRadius:6,padding:"9px 12px",textAlign:"center"}}>
+              + Add a photo
+              <input type="file" accept="image/*" style={{display:"none"}} onChange={e=>{
+                const file=e.target.files?.[0];
+                if(!file)return;
+                if(file.size>4*1024*1024){alert("That image is a bit large. Try one under 4MB.");return;}
+                const reader=new FileReader();
+                reader.onload=ev=>setResearchForm(prev=>({...prev,image:ev.target.result}));
+                reader.readAsDataURL(file);
+              }}/>
+            </label>}
             <div style={{display:"flex",gap:8}}>
               <span onClick={saveResearchNote} style={{fontSize:11,padding:"6px 16px",borderRadius:6,background:"var(--accent)",color:"#F4EEDF",cursor:"pointer",fontFamily:"'DM Sans',sans-serif"}}>Save</span>
               <span onClick={()=>setResearchForm(null)} style={{fontSize:11,padding:"6px 16px",borderRadius:6,border:"1px solid var(--border)",color:"var(--text-dim)",cursor:"pointer",fontFamily:"'DM Sans',sans-serif"}}>Cancel</span>
@@ -5363,6 +5385,7 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
                       <span onClick={()=>toggleResearchStatus(n.id)} style={{fontSize:9,textTransform:"uppercase",letterSpacing:"0.08em",padding:"3px 9px",borderRadius:4,fontFamily:"'DM Sans',sans-serif",fontWeight:500,cursor:"pointer",background:n.status==="used"?"rgba(110,138,106,0.14)":"rgba(176,151,90,0.16)",color:n.status==="used"?"#6E8A6A":"#B0975A"}}>{n.status==="used"?"Incorporated":"Not yet used"}</span>
                     </div>
                   </div>
+                  {n.image&&<img src={n.image} alt="" style={{maxWidth:"100%",maxHeight:220,borderRadius:8,border:"1px solid var(--border)",display:"block",marginBottom:8}}/>}
                   {n.note&&<div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:14,color:"var(--text-secondary)",lineHeight:1.65,marginBottom:8}}>{n.note}</div>}
                   <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",flexWrap:"wrap",gap:6}}>
                     <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
@@ -5372,7 +5395,7 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
                       ))}
                     </div>
                     <div style={{display:"flex",gap:10}}>
-                      <span onClick={()=>setResearchForm({id:n.id,title:n.title,note:n.note,source:n.source,links:n.links,status:n.status})} style={{fontSize:10,color:"var(--text-dim)",cursor:"pointer",fontFamily:"'DM Sans',sans-serif"}}>Edit</span>
+                      <span onClick={()=>setResearchForm({id:n.id,title:n.title,note:n.note,source:n.source,links:n.links,status:n.status,image:n.image||null})} style={{fontSize:10,color:"var(--text-dim)",cursor:"pointer",fontFamily:"'DM Sans',sans-serif"}}>Edit</span>
                       <span onClick={()=>deleteResearchNote(n.id)} style={{fontSize:10,color:"var(--text-dim)",cursor:"pointer",fontFamily:"'DM Sans',sans-serif"}}>Delete</span>
                     </div>
                   </div>
