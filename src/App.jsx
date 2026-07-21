@@ -1265,7 +1265,7 @@ export default function App() {
   useEffect(()=>{setWriteClock(prev=>{if(!prev)return prev;if(prev.site==="chat"&&screen!=="chat")return null;if(prev.site==="inferno"&&(screen!=="container"||forgeMode!=="inferno"))return null;return prev;});},[screen,forgeMode]);
   useEffect(()=>{setClockPreset(null);setWriteClock(prev=>prev&&prev.site==="chat"?null:prev);},[mode?.id]);
   useEffect(()=>{setSceneNotesOpen(false)},[activeScene]);
-  useEffect(()=>{if(screen==="setup"){setBibExpanded(!!project);setBibTab("overview");}if(screen!=="project")setBibleSearch("");},[screen]);
+  useEffect(()=>{if(screen==="setup"){setBibExpanded(!!project);setBibTab(bibViewTab&&bibViewTab!=="research"?bibViewTab:"overview");}if(screen!=="project")setBibleSearch("");},[screen]);
 
   // History API: push screen to browser history on every navigation
   useEffect(()=>{
@@ -1615,6 +1615,11 @@ INFERNO TOOLS: If a message begins with "INFERNO TOOL:", the writer tapped a too
     const chapStr=project?.chapters?(Array.isArray(project.chapters)?project.chapters.filter(c=>c.summary).map(c=>`Ch${c.num}: ${c.summary}`).join(". "):project.chapters):"";
     const pCtx=project?`\n\nPROJECT: "${project.title}". Genre: ${project.genre}.${firstSparkCtx(project)?" FIRST SPARK (the writer's own verbatim words on why they're writing this, quote word for word, never paraphrase): "+firstSparkCtx(project)+".":""} Synopsis: ${project.synopsis}. Themes: ${project.themes||"not yet captured"}. Protagonist: ${project.protagonist}. Goal: ${project.protagonistGoal||"not yet captured"}. Dream: ${project.protagonistDream||"not yet captured"}. Fear: ${project.protagonistFear||"not yet captured"}. Wound: ${project.protagonistWound||"not yet captured"}. Backstory: ${project.protagonistBackstory||"not yet captured"}. Misbelief: ${project.protagonistMisbelief||"not yet captured"}.${charactersCtx(project)?" Characters: "+charactersCtx(project)+".":""} Supporting: ${project.supporting}. Antagonist: ${project.antagonist}. Setting: ${project.worldSetting}. Rules: ${project.worldRules}. Mythology & Paranormal Rules: ${project.worldMythology||"not yet captured"}. Beliefs vs Reality: ${project.worldBeliefs}. Danger: ${project.worldDanger}. Tone: ${project.worldTone}. Chapters (these summaries are the authoritative record established by Agnes — treat them as ground truth, do not re-interpret or contradict them): ${chapStr}. Position: ${project.where}. Stuck: ${project.stuck}. Excites: ${project.excites}.`:"";
     const sparkCtx=sparks.length>0?`\n\nDOPAMINE MAP: ${sparks.map(s=>s.text).join(" | ")}`:"";
+    // Inferno/Embers previously had zero profile awareness — the ND-framing gate only applied to
+    // the main coaching call. Same construction as there, so a writer's disclosed working style
+    // calibrates Finn's language here too, not just in Diagnose My Block / Scene Surgery.
+    const inlineProfileCtx=userProfile?`\n\nWriter's profile — use this to calibrate your coaching approach:\n- Experience: ${userProfile.q1?.selected?.join(", ")||"not specified"}\n- Working style: ${userProfile.q2?.selected?.join(", ")||"not specified"}\n- Current goal: ${userProfile.q3?.selected?.join(", ")||"not specified"}\n- Coaching preference: ${userProfile.q4?.selected?.join(", ")||"not specified"}`:"";
+    const inlineNdCtx=ndFramingCtx(userProfile);
     // Different Finn framing for Embers vs manuscript
     const containerSys=forgeMode==="embers"
       ?`${FINN}\n\nMODE: EMBERS COACHING. The writer has a scene fragment without a home. You have read the ember and Agnes's placement analysis if available. Help the writer understand where this fragment belongs in their story, what it's doing emotionally and narratively, and what it needs to become a full scene. Be specific to this fragment. Ask the one question that unlocks where it belongs. Do not write prose for the writer. Under 150 words unless they ask for more.`
@@ -1623,7 +1628,7 @@ INFERNO TOOLS: If a message begins with "INFERNO TOOL:", the writer tapped a too
     const ctrl=new AbortController();abortRef.current=ctrl;
     try{
       const sessionCtxForge = sessionSummaries.length>0 ? `\n\nRECENT SESSION HISTORY:\n${sessionSummaries.slice(0,5).map((s,i)=>`Session ${i+1}${i===0?" (most recent)":""}: ${s.date} in ${s.mode}. Worked on: ${s.storyElement}. Key insight: ${s.keyInsight}. Still sitting with: ${s.openQuestion}.${s.rawTexture?` The writer said, in their own words: "${s.rawTexture}"`:""}`).join("\n")}` : "";
-      const r=await fetch("/api/chat",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({system:containerSys+sceneCtx+pCtx+sparkCtx+(userName?`\n\nThe writer's name is ${userName}. Use their name naturally.`:"")+sessionCtxForge,messages:nm.map(m=>({role:m.role,content:m.content}))}),signal:ctrl.signal});
+      const r=await fetch("/api/chat",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({system:containerSys+sceneCtx+pCtx+sparkCtx+inlineProfileCtx+inlineNdCtx+(userName?`\n\nThe writer's name is ${userName}. Use their name naturally.`:"")+sessionCtxForge,messages:nm.map(m=>({role:m.role,content:m.content}))}),signal:ctrl.signal});
       const d=await r.json();
       if(d.error){setContainerMsgs(p=>[...p,{role:"assistant",content:`Connection issue: ${d.error}`}])}
       else{
@@ -3539,7 +3544,7 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
     const generating=summaryGenerating===key;
     return <div style={{marginBottom:12}}>
       {generating?<div style={{fontSize:12,color:"var(--text-dim)",fontStyle:"italic",fontFamily:"'Cormorant Garamond',serif",padding:"8px 0"}}>Agnes is putting this together...</div>
-      :<textarea value={summary||""} onChange={e=>saveCharacterSummary(target,e.target.value)} placeholder="Write a short summary, or let Agnes draft one from what's already known..." rows={2} style={{width:"100%",background:"var(--bg-card)",border:"1px solid var(--border)",borderRadius:8,padding:"10px 12px",outline:"none",resize:"vertical",fontFamily:"'Cormorant Garamond',serif",fontSize:13,color:"var(--text-primary)",lineHeight:1.6,marginBottom:6}}/>}
+      :<textarea value={summary||""} onChange={e=>saveCharacterSummary(target,e.target.value)} placeholder="Write it yourself, or tap 'Ask Agnes for a summary' below, either way works..." rows={2} style={{width:"100%",background:"var(--bg-card)",border:"1px solid var(--border)",borderRadius:8,padding:"10px 12px",outline:"none",resize:"vertical",fontFamily:"'Cormorant Garamond',serif",fontSize:13,color:"var(--text-primary)",lineHeight:1.6,marginBottom:6}}/>}
       <div style={{display:"flex",alignItems:"center",gap:14}}>
         <span onClick={()=>setCharDetailsExpanded(prev=>({...prev,[key]:!prev[key]}))} style={{fontSize:10,color:"var(--text-dim)",cursor:"pointer",textDecoration:"underline"}}>{expanded?"Hide details":"See character details"}</span>
         {!generating&&<span onClick={()=>generateCharacterSummary(target)} style={{fontSize:10,color:"var(--accent)",cursor:"pointer"}}>Ask Agnes for a summary</span>}
@@ -4533,7 +4538,7 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
           <FormField label="Project title" k="title" ph="My Novel" value={pForm.title} onChange={updateField}/>
           <FormField label="Genre" k="genre" ph="Contemporary fiction, fantasy, memoir..." value={pForm.genre} onChange={updateField}/>
           <FormField label="What is your story about?" k="synopsis" ph="One sentence is enough to start..." value={pForm.synopsis} onChange={updateField} multi/>
-          <FormField label="Themes" k="themes" ph="What ideas keep surfacing? Agnes will add to this as chapters reveal them..." value={pForm.themes} onChange={updateField} multi/>
+          <FormField label="Themes" k="themes" ph="What ideas keep surfacing? Type what you already know, or leave it, Agnes will notice patterns as chapters come in..." value={pForm.themes} onChange={updateField} multi/>
 
           {!bibExpanded&&<div onClick={()=>setBibExpanded(true)} style={{background:"none",border:"1px dashed var(--border-mid)",borderRadius:8,padding:"10px 16px",color:"var(--text-dim)",fontSize:12,cursor:"pointer",textAlign:"left",marginBottom:14,fontFamily:"'DM Sans',sans-serif"}}>
             <span style={{color:"var(--accent)",marginRight:8}}>+</span>Add more detail: characters, world, what excites you
