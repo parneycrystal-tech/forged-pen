@@ -591,7 +591,12 @@ function groupEmbers(embers,groupBy){
   const push=(label,e)=>{if(!buckets[label]){buckets[label]=[];order.push(label);}buckets[label].push(e);};
   active.forEach(e=>{
     if(groupBy==="character"){
-      push(e.agnesAnalysis?.characterTag?.trim()||"No character tagged yet",e);
+      // Split on every individual name instead of matching the whole tag phrase — an ember
+      // tagged "Emma, Michael" is honestly about both, and should show up under each, not get
+      // stranded in a bucket unrelated to an ember tagged "Michael" alone.
+      const names=(e.agnesAnalysis?.characterTag||"").split(",").map(n=>n.trim()).filter(Boolean);
+      if(names.length===0)push("No character tagged yet",e);
+      else names.forEach(name=>push(name,e));
     }else if(groupBy==="status"){
       push(e.status==="active"?"Active":(e.status||"Active"),e);
     }else if(groupBy==="position"){
@@ -602,11 +607,15 @@ function groupEmbers(embers,groupBy){
         const n=parseInt(match[1]);
         push(n<=5?"Early (ch. 1-5)":n<=10?"Middle (ch. 6-10)":"Late (ch. 11+)",e);
       }
+    }else if(groupBy==="shelf"){
+      // Manual layer, entirely separate from Agnes's automatic tags — the writer's own filing
+      // system, same mechanic as Research Shelves.
+      push(e.shelf?.trim()||"Unsorted",e);
     }
   });
-  // Keep "not yet" style catch-all buckets last, everything else in first-seen order
+  // Keep "not yet" / "unsorted" style catch-all buckets last, everything else in first-seen order
   const sorted=order.sort((a,b)=>{
-    const aCatch=/no character|not yet/i.test(a),bCatch=/no character|not yet/i.test(b);
+    const aCatch=/no character|not yet|unsorted/i.test(a),bCatch=/no character|not yet|unsorted/i.test(b);
     if(aCatch&&!bCatch)return 1;if(bCatch&&!aCatch)return -1;return 0;
   });
   return sorted.map(label=>({label,items:buckets[label]}));
@@ -874,7 +883,7 @@ const AGNES_INVOLVEMENT_LEVELS=[
 
 const PROFILE_QUESTIONS=[
   {id:"q1",q:"How long have you been writing?",opts:["Just starting out","A few years in","I've been writing for years","I've been published"],multi:false,addl:"Anything Finn should know about your writing background?"},
-  {id:"q2",q:"How does your writing brain work? Choose everything that feels true.",opts:["I work best in short focused bursts","I tend to jump around rather than write linearly","I get easily overwhelmed by too many options","I have a hard time starting even when I know what to write","I lose momentum quickly after a good session","I can write for long stretches when I'm in flow","I write linearly, start to finish","It depends completely on the day"],multi:true,addl:"Anything else about how you work best?",disclaimer:"Forged Pen is a writing tool, not a mental health service. If you're experiencing a crisis please reach out to a qualified professional."},
+  {id:"q2",q:"How does your writing brain work? Choose everything that feels true.",opts:["I work best in short focused bursts","I tend to jump around rather than write linearly","I get easily overwhelmed by too many options","I have a hard time starting even when I know what to write","I lose momentum quickly after a good session","I can write for long stretches when I'm in flow","I write linearly, start to finish","It depends on the day — I'm several of these at different times"],multi:true,addl:"Anything else about how you work best?",disclaimer:"Forged Pen is a writing tool, not a mental health service. If you're experiencing a crisis please reach out to a qualified professional."},
   {id:"q3",q:"What matters most to you right now?",opts:["I have a spark and I want to see where it goes","I'm developing an idea that isn't fully formed yet","I'm deep in a manuscript and need to keep going","I want to get better at the craft while I write","I need to finish what I've started","All of the above honestly"],multi:true,addl:"Anything else Finn should know about where you want to go?"},
   {id:"q4",q:"How do you want Finn to show up?",opts:["Direct and straight to the point","Warm and encouraging with the hard truth underneath","Ask me questions more than give me answers","Push me when I need it, back off when I don't","I'm not sure yet, figure it out as we go"],multi:false,addl:"Anything else about how you like to be coached?"},
   {id:"q5",q:"What do you write? Choose everything that applies.",opts:["Literary fiction","Romance","Upmarket fiction","Women's fiction","Horror","Thriller / suspense","Fantasy","Science fiction","Historical fiction","Young adult","Middle grade","Memoir / creative nonfiction","Short stories","Multiple genres"],multi:true,addl:"Anything else about the kind of stories you write?"},
@@ -963,7 +972,8 @@ export default function App() {
   // Finn's coaching chats since this is Agnes's own space, librarian voice, no live search.
   const [researchForm, setResearchForm] = useState(null); // null | {id:null|existingId, title, note, source, links, status}
   const [researchChat, setResearchChat] = useState({open:false, msgs:[], loading:false, draft:null, error:null});
-  const [emberGroupBy, setEmberGroupBy] = useState("none"); // "none" | "character" | "position" | "status" — reads data Agnes already extracts, nothing new tracked
+  const [emberGroupBy, setEmberGroupBy] = useState("none"); // "none" | "character" | "position" | "status" | "shelf" — reads data Agnes already extracts, nothing new tracked
+  const [editingShelfId, setEditingShelfId] = useState(null); // research note id whose shelf badge is currently an open input, or null
   const [bibExpanded, setBibExpanded] = useState(false);
   const [bibleSearch, setBibleSearch] = useState("");
   const [sparkCapture, setSparkCapture] = useState(null); // {q1,q2} while the two-question capture is open, else null
@@ -1013,6 +1023,7 @@ export default function App() {
   const [embers, setEmbers] = useState([]);
   const [activeEmber, setActiveEmber] = useState(null);
   const [editingEmberTitle, setEditingEmberTitle] = useState(false); // is the title field in the ember header editable right now
+  const [editingEmberShelf, setEditingEmberShelf] = useState(false); // ember id whose manual shelf field is open for editing, or false
   const [emberAnalysisError, setEmberAnalysisError] = useState(null); // ember id whose last analysis attempt failed, for a visible retry instead of silent revert
   const emberRef = useRef(null); // auto-grow ref for the ember writing field, same pattern as ideaLabRef/infernoRef
   // Auto-select the most recently edited ember when arriving at Embers with nothing chosen yet.
@@ -5339,7 +5350,18 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
                 <div key={n.id} style={{background:"var(--bg-card)",border:shelf.label==="Unsorted"?"1px dashed var(--border-mid)":"1px solid var(--border)",borderRadius:10,padding:"14px 16px",marginBottom:8,marginLeft:14}}>
                   <div style={{display:"flex",justifyContent:"space-between",alignItems:"baseline",gap:8,flexWrap:"wrap",marginBottom:6}}>
                     <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:16,color:"var(--text-primary)"}}>{n.title}</div>
-                    <span onClick={()=>toggleResearchStatus(n.id)} style={{fontSize:9,textTransform:"uppercase",letterSpacing:"0.08em",padding:"3px 9px",borderRadius:4,fontFamily:"'DM Sans',sans-serif",fontWeight:500,cursor:"pointer",background:n.status==="used"?"rgba(110,138,106,0.14)":"rgba(176,151,90,0.16)",color:n.status==="used"?"#6E8A6A":"#B0975A"}}>{n.status==="used"?"Incorporated":"Not yet used"}</span>
+                    <div style={{display:"flex",gap:6,alignItems:"center"}}>
+                      {editingShelfId===n.id?<input autoFocus defaultValue={(n.links||"").split(",")[0]?.trim()||""} onBlur={e=>{
+                          const rest=(n.links||"").split(",").slice(1).join(",");
+                          const newLinks=[e.target.value.trim(),rest].filter(Boolean).join(", ");
+                          const existing=(project?.researchNotes||[]).map(x=>x.id===n.id?{...x,links:newLinks}:x);
+                          const updated={...project,researchNotes:existing,updated:Date.now()};
+                          setProject(updated);saveStored("tt-project",updated);cloudSave("tt-project",updated);
+                          setEditingShelfId(null);
+                        }} onKeyDown={e=>{if(e.key==="Enter")e.target.blur();}} placeholder="Shelf name..." style={{fontSize:9,fontFamily:"'DM Sans',sans-serif",border:"1px solid var(--accent)",borderRadius:4,padding:"2px 8px",outline:"none",background:"var(--bg-card-alt)",color:"var(--accent)",width:110}}/>
+                        :<span onClick={()=>setEditingShelfId(n.id)} style={{fontSize:9,textTransform:"uppercase",letterSpacing:"0.06em",padding:"3px 9px",borderRadius:4,fontFamily:"'DM Sans',sans-serif",cursor:"pointer",background:(n.links||"").split(",")[0]?.trim()?"var(--accent-15,rgba(192,120,72,0.12))":"none",border:(n.links||"").split(",")[0]?.trim()?"none":"1px dashed var(--border-mid)",color:(n.links||"").split(",")[0]?.trim()?"var(--accent)":"var(--text-faint)"}}>{(n.links||"").split(",")[0]?.trim()||"+ Shelf"}</span>}
+                      <span onClick={()=>toggleResearchStatus(n.id)} style={{fontSize:9,textTransform:"uppercase",letterSpacing:"0.08em",padding:"3px 9px",borderRadius:4,fontFamily:"'DM Sans',sans-serif",fontWeight:500,cursor:"pointer",background:n.status==="used"?"rgba(110,138,106,0.14)":"rgba(176,151,90,0.16)",color:n.status==="used"?"#6E8A6A":"#B0975A"}}>{n.status==="used"?"Incorporated":"Not yet used"}</span>
+                    </div>
                   </div>
                   {n.note&&<div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:14,color:"var(--text-secondary)",lineHeight:1.65,marginBottom:8}}>{n.note}</div>}
                   <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",flexWrap:"wrap",gap:6}}>
@@ -5676,6 +5698,7 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
                   {[["none","All"],["character","Character"],["position","Position"],["status","Status"]].map(([id,label])=>(
                     <span key={id} onClick={()=>setEmberGroupBy(id)} style={{fontSize:9,padding:"3px 8px",borderRadius:4,cursor:"pointer",fontFamily:"'DM Sans',sans-serif",background:emberGroupBy===id?"#8A7AAA25":"transparent",border:"1px solid "+(emberGroupBy===id?"#8A7AAA":"var(--border)"),color:emberGroupBy===id?"#8A7AAA":"var(--text-dim)"}}>{label}</span>
                   ))}
+                  <span onClick={()=>setEmberGroupBy("shelf")} style={{fontSize:9,padding:"3px 8px",borderRadius:4,cursor:"pointer",fontFamily:"'DM Sans',sans-serif",background:emberGroupBy==="shelf"?"var(--accent)":"transparent",border:"1px solid "+(emberGroupBy==="shelf"?"var(--accent)":"var(--border)"),color:emberGroupBy==="shelf"?"#F4EEDF":"var(--text-dim)"}}>My Shelves</span>
                 </div>}
                 {groupEmbers(embers,emberGroupBy).map((group,gi)=>(
                   <div key={gi}>
@@ -5935,6 +5958,12 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
                           }} onKeyDown={e=>{if(e.key==="Enter")e.target.blur();}} placeholder="Name this ember..." style={{fontSize:12,color:"#8A7AAA",fontWeight:500,fontFamily:"'DM Sans',sans-serif",background:"var(--bg-card)",border:"1px solid #8A7AAA40",borderRadius:4,padding:"2px 6px",outline:"none",width:180}}/>
                         :<div onClick={()=>setEditingEmberTitle(ember.id)} title="Tap to rename" style={{fontSize:12,color:"#8A7AAA",fontWeight:500,fontFamily:"'DM Sans',sans-serif",cursor:"pointer"}}>{ember.title||"Untitled ember"}</div>}
                       <span style={{fontSize:10,color:"var(--text-dim)"}}>{(ember.text||"").split(/\s+/).filter(w=>w).length} words</span>
+                      {editingEmberShelf===ember.id
+                        ?<input autoFocus defaultValue={ember.shelf||""} onBlur={e=>{
+                            const updatedEmbers=embers.map(em=>em.id===ember.id?{...em,shelf:e.target.value.trim()}:em);
+                            setEmbers(updatedEmbers);saveStored("tt-embers",updatedEmbers);setEditingEmberShelf(false);
+                          }} onKeyDown={e=>{if(e.key==="Enter")e.target.blur();}} placeholder="Shelf name..." style={{fontSize:9,color:"var(--accent)",fontFamily:"'DM Sans',sans-serif",background:"var(--bg-card)",border:"1px solid var(--accent)",borderRadius:4,padding:"2px 6px",outline:"none",width:100}}/>
+                        :<span onClick={()=>setEditingEmberShelf(ember.id)} title="Tap to set which shelf this belongs on" style={{fontSize:9,textTransform:"uppercase",letterSpacing:"0.06em",padding:"2px 8px",borderRadius:4,fontFamily:"'DM Sans',sans-serif",cursor:"pointer",background:ember.shelf?"var(--accent-15,rgba(192,120,72,0.12))":"none",border:ember.shelf?"none":"1px dashed var(--border-mid)",color:ember.shelf?"var(--accent)":"var(--text-faint)"}}>{ember.shelf||"+ Shelf"}</span>}
                     </div>
                     <div style={{display:"flex",gap:8,alignItems:"center"}}>
                       <span onClick={()=>{
