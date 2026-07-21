@@ -2322,6 +2322,22 @@ Main plot: ${project?.mainPlot||"none"}`;
     saveStored("tt-project",updated);
     cloudSave("tt-project",updated);
   };
+  // Files a note onto an existing character card (matched by name or alias). Returns false if no
+  // card matches, in which case the note stays in the unsorted blob untouched.
+  const appendToCharacter=(name,note)=>{
+    const existing=Array.isArray(project?.characters)?[...project.characters]:[];
+    const nl=(name||"").toLowerCase();
+    const idx=existing.findIndex(c=>(c.name||"").toLowerCase()===nl||((c.aliases||"").toLowerCase().includes(nl)&&nl.length>2));
+    if(idx<0)return false;
+    const prevDesc=(existing[idx].description||"").trim();
+    existing[idx]={...existing[idx],description:(prevDesc?prevDesc+"\n\n":"")+note};
+    const updated={...project,characters:existing,updated:Date.now()};
+    setProject(updated);
+    setPForm(prev=>({...prev,characters:existing}));
+    saveStored("tt-project",updated);
+    cloudSave("tt-project",updated);
+    return true;
+  };
   // Runs Agnes's read-and-propose pass on pasted material. Shared by the welcome "I have material"
   // flow and the standing "Sort with Agnes" tool on Overview — same call, two doors in.
   const runBibleOrganize=async(rawText)=>{
@@ -3698,6 +3714,9 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
           --border: #4A4030;
           --border-mid: #3A3428;
           --accent: #A8884A;
+          --ember: #C07848;
+          --ember-dim: #C0784899;
+          --ember-15: #C0784826;
           --accent-b0: #A8884AB0;
           --accent-90: #A8884A90;
           --accent-80: #A8884A80;
@@ -3728,6 +3747,9 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
           --border: #B0A890;
           --border-mid: #C0B8A0;
           --accent: #5A6B3A;
+          --ember: #A5522E;
+          --ember-dim: #A5522E99;
+          --ember-15: #A5522E22;
           --accent-b0: #5A6B3AB0;
           --accent-90: #5A6B3A90;
           --accent-80: #5A6B3A80;
@@ -4191,12 +4213,12 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
         {/* Last Pulse moved to right sidebar */}
 
         {/* Dopamine Map */}
-        {sparks.length>0&&<div onClick={()=>setScreen("sparkmap")} className="card" style={{padding:"12px 16px",marginBottom:8,display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+        {sparks.length>0&&<div onClick={()=>setScreen("sparkmap")} className="card" style={{padding:"12px 16px",marginBottom:8,display:"flex",justifyContent:"space-between",alignItems:"center",borderLeft:"2px solid var(--ember)",borderTopLeftRadius:0,borderBottomLeftRadius:0}}>
           <div style={{flex:1}}>
-            <div style={{fontSize:9,textTransform:"uppercase",letterSpacing:"0.18em",color:"var(--accent-70)",fontWeight:500,marginBottom:5}}>Dopamine map</div>
+            <div style={{fontSize:9,textTransform:"uppercase",letterSpacing:"0.18em",color:"var(--ember)",fontWeight:500,marginBottom:5}}>Dopamine map</div>
             <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:14,color:"var(--text-muted)",fontStyle:"italic"}}>"{(sparks[sparks.length-1]?.text||"").replace(/\*\*/g,"").replace(/\*/g,"").replace(/#{1,6}\s/g,"").replace(/\u2014/g,",").replace(/--/g,",").substring(0,120)}"</div>
           </div>
-          <div style={{fontSize:11,color:"var(--accent)",marginLeft:12,animation:"wp 4s ease-in-out infinite"}}>{sparks.length} spark{sparks.length>1?"s":""}</div>
+          <div style={{fontSize:11,color:"var(--ember)",marginLeft:12,animation:"wp 4s ease-in-out infinite"}}>{sparks.length} spark{sparks.length>1?"s":""}</div>
         </div>}
 
         {/* Coaching Session History Card */}
@@ -4273,9 +4295,9 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
 
         {/* Card Row — Rekindle */}
         <div style={{marginBottom:20}}>
-          <div className="card" onClick={()=>project?pick(MODES.find(m=>m.id==="rekindle")):null} style={{textAlign:"center",padding:"12px 8px",opacity:project?1:.4}}>
-            <svg width="14" height="14" viewBox="0 0 14 14" style={{margin:"0 auto 6px",display:"block"}}><path d="M7 2L8.2 5L11 5L8.8 7L9.5 10L7 8.2L4.5 10L5.2 7L3 5L5.8 5Z" fill="none" stroke="var(--accent)" strokeWidth="0.7"/></svg>
-            <div style={{fontSize:10,fontWeight:500,color:"var(--accent)"}}>Rekindle</div>
+          <div className="card" onClick={()=>project?pick(MODES.find(m=>m.id==="rekindle")):null} style={{textAlign:"center",padding:"12px 8px",opacity:project?1:.4,border:"1px solid var(--ember-dim)"}}>
+            <svg width="14" height="14" viewBox="0 0 14 14" style={{margin:"0 auto 6px",display:"block"}}><path d="M7 2L8.2 5L11 5L8.8 7L9.5 10L7 8.2L4.5 10L5.2 7L3 5L5.8 5Z" fill="none" stroke="var(--ember)" strokeWidth="0.7"/></svg>
+            <div style={{fontSize:10,fontWeight:500,color:"var(--ember)"}}>Rekindle</div>
           </div>
         </div>
 
@@ -4324,38 +4346,38 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
       {/* DESKTOP RIGHT SIDEBAR */}
       {!bibleOrganize&&screen==="home"&&project&&<div className="right-sb" style={{position:"fixed",right:0,top:0,bottom:0,width:260,background:"var(--bg-dark)",borderLeft:"1px solid var(--border)",padding:"22px 18px",flexDirection:"column",overflowY:"auto"}}>
 
-        {(sidebarCtx?.toneWord||sidebarCtx?.sensoryAnchors?.length>0)&&<div style={{borderRadius:9,padding:"12px 14px",marginBottom:10,background:"rgba(90,107,58,0.07)",borderLeft:"2px solid #5A6B3A"}}>
+        {(sidebarCtx?.toneWord||sidebarCtx?.sensoryAnchors?.length>0)&&<div style={{borderRadius:9,padding:"12px 14px",marginBottom:10,background:"var(--accent-15)",borderLeft:"2px solid var(--accent)"}}>
           <div style={{display:"flex",alignItems:"center",gap:6,marginBottom:8}}>
-            <svg width="14" height="14" viewBox="0 0 20 20" style={{flexShrink:0}}><circle cx="10" cy="10" r="7" fill="none" stroke="#5A6B3A" strokeWidth="1.5"/><circle cx="10" cy="10" r="2" fill="#5A6B3A"/></svg>
-            <span style={{fontFamily:"'DM Sans',sans-serif",fontSize:9,textTransform:"uppercase",letterSpacing:"0.1em",fontWeight:600,color:"#5A6B3A"}}>Scene Atmosphere{sidebarCtx?.toneWord?` · ${sidebarCtx.toneWord}`:""}</span>
+            <svg width="14" height="14" viewBox="0 0 20 20" style={{flexShrink:0}}><circle cx="10" cy="10" r="7" fill="none" stroke="var(--accent)" strokeWidth="1.5"/><circle cx="10" cy="10" r="2" fill="var(--accent)"/></svg>
+            <span style={{fontFamily:"'DM Sans',sans-serif",fontSize:9,textTransform:"uppercase",letterSpacing:"0.1em",fontWeight:600,color:"var(--accent)"}}>Scene Atmosphere{sidebarCtx?.toneWord?` · ${sidebarCtx.toneWord}`:""}</span>
           </div>
           {sidebarCtx?.sensoryAnchors?.length>0&&<div style={{display:"flex",flexDirection:"column",gap:8}}>
-            {sidebarCtx.sensoryAnchors.map((a,i)=><div key={i} style={{display:"flex",alignItems:"baseline",gap:6}}>
-              <span style={{width:5,height:5,borderRadius:"50%",background:"#5A6B3A",flexShrink:0,marginTop:5,display:"inline-block"}}/>
-              <span style={{fontFamily:"'Cormorant Garamond',serif",fontSize:12.5,color:"var(--text-secondary)",fontStyle:"italic",lineHeight:1.5}}>{a.detail}<span style={{fontFamily:"'DM Sans',sans-serif",fontSize:8,color:"var(--text-faint)",textTransform:"uppercase",marginLeft:4,fontStyle:"normal"}}>{a.sense}</span></span>
+            {sidebarCtx.sensoryAnchors.map((a,i)=><div key={i} style={{borderLeft:"2px solid var(--ember-dim)",paddingLeft:10}}>
+              <div style={{fontFamily:"'DM Sans',sans-serif",fontSize:8,color:"var(--ember)",opacity:.65,textTransform:"uppercase",letterSpacing:"0.16em",marginBottom:2}}>{a.sense}</div>
+              <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:13,color:"var(--text-secondary)",fontStyle:"italic",lineHeight:1.65}}>{a.detail}</div>
             </div>)}
           </div>}
         </div>}
 
-        {pulse?<div style={{borderRadius:9,padding:"12px 14px",marginBottom:10,background:"var(--bg-card)",borderLeft:"2px solid var(--border-mid)",cursor:"pointer"}} onClick={()=>{if(pulse.sceneId){setActiveScene(pulse.sceneId);saveStored("tt-activescene",pulse.sceneId);initScenes()}else if(pulse.modeId){const m=MODES.find(x=>x.id===pulse.modeId);if(m)pick(m)}}}>
+        {pulse?<div style={{borderRadius:9,padding:"12px 14px",marginBottom:10,background:"var(--bg-card)",borderLeft:"2px solid var(--ember-dim)",cursor:"pointer"}} onClick={()=>{if(pulse.sceneId){setActiveScene(pulse.sceneId);saveStored("tt-activescene",pulse.sceneId);initScenes()}else if(pulse.modeId){const m=MODES.find(x=>x.id===pulse.modeId);if(m)pick(m)}}}>
           <div style={{display:"flex",alignItems:"center",gap:6,marginBottom:8}}>
-            <svg width="14" height="14" viewBox="0 0 20 20" style={{flexShrink:0}}><path d="M2 10h4l2-6 3 12 2-8 2 4h5" fill="none" stroke="var(--text-dim)" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round"/></svg>
+            <svg width="14" height="14" viewBox="0 0 20 20" style={{flexShrink:0}}><path d="M2 10h4l2-6 3 12 2-8 2 4h5" fill="none" stroke="var(--ember)" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round"/></svg>
             <span style={{fontFamily:"'DM Sans',sans-serif",fontSize:9,textTransform:"uppercase",letterSpacing:"0.1em",fontWeight:600,color:"var(--text-dim)"}}>Last Pulse{pulse.scene?` · ${pulse.scene.substring(0,28)}`:""}</span>
           </div>
           <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:13,color:"var(--text-primary)",lineHeight:1.6,marginBottom:6,fontStyle:"italic"}}>"{pulse.description}"</div>
           <div style={{fontSize:10,color:"var(--accent-60)",fontFamily:"'DM Sans',sans-serif"}}>Tap to return to The Forge &#8594;</div>
         </div>:<div style={{borderRadius:9,padding:"12px 14px",marginBottom:10,background:"var(--bg-card)",borderLeft:"2px solid var(--border-mid)"}}>
           <div style={{display:"flex",alignItems:"center",gap:6,marginBottom:8}}>
-            <svg width="14" height="14" viewBox="0 0 20 20" style={{flexShrink:0}}><path d="M2 10h4l2-6 3 12 2-8 2 4h5" fill="none" stroke="var(--text-dim)" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round"/></svg>
+            <svg width="14" height="14" viewBox="0 0 20 20" style={{flexShrink:0}}><path d="M2 10h4l2-6 3 12 2-8 2 4h5" fill="none" stroke="var(--ember)" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round"/></svg>
             <span style={{fontFamily:"'DM Sans',sans-serif",fontSize:9,textTransform:"uppercase",letterSpacing:"0.1em",fontWeight:600,color:"var(--text-dim)"}}>Last Pulse</span>
           </div>
           <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:13,color:"var(--text-dim)",fontStyle:"italic"}}>Your last manuscript sentence will appear here.</div>
         </div>}
 
-        {sparks.length>0&&<div style={{borderRadius:9,padding:"12px 14px",marginBottom:10,background:"var(--accent-15)",borderLeft:"2px solid var(--accent)",cursor:"pointer"}} onClick={()=>setScreen("sparkmap")}>
+        {sparks.length>0&&<div style={{borderRadius:9,padding:"12px 14px",marginBottom:10,background:"var(--ember-15)",borderLeft:"2px solid var(--ember)",cursor:"pointer"}} onClick={()=>setScreen("sparkmap")}>
           <div style={{display:"flex",alignItems:"center",gap:6,marginBottom:8}}>
-            <svg width="14" height="14" viewBox="0 0 20 20" style={{flexShrink:0}}><path d="M10 2 L12 8 L18 10 L12 12 L10 18 L8 12 L2 10 L8 8 Z" fill="var(--accent)"/></svg>
-            <span style={{fontFamily:"'DM Sans',sans-serif",fontSize:9,textTransform:"uppercase",letterSpacing:"0.1em",fontWeight:600,color:"var(--accent)"}}>Latest Spark &middot; {sparks.length} total</span>
+            <svg width="14" height="14" viewBox="0 0 20 20" style={{flexShrink:0}}><path d="M10 2 L12 8 L18 10 L12 12 L10 18 L8 12 L2 10 L8 8 Z" fill="var(--ember)"/></svg>
+            <span style={{fontFamily:"'DM Sans',sans-serif",fontSize:9,textTransform:"uppercase",letterSpacing:"0.1em",fontWeight:600,color:"var(--ember)"}}>Latest Spark &middot; {sparks.length} total</span>
           </div>
           <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:13,color:"var(--text-muted)",fontStyle:"italic",lineHeight:1.6}}>"{(sparks[sparks.length-1]?.text||"").replace(/\*\*/g,"").replace(/\*/g,"").replace(/#{1,6}\s/g,"").replace(/\u2014/g,",").replace(/--/g,",").substring(0,100)}"</div>
         </div>}
@@ -5025,12 +5047,12 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
                   const existing=existingCharacterNamesList(project);
                   const resp=await fetch("/api/chat",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({
                     system:"You are Agnes, a meticulous literary archivist. Be direct, specific, and concise. Never use em dashes.",
-                    messages:[{role:"user",content:`These are a writer's unsorted character notes. Characters who already have cards: ${existing}.\n\nSUPPORTING NOTES:\n${project.supporting||"(empty)"}\n\nANTAGONIST NOTES:\n${project.antagonist||"(empty)"}\n\nList every genuinely NAMED character in these notes who does not already have a card (never "the doctor" or unnamed figures, never anyone in the existing list, including anyone listed under a different name they are "also called"). For each, gather everything the notes say about them into a description, preserving the notes' actual wording as closely as possible.\n\nRespond ONLY with JSON. No markdown. No backticks.\n{"proposals":[{"name":"","role":"best guess: Antagonist / villain, Love interest, Mentor, Best friend / confidant, Foil, Family, or Secondary character","description":""}]}`}]
+                    messages:[{role:"user",content:`These are a writer's unsorted character notes. Characters who already have cards: ${existing}.\n\nSUPPORTING NOTES:\n${project.supporting||"(empty)"}\n\nANTAGONIST NOTES:\n${project.antagonist||"(empty)"}\n\nTwo jobs.\n\n1. NEW CHARACTERS: List every genuinely named character, or distinctly titled recurring figure (a legend or entity known only by a title, like "the Gray Piper"), who does not already have a card. Never generic unnamed figures ("the doctor"), never anyone in the existing list, including anyone listed under a different name they are "also called". For each, gather everything the notes say about them into a description, preserving the notes' actual wording as closely as possible.\n\n2. FILINGS: For content in these notes that is clearly about a character who ALREADY has a card, propose filing that content onto their card. Use the card's exact name as listed above. Preserve the notes' actual wording. Skip content that is not about a specific character.\n\nRespond ONLY with JSON. No markdown. No backticks.\n{"proposals":[{"name":"","role":"best guess: Antagonist / villain, Love interest, Mentor, Best friend / confidant, Foil, Family, or Secondary character","description":""}],"filings":[{"character":"exact existing card name","note":""}]}`}]
                   })});
                   const data=await resp.json();
                   const raw=data.content?.filter(b=>b.type==="text").map(b=>b.text).join("")||"";
                   const parsed=JSON.parse(raw.replace(/```json|```/g,"").trim());
-                  setNoteSort({proposals:(Array.isArray(parsed.proposals)?parsed.proposals.filter(p=>p&&p.name):[]),handled:{},trim:null});
+                  setNoteSort({proposals:(Array.isArray(parsed.proposals)?parsed.proposals.filter(p=>p&&p.name):[]),filings:(Array.isArray(parsed.filings)?parsed.filings.filter(p=>p&&p.character&&p.note):[]),handled:{},handledF:{},trim:null});
                 }catch(e){setNoteSort({error:true});}
               }} style={{fontSize:10,padding:"5px 12px",borderRadius:5,border:"1px solid var(--accent)",color:"var(--accent)",cursor:"pointer",display:"inline-block",fontFamily:"'DM Sans',sans-serif"}}>Sort these into characters with Agnes</span>
               <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:12,color:"var(--text-dim)",fontStyle:"italic",marginTop:5,marginBottom:10}}>Agnes proposes character cards from these notes. Nothing moves until you approve it.</div>
@@ -5038,16 +5060,20 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
             {noteSort?.loading&&<div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:13,color:"var(--text-dim)",fontStyle:"italic",marginTop:8}}>Agnes is reading the unsorted notes...</div>}
             {noteSort?.error&&<div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:13,color:"var(--text-dim)",fontStyle:"italic",marginTop:8}}>Something went wrong. <span onClick={()=>setNoteSort(null)} style={{color:"var(--accent)",cursor:"pointer"}}>Try again</span></div>}
             {noteSort?.proposals&&(()=>{
-              const total=noteSort.proposals.length;
-              const handledCount=Object.keys(noteSort.handled).length;
-              const approved=noteSort.proposals.filter((p,i)=>noteSort.handled[i]==="added");
+              const props=noteSort.proposals, files=noteSort.filings||[];
+              const total=props.length+files.length;
+              const handledCount=Object.keys(noteSort.handled).length+Object.keys(noteSort.handledF||{}).length;
+              const approved=props.filter((p,i)=>noteSort.handled[i]==="added");
+              const filed=files.filter((f,i)=>(noteSort.handledF||{})[i]==="filed");
               const allHandled=total>0&&handledCount===total;
+              const anythingMoved=approved.length>0||filed.length>0;
               const runTrim=async()=>{
                 setNoteSort(prev=>({...prev,trim:{loading:true}}));
                 try{
+                  const filedList=filed.map(f=>`- (${f.character}) ${f.note}`).join("\n");
                   const resp=await fetch("/api/chat",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({
                     system:"You are Agnes, a meticulous literary archivist. Precision matters more than tidiness. Never use em dashes.",
-                    messages:[{role:"user",content:`These are a writer's unsorted character notes. The following characters have just been given their own character cards: ${approved.map(p=>p.name).join(", ")}.\n\nSUPPORTING NOTES:\n${project.supporting||"(empty)"}\n\nANTAGONIST NOTES:\n${project.antagonist||"(empty)"}\n\nRewrite both notes with ONLY the content about those specific characters removed. Keep everything else, including notes about any other people, preserving the original wording exactly. Do not paraphrase, reorder, or clean up what stays. Use an empty string if nothing remains in a section.\n\nRespond ONLY with JSON. No markdown. No backticks.\n{"remainingSupporting":"","remainingAntagonist":""}`}]
+                    messages:[{role:"user",content:`These are a writer's unsorted character notes.\n\nThe following characters have just been given their own character cards: ${approved.length?approved.map(p=>p.name).join(", "):"(none)"}.\n\nThe following notes have just been filed onto existing character cards, so they no longer belong here:\n${filedList||"(none)"}\n\nSUPPORTING NOTES:\n${project.supporting||"(empty)"}\n\nANTAGONIST NOTES:\n${project.antagonist||"(empty)"}\n\nRewrite both notes with ONLY two things removed: content about the newly carded characters, and the filed notes listed above. Keep everything else, including notes about any other people, preserving the original wording exactly. Do not paraphrase, reorder, or clean up what stays. Use an empty string if nothing remains in a section.\n\nRespond ONLY with JSON. No markdown. No backticks.\n{"remainingSupporting":"","remainingAntagonist":""}`}]
                   })});
                   const data=await resp.json();
                   const raw=data.content?.filter(b=>b.type==="text").map(b=>b.text).join("")||"";
@@ -5056,31 +5082,49 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
                 }catch(e){setNoteSort(prev=>({...prev,trim:{error:true}}));}
               };
               const noteBlockStyle={fontFamily:"'Cormorant Garamond',serif",fontSize:12,color:"var(--text-secondary)",lineHeight:1.6,whiteSpace:"pre-wrap",maxHeight:160,overflow:"auto",background:"var(--bg-card)",border:"1px solid var(--border)",borderRadius:6,padding:"8px 10px"};
+              const chipStyle={fontSize:9,padding:"3px 9px",borderRadius:5,cursor:"pointer",fontFamily:"'DM Sans',sans-serif"};
               return <div style={{background:"var(--bg-card-alt)",border:"1px solid var(--border)",borderRadius:8,padding:"12px 14px",marginTop:10}}>
-                <div style={{fontSize:9,textTransform:"uppercase",letterSpacing:"0.14em",color:"var(--accent)",fontFamily:"'DM Sans',sans-serif",fontWeight:500,marginBottom:8}}>Agnes found {total===0?"no new named characters":total===1?"1 character":`${total} characters`} in the notes</div>
-                {total>0&&!allHandled&&<div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:12,color:"var(--text-dim)",fontStyle:"italic",marginBottom:10}}>Add the ones you want as character cards, skip the rest. Once every one is handled, Agnes will trim the sorted content out of the notes for your review. ({handledCount} of {total} handled)</div>}
-                {noteSort.proposals.map((pc,pi)=>(
-                  <div key={pi} style={{marginBottom:10}}>
+                <div style={{fontSize:9,textTransform:"uppercase",letterSpacing:"0.14em",color:"var(--accent)",fontFamily:"'DM Sans',sans-serif",fontWeight:500,marginBottom:8}}>{total===0?"Agnes found no new characters and nothing to file":`Agnes found ${props.length===0?"no new characters":props.length===1?"1 new character":`${props.length} new characters`}${files.length>0?` and ${files.length===1?"1 note":`${files.length} notes`} to file`:""}`}</div>
+                {total>0&&!allHandled&&<div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:12,color:"var(--text-dim)",fontStyle:"italic",marginBottom:10}}>Handle each one below, add or file the ones you want, skip the rest. Once every one is handled, Agnes will trim the sorted content out of the notes for your review. ({handledCount} of {total} handled)</div>}
+                {props.map((pc,pi)=>(
+                  <div key={"p"+pi} style={{marginBottom:10}}>
                     <div style={{display:"flex",alignItems:"center",gap:8,flexWrap:"wrap"}}>
                       <span style={{fontFamily:"'Cormorant Garamond',serif",fontSize:14,color:"var(--text-primary)"}}>{pc.name} <span style={{fontSize:12,color:"var(--text-dim)",fontStyle:"italic"}}>({pc.role})</span></span>
                       {noteSort.handled[pi]==="added"&&<span style={{fontSize:9,color:"var(--accent)",fontFamily:"'DM Sans',sans-serif"}}>Added</span>}
                       {noteSort.handled[pi]==="skipped"&&<span style={{fontSize:9,color:"var(--text-dim)",fontFamily:"'DM Sans',sans-serif"}}>Skipped, their notes stay put</span>}
                       {!noteSort.handled[pi]&&<>
-                        <span onClick={()=>{addProposedCharacter(pc.name,pc.role,pc.description);setNoteSort(prev=>({...prev,handled:{...prev.handled,[pi]:"added"}}));}} style={{fontSize:9,padding:"3px 9px",borderRadius:5,background:"var(--accent)",color:"var(--bg-deepest)",cursor:"pointer",fontFamily:"'DM Sans',sans-serif"}}>Add as character</span>
-                        <span onClick={()=>setNoteSort(prev=>({...prev,handled:{...prev.handled,[pi]:"skipped"}}))} style={{fontSize:9,padding:"3px 9px",borderRadius:5,border:"1px solid var(--border)",color:"var(--text-dim)",cursor:"pointer",fontFamily:"'DM Sans',sans-serif"}}>Skip</span>
+                        <span onClick={()=>{addProposedCharacter(pc.name,pc.role,pc.description);setNoteSort(prev=>({...prev,handled:{...prev.handled,[pi]:"added"}}));}} style={{...chipStyle,background:"var(--accent)",color:"var(--bg-deepest)"}}>Add as character</span>
+                        <span onClick={()=>setNoteSort(prev=>({...prev,handled:{...prev.handled,[pi]:"skipped"}}))} style={{...chipStyle,border:"1px solid var(--border)",color:"var(--text-dim)"}}>Skip</span>
                       </>}
                     </div>
                     <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:12,color:"var(--text-secondary)",lineHeight:1.6,marginTop:2}}>{pc.description}</div>
                   </div>
                 ))}
+                {files.length>0&&<div style={{fontSize:9,textTransform:"uppercase",letterSpacing:"0.12em",color:"var(--text-dim)",fontFamily:"'DM Sans',sans-serif",margin:"12px 0 8px",borderTop:props.length>0?"1px dashed var(--border-mid)":"none",paddingTop:props.length>0?10:0}}>File into existing cards</div>}
+                {files.map((fc,fi)=>{
+                  const st=(noteSort.handledF||{})[fi];
+                  return <div key={"f"+fi} style={{marginBottom:10}}>
+                    <div style={{display:"flex",alignItems:"center",gap:8,flexWrap:"wrap"}}>
+                      <span style={{fontFamily:"'Cormorant Garamond',serif",fontSize:14,color:"var(--text-primary)"}}>{"\u2192"} {fc.character}</span>
+                      {st==="filed"&&<span style={{fontSize:9,color:"var(--accent)",fontFamily:"'DM Sans',sans-serif"}}>Filed to card</span>}
+                      {st==="skipped"&&<span style={{fontSize:9,color:"var(--text-dim)",fontFamily:"'DM Sans',sans-serif"}}>Skipped, stays in notes</span>}
+                      {st==="nocard"&&<span style={{fontSize:9,color:"var(--text-dim)",fontFamily:"'DM Sans',sans-serif"}}>Card not found, left in notes</span>}
+                      {!st&&<>
+                        <span onClick={()=>{const ok=appendToCharacter(fc.character,fc.note);setNoteSort(prev=>({...prev,handledF:{...(prev.handledF||{}),[fi]:ok?"filed":"nocard"}}));}} style={{...chipStyle,background:"var(--accent)",color:"var(--bg-deepest)"}}>File to card</span>
+                        <span onClick={()=>setNoteSort(prev=>({...prev,handledF:{...(prev.handledF||{}),[fi]:"skipped"}}))} style={{...chipStyle,border:"1px solid var(--border)",color:"var(--text-dim)"}}>Skip</span>
+                      </>}
+                    </div>
+                    <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:12,color:"var(--text-secondary)",lineHeight:1.6,marginTop:2}}>{fc.note}</div>
+                  </div>;
+                })}
                 {total===0&&<div style={{marginTop:4}}><span onClick={()=>setNoteSort(null)} style={{fontSize:10,padding:"5px 12px",borderRadius:5,border:"1px solid var(--border)",color:"var(--text-dim)",cursor:"pointer",fontFamily:"'DM Sans',sans-serif"}}>Close</span></div>}
-                {allHandled&&approved.length===0&&<div style={{borderTop:"1px dashed var(--border-mid)",paddingTop:10,marginTop:4}}>
-                  <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:12,color:"var(--text-dim)",fontStyle:"italic",marginBottom:8}}>Nothing was added, so the notes stay exactly as they are.</div>
+                {allHandled&&!anythingMoved&&<div style={{borderTop:"1px dashed var(--border-mid)",paddingTop:10,marginTop:4}}>
+                  <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:12,color:"var(--text-dim)",fontStyle:"italic",marginBottom:8}}>Nothing was added or filed, so the notes stay exactly as they are.</div>
                   <span onClick={()=>setNoteSort(null)} style={{fontSize:10,padding:"5px 12px",borderRadius:5,border:"1px solid var(--border)",color:"var(--text-dim)",cursor:"pointer",fontFamily:"'DM Sans',sans-serif"}}>Done</span>
                 </div>}
-                {allHandled&&approved.length>0&&<div style={{borderTop:"1px dashed var(--border-mid)",paddingTop:10,marginTop:4}}>
-                  {!noteSort.trim&&<span onClick={runTrim} style={{fontSize:10,padding:"5px 12px",borderRadius:5,background:"var(--accent)",color:"var(--bg-deepest)",cursor:"pointer",fontFamily:"'DM Sans',sans-serif"}}>Trim the sorted characters from the notes</span>}
-                  {noteSort.trim?.loading&&<div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:13,color:"var(--text-dim)",fontStyle:"italic"}}>Agnes is trimming only the characters you added...</div>}
+                {allHandled&&anythingMoved&&<div style={{borderTop:"1px dashed var(--border-mid)",paddingTop:10,marginTop:4}}>
+                  {!noteSort.trim&&<span onClick={runTrim} style={{fontSize:10,padding:"5px 12px",borderRadius:5,background:"var(--accent)",color:"var(--bg-deepest)",cursor:"pointer",fontFamily:"'DM Sans',sans-serif"}}>Trim the sorted content from the notes</span>}
+                  {noteSort.trim?.loading&&<div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:13,color:"var(--text-dim)",fontStyle:"italic"}}>Agnes is trimming only what you approved...</div>}
                   {noteSort.trim?.error&&<div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:13,color:"var(--text-dim)",fontStyle:"italic"}}>Something went wrong. <span onClick={runTrim} style={{color:"var(--accent)",cursor:"pointer"}}>Try again</span></div>}
                   {noteSort.trim&&!noteSort.trim.loading&&!noteSort.trim.error&&<>
                     <div style={{fontSize:9,textTransform:"uppercase",letterSpacing:"0.12em",color:"var(--text-dim)",fontFamily:"'DM Sans',sans-serif",marginBottom:5}}>Before and after. Review before applying, in case Agnes reworded anything that should stay.</div>
