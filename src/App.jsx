@@ -4228,14 +4228,7 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
 
         {/* Last Pulse moved to right sidebar */}
 
-        {/* Dopamine Map */}
-        {sparks.length>0&&<div onClick={()=>setScreen("sparkmap")} className="card" style={{padding:"12px 16px",marginBottom:8,display:"flex",justifyContent:"space-between",alignItems:"center",borderLeft:"2px solid var(--ember)",borderTopLeftRadius:0,borderBottomLeftRadius:0}}>
-          <div style={{flex:1}}>
-            <div style={{fontSize:9,textTransform:"uppercase",letterSpacing:"0.18em",color:"var(--ember)",fontWeight:500,marginBottom:5}}>Dopamine map</div>
-            <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:14,color:"var(--text-muted)",fontStyle:"italic"}}>"{(sparks[sparks.length-1]?.text||"").replace(/\*\*/g,"").replace(/\*/g,"").replace(/#{1,6}\s/g,"").replace(/\u2014/g,",").replace(/--/g,",").substring(0,120)}"</div>
-          </div>
-          <div style={{fontSize:11,color:"var(--ember)",marginLeft:12,animation:"wp 4s ease-in-out infinite"}}>{sparks.length} spark{sparks.length>1?"s":""}</div>
-        </div>}
+        {/* Dopamine Map moved to right sidebar — Latest Spark card there covers this, no need for it twice */}
 
         {/* Coaching Session History Card */}
         {sessionSummaries.length>0&&<div onClick={()=>setHistoryScreen(true)} className="card" style={{padding:"12px 16px",marginBottom:16,display:"flex",justifyContent:"space-between",alignItems:"center"}}>
