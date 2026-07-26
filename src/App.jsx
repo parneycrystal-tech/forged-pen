@@ -2473,6 +2473,46 @@ Keep responses focused and useful, not exhaustive. This is a thinking partner, n
     cloudSave("tt-project",updated);
   };
 
+  const [retroScanState, setRetroScanState] = useState(null); // null | {running:true,done,total} | {complete:true,foundCount}
+  // Scans every already-captured chapter for drift, not just the one currently open. Works
+  // regardless of Involvement setting, since a writer who turns Agnes up later still deserves
+  // the same look-back the tour promises. Reuses the exact same per-chapter drift check and
+  // the existing driftQueue, so results land in the same review a writer already knows.
+  const runRetroactiveDriftScan=async()=>{
+    if(retroScanState?.running)return;
+    const chapters=[...new Set(scenes.map(s=>s.chapter))].sort((a,b)=>a-b);
+    if(chapters.length===0){setRetroScanState({complete:true,foundCount:0});return;}
+    setRetroScanState({running:true,done:0,total:chapters.length});
+    let foundCount=0;
+    for(const ch of chapters){
+      const chScenes=scenes.filter(s=>s.chapter===ch).sort((a,b)=>a.scene-b.scene);
+      const chapterText=chScenes.map(s=>s.text||"").join("\n\n").trim();
+      if(chapterText.length>50){
+        try{
+          const existingBible=`Title: ${project?.title||"untitled"}\nGenre: ${project?.genre||""}\nSynopsis so far: ${project?.synopsis||"none"}\nProtagonist: ${project?.protagonist||"none"}\nGoal: ${project?.protagonistGoal||"none"}\nDream: ${project?.protagonistDream||"none"}\nFear: ${project?.protagonistFear||"none"}\nWound: ${project?.protagonistWound||"none"}\nBackstory: ${project?.protagonistBackstory||"none"}\nMisbelief: ${project?.protagonistMisbelief||"none"}\nSupporting characters: ${project?.supporting||"none"}\nAntagonist: ${project?.antagonist||"none"}\nSetting: ${project?.worldSetting||"none"}\nWorld rules: ${project?.worldRules||"none"}\nMythology & paranormal rules: ${project?.worldMythology||"none"}\nBeliefs vs reality: ${project?.worldBeliefs||"none"}\nWhat makes it dangerous: ${project?.worldDanger||"none"}\nTone: ${project?.worldTone||"none"}\nThemes: ${project?.themes||"none"}\nMain plot: ${project?.mainPlot||"none"}`;
+          const r=await fetch("/api/chat",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({
+            max_tokens:2000,
+            system:`You are Agnes, the meticulous record keeper. Compare this chapter against the EXISTING STORY BIBLE, field by field. Only flag a field as drift if the existing entry is a real, substantial entry (not "none") AND this chapter appears to move in a meaningfully different direction from it, not just add consistent detail. Your voice is direct, selective, specific, and slightly pointed. Never use the words "inconsistency", "error", "problem", or "contradiction". Say "evolving", "different direction", "moving toward something new". Not alarmed. Precise. Never use em dashes. Respond ONLY with a JSON object.`,
+            messages:[{role:"user",content:`EXISTING STORY BIBLE:\n${existingBible}\n\nCHAPTER ${ch} TEXT:\n${chapterText.substring(0,20000)}\n\nRespond with ONLY this JSON:\n{"drifts":[{"field":"the field key exactly as given (protagonist, protagonistGoal, protagonistDream, protagonistFear, protagonistWound, protagonistBackstory, protagonistMisbelief, supporting, antagonist, worldSetting, worldRules, worldMythology, worldBeliefs, worldDanger, worldTone, themes, mainPlot)","fieldLabel":"human readable label. For protagonistMisbelief specifically, always use \\"The lie they believe\\", never \\"misbelief\\".","existing":"the existing Bible entry, quoted briefly","incoming":"the new chapter evidence, quoted briefly","observation":"one-sentence neutral observation of the difference","question":"one specific question for the writer, is this intentional evolution or something to revisit"}]}\n\nIf there is no genuine drift, return "drifts": [].`}]
+          })});
+          const d=await r.json();
+          if(!d.error){
+            const raw=finnClean(d.content?.filter(b=>b.type==="text").map(b=>b.text).join(""))||"";
+            const cleaned=raw.replace(/```json\s*/g,"").replace(/```\s*/g,"").trim();
+            const result=JSON.parse(cleaned);
+            if(Array.isArray(result.drifts)&&result.drifts.length>0){
+              processDrifts({drifts:result.drifts,chapterNum:ch},project);
+              foundCount+=result.drifts.length;
+            }
+          }
+        }catch(e){console.log("Retroactive scan error, chapter "+ch+":",e);}
+      }
+      setRetroScanState(prev=>({running:true,done:(prev?.done||0)+1,total:chapters.length}));
+    }
+    setDriftOpen(false); // never auto-interrupt with a wall of past chapters, findings queue quietly for review
+    setRetroScanState({complete:true,foundCount});
+  };
+
   const processDrifts=(extractResult,projectBeforeMerge)=>{
     const drifts=extractResult.drifts;
     if(!drifts||drifts.length===0)return;
@@ -7007,6 +7047,9 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
                   })}
                 </div>
                 :<div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:15,color:"var(--text-primary)"}}>{AGNES_INVOLVEMENT_LEVELS.find(l=>l.id===agnesInvolvement)?.label||"Full"}</div>}
+              {!retroScanState&&<div onClick={runRetroactiveDriftScan} style={{marginTop:12,fontSize:11,color:"var(--agnes,#7A6A8A)",cursor:"pointer",fontFamily:"'DM Sans',sans-serif",textDecoration:"underline",display:"inline-block"}}>Have Agnes look back over everything you've written</div>}
+              {retroScanState?.running&&<div style={{marginTop:12,fontSize:11,color:"var(--text-dim)",fontFamily:"'DM Sans',sans-serif",fontStyle:"italic"}}>Reading chapter {retroScanState.done} of {retroScanState.total}...</div>}
+              {retroScanState?.complete&&<div style={{marginTop:12,fontSize:11,color:"var(--text-dim)",fontFamily:"'DM Sans',sans-serif"}}>{retroScanState.foundCount>0?`Done. Agnes found ${retroScanState.foundCount} thing${retroScanState.foundCount>1?"s":""} worth a look, waiting in your review queue.`:"Done. Nothing stood out."} <span onClick={()=>setRetroScanState(null)} style={{color:"var(--agnes,#7A6A8A)",cursor:"pointer",textDecoration:"underline"}}>Run again</span></div>}
             </div>
             {PROFILE_QUESTIONS.map((q,qi)=>{
               const ans=profileEditMode?profileEditAnswers?.[q.id]:userProfile?.[q.id];
