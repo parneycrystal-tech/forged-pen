@@ -1869,7 +1869,7 @@ The writer has been away. Reconstruct where they are RIGHT NOW. Orient to the fu
     const bucketSummary=Object.entries(ideaLabBuckets).filter(([k,v])=>v.length>0).map(([k,v])=>`${k.toUpperCase()}: ${v.map(i=>i.text).join(" | ")}`).join("\n");
     try{
       const r=await fetch("/api/chat",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({
-        system:`You are Finn analyzing a writer's Idea Lab content. Extract and organize what you find. Respond ONLY with JSON. No markdown. No backticks.`,
+        system:`You are Agnes, a meticulous literary archivist, analyzing a writer's Idea Lab content. Extract and organize what you find. Never use em dashes. Respond ONLY with JSON. No markdown. No backticks.`,
         messages:[{role:"user",content:`Analyze this Idea Lab content and extract story elements.
 
 FREEFORM CONTENT:
@@ -4199,7 +4199,7 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
                 {(route.nextStoryBeat||route.agnesNote)&&<div style={{marginTop:14,paddingTop:12,borderTop:"1px solid var(--border)"}}>
                   {route.nextStoryBeat&&<div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:13,color:"var(--text-muted)",lineHeight:1.65,marginBottom:6,fontStyle:"italic"}}>{route.nextStoryBeat}</div>}
                   {route.emotionalGoal&&<div style={{fontSize:10,color:"var(--text-dim)",fontFamily:"'DM Sans',sans-serif",marginBottom:8}}>Emotional goal: {route.emotionalGoal}</div>}
-                  {route.agnesNote&&<div style={{fontSize:10,color:"var(--text-dim)",fontFamily:"'DM Sans',sans-serif",fontStyle:"italic",lineHeight:1.5}}><span style={{color:"var(--accent-60)",fontWeight:500,fontStyle:"normal"}}>A:</span> {route.agnesNote}</div>}
+                  {route.agnesNote&&<div style={{fontSize:10,color:"var(--text-dim)",fontFamily:"'DM Sans',sans-serif",fontStyle:"italic",lineHeight:1.5}}><span style={{color:"var(--accent-60)",fontWeight:500,fontStyle:"normal"}}>Agnes' Notes:</span> {route.agnesNote}</div>}
                   <div onClick={()=>{saveStored("tt-agnesbrief",null);setAgnesBrief(null);setTimeout(()=>generateAgnesBrief(true),100);}} style={{fontSize:10,color:"var(--text-dim)",cursor:"pointer",marginTop:8,fontFamily:"'DM Sans',sans-serif"}}>Refresh Finn's Read</div>
                 </div>}
               </>:<div className="sb" onClick={()=>setScreen("setup")} style={{background:"var(--accent)",border:"none",borderRadius:8,padding:"11px 24px",textAlign:"center",cursor:"pointer"}}>
@@ -4517,7 +4517,10 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
         <div onClick={goHome} style={{fontSize:12,color:"var(--text-dim)",cursor:"pointer",marginBottom:16}}>Back</div>
         <div style={{fontSize:8,textTransform:"uppercase",letterSpacing:"0.25em",color:"#5A7A8A",fontWeight:500,marginBottom:8}}>Story Bible</div>
         <p style={{fontSize:13,color:"var(--text-muted)",marginBottom:10,lineHeight:1.6}}>Fill in what you can. Skip what you can't. Come back later. None of this has to be perfect.</p>
-        <div onClick={openFirstSession} style={{display:"inline-block",fontSize:12,color:"var(--accent)",cursor:"pointer",marginBottom:16,fontFamily:"'DM Sans',sans-serif",borderBottom:"1px solid var(--accent-40)"}}>Or let Finn help you build this &#8594;</div>
+        <div onClick={openFirstSession} style={{background:"var(--accent)",borderRadius:8,padding:"10px 14px",marginBottom:16,cursor:"pointer",display:"inline-block"}}>
+          <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:14,color:"#F4EEDF",fontWeight:600}}>Explore this with Finn</div>
+          <div style={{fontFamily:"'DM Sans',sans-serif",fontSize:10,color:"#F4EEDF",opacity:0.85,marginTop:1}}>Talk it through instead of filling in fields alone</div>
+        </div>
         <div style={{display:"flex",gap:6,marginBottom:16,flexWrap:"wrap"}}><BibTab id="overview" label="Overview" active={bibTab==="overview"} onClick={setBibTab}/><BibTab id="characters" label="Characters" active={bibTab==="characters"} onClick={setBibTab}/><BibTab id="world" label="World" active={bibTab==="world"} onClick={setBibTab}/><BibTab id="plot" label="Plot & Structure" active={bibTab==="plot"} onClick={setBibTab}/><BibTab id="chapters" label="Chapters" active={bibTab==="chapters"} onClick={setBibTab}/><BibTab id="current" label="Current Chapter" active={bibTab==="current"} onClick={setBibTab}/></div>
 
         {bibTab==="overview"&&<>
@@ -4636,7 +4639,7 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
           <div style={{marginBottom:20}}>
             <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:6}}>
               <label style={{fontSize:12,color:"var(--text-secondary)",fontWeight:500}}>Main plot</label>
-              <span onClick={()=>pick(MODES.find(m=>m.id==="plot"))} style={{fontSize:11,color:"var(--accent)",cursor:"pointer",textDecoration:"underline"}}>Build this with Finn</span>
+              <span onClick={()=>pick(MODES.find(m=>m.id==="plot"))} style={{fontSize:10,color:"#F4EEDF",background:"var(--accent)",borderRadius:5,padding:"4px 10px",cursor:"pointer",fontFamily:"'DM Sans',sans-serif",fontWeight:500}}>Build this with Finn</span>
             </div>
             <textarea value={pForm.mainPlot} onChange={e=>updateField("mainPlot",e.target.value)} placeholder="What is this story actually about, underneath the scenes? Type it yourself, or let it grow as you capture chapters." rows={4} style={{width:"100%",background:"var(--bg-base)",border:"1px solid var(--border)",borderRadius:8,padding:"10px 12px",outline:"none",resize:"vertical",fontFamily:"'Cormorant Garamond',serif",fontSize:14,color:"var(--text-primary)",lineHeight:1.7}}/>
           </div>
@@ -5624,7 +5627,7 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
                 <div style={{fontSize:9,color:"var(--text-dim)",marginBottom:10}}>{ideaLabText.split(/\s+/).filter(w=>w).length} words</div>
                 <div style={{fontSize:9,color:"var(--text-faint)",fontStyle:"italic",marginBottom:10,fontFamily:"'Cormorant Garamond',serif",lineHeight:1.5}}>Your Idea Lab stays exactly as it is. Finn copies, never moves.</div>
                 <div onClick={ideaLabText.trim()?handleOrganize:undefined} style={{background:"none",border:"1px solid #9A8AB040",borderRadius:6,padding:"8px 10px",color:ideaLabText.trim()?"#9A8AB0":"var(--text-faint)",fontFamily:"'DM Sans',sans-serif",fontSize:11,cursor:ideaLabText.trim()?"pointer":"default",textAlign:"center",marginBottom:8}}>
-                  {organizeLoading?"Reading your idea...":"Organize with Finn"}
+                  {organizeLoading?"Reading your idea...":"Organize with Agnes"}
                 </div>
                 <div onClick={ideaLabText.trim()&&!labSessionNaming?saveLabSessionToSidebar:undefined} style={{background:ideaLabText.trim()?"#9A8AB0":"none",border:"1px solid #9A8AB040",borderRadius:6,padding:"8px 10px",color:ideaLabText.trim()?"#1E1C14":"var(--text-faint)",fontFamily:"'DM Sans',sans-serif",fontSize:11,cursor:ideaLabText.trim()&&!labSessionNaming?"pointer":"default",textAlign:"center",marginBottom:14}}>
                   {labSessionNaming?"Naming this session...":"Save to sidebar"}
@@ -6294,10 +6297,10 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
             </div>}
           </div>}
 
-          {/* ORGANIZE WITH FINN OVERLAY */}
+          {/* ORGANIZE WITH AGNES OVERLAY */}
           {organizeOpen&&organizeResult&&<div style={{position:"absolute",top:0,left:0,right:0,bottom:0,background:"rgba(var(--bg-card-rgb),0.6)",zIndex:200,display:"flex",alignItems:"flex-end"}} onClick={e=>{if(e.target===e.currentTarget){setOrganizeOpen(false)}}}>
             <div style={{background:"var(--bg-card)",border:"1px solid var(--border)",borderRadius:"16px 16px 0 0",padding:"24px 24px 28px",width:"100%",maxHeight:"80%",overflowY:"auto",animation:"fu .3s ease-out"}}>
-              <div style={{fontSize:9,textTransform:"uppercase",letterSpacing:"0.22em",color:"#9A8AB0",fontWeight:500,marginBottom:12}}>Organize with Finn</div>
+              <div style={{fontSize:9,textTransform:"uppercase",letterSpacing:"0.22em",color:"#9A8AB0",fontWeight:500,marginBottom:12}}>Organize with Agnes</div>
               <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:17,color:"var(--text-primary)",lineHeight:1.7,marginBottom:20}}>Here's what I found. Approve what belongs in your Story Bible or Manuscript. You can change your mind on anything.</div>
               {[["characters","Characters","→ Story Bible","#5A7A8A"],["world","World / Setting","→ Story Bible","#907860"],["plot","Plot Moments","→ Manuscript","#5A6B3A"],["questions","Questions","→ Coaching","#7A6EA0"]].map(([key,label,dest,color])=>(organizeResult[key]||[]).length>0&&<div key={key} style={{marginBottom:18}}>
                 <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:10,paddingBottom:6,borderBottom:"1px solid var(--border)"}}>
