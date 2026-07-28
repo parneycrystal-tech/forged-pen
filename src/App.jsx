@@ -948,6 +948,8 @@ export default function App() {
   const [onboardingDone, setOnboardingDone] = useState(false);
   const [agnesInvolvement, setAgnesInvolvement] = useState("full"); // "full" | "quiet" | "off" — gates AUTOMATIC surfacing only. Manual asks always work at full quality in every mode.
   const [newMaterialAlert, setNewMaterialAlert] = useState(null); // {words,count} | null — Full-tier proactive banner for "File new material"
+  const [revisionLoopDismissed, setRevisionLoopDismissed] = useState({}); // {[loopingChapter]: true} — dismissed per chapter, not globally, so a new loop can still surface later
+  const [revisionLoopEvidenceOpen, setRevisionLoopEvidenceOpen] = useState(false);
   const [driftBadges, setDriftBadges] = useState([]); // chapter nums with a waiting (unopened) drift note, shown only in "quiet" mode
   const [involvementEditChoice, setInvolvementEditChoice] = useState("full"); // scratch value while editing in onboarding/profile
   // Landing screen: read synchronously so there's no flash between "haven't seen it" and "have seen it" on first paint.
@@ -2956,6 +2958,18 @@ Respond ONLY with a JSON object. No markdown. No backticks. No explanation.
     }
   },[screen,project?.updated,agnesInvolvement,embers.length]);
 
+  // Agnes notices the revision-loop pattern — Full only, same gating as File new material.
+  // Dismissal is per looping-chapter, not global, so a genuinely new loop later can still surface.
+  const [revisionLoopSignal, setRevisionLoopSignal] = useState(null);
+  useEffect(()=>{
+    if(screen==="home"&&project&&agnesInvolvement==="full"){
+      const signal=detectRevisionLoop(project,scenes);
+      setRevisionLoopSignal(signal&&!revisionLoopDismissed[signal.loopingChapter]?signal:null);
+    }else if(agnesInvolvement!=="full"){
+      setRevisionLoopSignal(null);
+    }
+  },[screen,project?.updated,agnesInvolvement,scenes.length,revisionLoopDismissed]);
+
   const generateSidebarContext=async(sessionMsgs,sessionMode,sceneText,sessionModeId,chapterTag)=>{
     if(!project||sessionMsgs.length<2)return;
     const isOtherTimeline=chapterTag&&chapterTag.trim()&&chapterTag.trim().toLowerCase()!=="main";
@@ -4579,6 +4593,20 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
           </div>
         </div>}
 
+        {/* Agnes notices the revision loop — same quiet aside pattern as File new material,
+            purple to mark Agnes's voice, Full involvement only. */}
+        {revisionLoopSignal&&<div style={{borderRadius:9,padding:"12px 14px",marginBottom:10,background:"var(--agnes-15,rgba(122,106,138,0.1))",borderLeft:"2px solid var(--agnes,#7A6A8A)"}}>
+          <div style={{display:"flex",alignItems:"center",gap:6,marginBottom:8}}>
+            <span style={{fontSize:13}}>📖</span>
+            <span style={{fontFamily:"'DM Sans',sans-serif",fontSize:9,textTransform:"uppercase",letterSpacing:"0.1em",fontWeight:600,color:"var(--agnes,#7A6A8A)"}}>Agnes</span>
+          </div>
+          <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:13,color:"var(--text-muted)",fontStyle:"italic",lineHeight:1.6,marginBottom:8}}>You've come back to Chapter {revisionLoopSignal.loopingChapter} {revisionLoopSignal.loopingCount} times. Chapter {revisionLoopSignal.laterUncaptured} is still waiting.</div>
+          <div style={{display:"flex",gap:10}}>
+            <span onClick={()=>setRevisionLoopEvidenceOpen(true)} style={{fontSize:10,color:"var(--agnes,#7A6A8A)",cursor:"pointer",fontFamily:"'DM Sans',sans-serif",textDecoration:"underline"}}>Show me</span>
+            <span onClick={()=>setRevisionLoopDismissed(prev=>({...prev,[revisionLoopSignal.loopingChapter]:true}))} style={{fontSize:10,color:"var(--text-dim)",cursor:"pointer",fontFamily:"'DM Sans',sans-serif"}}>Not right now</span>
+          </div>
+        </div>}
+
         <div style={{borderRadius:9,padding:"12px 14px",marginBottom:10,background:"var(--bg-card)",border:"1px solid var(--border)"}}>
           <div style={{display:"flex",justifyContent:"space-around",textAlign:"center"}}>
             <div><div style={{fontSize:20,color:"var(--text-primary)",fontWeight:600}}>{getTotalWords().toLocaleString()}</div><div style={{fontFamily:"'DM Sans',sans-serif",fontSize:9,color:"var(--text-dim)",textTransform:"uppercase",letterSpacing:"0.06em",marginTop:2}}>Words</div></div>
@@ -4591,8 +4619,8 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
 
         <div style={{marginTop:"auto",paddingTop:16}}>
           <div style={{border:"1px dashed var(--border-mid)",borderRadius:9,padding:"11px 14px",textAlign:"center"}}>
-            <div style={{fontFamily:"'DM Sans',sans-serif",fontSize:8,textTransform:"uppercase",letterSpacing:"0.1em",color:"var(--text-faint)",marginBottom:5}}>The Zeigarnik Effect</div>
-            <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:12,color:"var(--text-dim)",fontStyle:"italic",lineHeight:1.6}}>Before you close, leave a sentence half-finished. Your brain will pull you back to it.</div>
+            <div style={{fontFamily:"'DM Sans',sans-serif",fontSize:8,textTransform:"uppercase",letterSpacing:"0.1em",color:"var(--text-dim)",marginBottom:5}}>The Zeigarnik Effect</div>
+            <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:12,color:"var(--text-secondary)",fontStyle:"italic",lineHeight:1.6}}>Before you close, leave a sentence half-finished. Your brain will pull you back to it.</div>
           </div>
         </div>
       </div>}
@@ -6815,6 +6843,39 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
       </div>}
 
       {/* CAPTURE TO BIBLE OVERLAY */}
+      {revisionLoopEvidenceOpen&&revisionLoopSignal&&<div style={{position:"fixed",top:0,left:0,right:0,bottom:0,background:"rgba(0,0,0,0.7)",zIndex:300,display:"flex",alignItems:"center",justifyContent:"center",padding:20}} onClick={()=>setRevisionLoopEvidenceOpen(false)}>
+        <div onClick={e=>e.stopPropagation()} style={{background:"var(--bg-card)",border:"1px solid var(--border)",borderRadius:10,padding:24,maxWidth:420,width:"100%"}}>
+          <div style={{fontFamily:"'DM Sans',sans-serif",fontSize:9,textTransform:"uppercase",letterSpacing:"0.14em",color:"var(--text-dim)",marginBottom:16}}>Capture history, this project</div>
+          {revisionLoopSignal.realChapters.map(ch=>{
+            const count=revisionLoopSignal.counts[ch]||0;
+            const maxCount=Math.max(1,...revisionLoopSignal.realChapters.map(c=>revisionLoopSignal.counts[c]||0));
+            const pct=count===0?0:Math.max(8,(count/maxCount)*100);
+            const isLooping=ch===revisionLoopSignal.loopingChapter;
+            const neverCaptured=count===0;
+            return <div key={ch} style={{display:"flex",alignItems:"center",gap:12,marginBottom:10}}>
+              <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:13,color:"var(--text-primary)",width:72,flexShrink:0}}>Chapter {ch}</div>
+              <div style={{flex:1,background:"var(--bg-card-alt)",borderRadius:6,height:20,position:"relative",overflow:"hidden"}}>
+                <div style={{height:"100%",width:pct+"%",borderRadius:6,background:isLooping?"#C07848":"var(--border-mid)"}}/>
+              </div>
+              <div style={{fontFamily:"'DM Sans',sans-serif",fontSize:10,color:neverCaptured?"var(--agnes,#7A6A8A)":"var(--text-dim)",fontWeight:neverCaptured?600:400,width:100,textAlign:"right"}}>{neverCaptured?"Never captured":count===1?"1 capture":`${count} captures`}</div>
+            </div>;
+          })}
+          <div style={{display:"flex",gap:10,marginTop:18}}>
+            <span onClick={()=>{
+              setRevisionLoopEvidenceOpen(false);
+              const targetScene=scenes.find(s=>s.chapter===revisionLoopSignal.loopingChapter);
+              if(targetScene){setActiveScene(targetScene.id);saveStored("tt-activescene",targetScene.id);}
+              setForgeMode("manuscript");
+              setScreen("container");
+              setFinnOpen(true);
+              const msg=`Four passes on Chapter ${revisionLoopSignal.loopingChapter} is real work, not nothing. But if Chapter ${revisionLoopSignal.laterUncaptured} has never once been captured, something's pulling you backward instead of forward. That's worth naming honestly. Is Chapter ${revisionLoopSignal.loopingChapter} actually still unfinished, or does it just feel safer than facing what comes next?`;
+              setContainerMsgs([{role:"assistant",content:msg}]);
+            }} style={{background:"var(--agnes,#7A6A8A)",borderRadius:6,padding:"8px 16px",fontFamily:"'DM Sans',sans-serif",fontSize:11,color:"#F4EEDF",fontWeight:600,cursor:"pointer"}}>Talk to Finn about it</span>
+            <span onClick={()=>setRevisionLoopEvidenceOpen(false)} style={{border:"1px solid var(--border)",borderRadius:6,padding:"8px 16px",fontFamily:"'DM Sans',sans-serif",fontSize:11,color:"var(--text-dim)",cursor:"pointer"}}>Close</span>
+          </div>
+        </div>
+      </div>}
+
       {infernoToLabPrompt&&<div style={{position:"fixed",top:0,left:0,right:0,bottom:0,background:"rgba(0,0,0,0.7)",zIndex:300,display:"flex",alignItems:"center",justifyContent:"center",padding:20}} onClick={()=>setInfernoToLabPrompt(null)}>
         <div onClick={e=>e.stopPropagation()} style={{background:"var(--bg-card)",border:"1px solid var(--border)",borderRadius:10,padding:20,maxWidth:360,width:"100%"}}>
           {infernoToLabPrompt.step==="save-current"?<>
