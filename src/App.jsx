@@ -12,7 +12,7 @@ const FINN = `ABSOLUTE RULE, ZERO EXCEPTIONS: Never use em dashes in any respons
 
 You are Finn (short for Finnigan), the writing coach behind Forged Pen. Lit major, psych minor. Old soul, sharp but never cutting, dry wit, warm underneath. You ask the one question that unlocks everything.
 
-VOICE REGISTER: Finn is eloquent, not exclusionary. His lit-major mind shows in precision, not in obscure vocabulary. Every word he uses should land the same way for a writer regardless of their educational, economic, or cultural background. Depth of thought is what makes him sound sharp, not difficulty of language. Writers are writers, regardless of where they flower from. A working-class writer and a tenured professor should both feel like he's speaking directly to them, respecting their intelligence without ever requiring a dictionary.
+VOICE REGISTER: Finn is eloquent, not exclusionary. His lit-major mind shows in precision, not in obscure vocabulary. Every word he uses shou272079021ld land the same way for a writer regardless of their educational, economic, or cultural background. Depth of thought is what makes him sound sharp, not difficulty of language. Writers are writers, regardless of where they flower from. A working-class writer and a tenured professor should both feel like he's speaking directly to them, respecting their intelligence without ever requiring a dictionary.
 
 NEVER USE THIS CADENCE, IN ANY MODE, EITHER VOICE: "That's not X. That's Y." Negating one framing and asserting another in a short parallel clause is one of the most recognizable AI patterns there is. It reads as performed no matter how true the content underneath it actually is. Finn and Agnes both avoid it entirely.
 
@@ -632,6 +632,18 @@ function groupResearchNotes(notes){
   const sorted=order.sort((a,b)=>a==="Unsorted"?1:b==="Unsorted"?-1:0);
   return sorted.map(label=>({label,items:buckets[label]}));
 }
+// Lines get their own slots inside The Drawer, same idea as Research Shelves, a slot is
+// just the writer's own tag, made visible as a heading. Unslotted lines land honestly under
+// Unsorted rather than vanishing.
+function groupLines(lines){
+  const buckets={};const order=[];
+  const push=(label,l)=>{if(!buckets[label]){buckets[label]=[];order.push(label);}buckets[label].push(l);};
+  (lines||[]).forEach(l=>{
+    push(l.slot?.trim()||"Unsorted",l);
+  });
+  const sorted=order.sort((a,b)=>a==="Unsorted"?1:b==="Unsorted"?-1:0);
+  return sorted.map(label=>({label,items:buckets[label]}));
+}
 
 function existingCharacterNamesList(project){
   const protagName=project?.protagonist?(project.protagonist.split(":")[0]||"").trim():null;
@@ -914,6 +926,7 @@ export default function App() {
   const [welcomeRoute, setWelcomeRoute] = useState(null);
   const [welcomeDefsOpen, setWelcomeDefsOpen] = useState(false);
   const [ideaSubChoice, setIdeaSubChoice] = useState(null); // "discover" | "plan" | null — sub-branch under the fresh-idea welcome route
+  const [writerType, setWriterType] = useState(null); // "planner" | "discovery" | "hybrid" — asked first, before material state, drives which onboarding path a writer sees
   const [profileStep, setProfileStep] = useState(1);
   const [profileAnswers, setProfileAnswers] = useState({q1:{selected:[],text:""},q2:{selected:[],text:""},q3:{selected:[],text:""},q4:{selected:[],text:""},q5:{selected:[],text:""},q6:{selected:[],text:""}});
   const [userProfile, setUserProfile] = useState(null);
@@ -972,7 +985,12 @@ export default function App() {
   // Finn's coaching chats since this is Agnes's own space, librarian voice, no live search.
   const [researchForm, setResearchForm] = useState(null); // null | {id:null|existingId, title, note, source, links, status, image} — image is a base64 data URL, stored directly on the note
   const [researchChat, setResearchChat] = useState({open:false, msgs:[], loading:false, draft:null, error:null});
-  const [emberGroupBy, setEmberGroupBy] = useState("none"); // "none" | "character" | "position" | "status" | "shelf" — reads data Agnes already extracts, nothing new tracked
+  const [emberGroupBy, setEmberGroupBy] = useState("none"); // "none" | "character" | "position" | "status" | "shelf" | "drawer" — "drawer" switches the whole list over to Lines instead of Embers
+  const [lines, setLines] = useState([]); // {id, text, slot, createdAt} — a Line is a single sentence or two, lighter than a full Ember, lives in The Drawer
+  const [activeLine, setActiveLine] = useState(null);
+  const [embersSearch, setEmbersSearch] = useState("");
+  const [embersSearchType, setEmbersSearchType] = useState("all"); // "all" | "embers" | "lines"
+  const [editingLineSlot, setEditingLineSlot] = useState(false);
   const [editingShelfId, setEditingShelfId] = useState(null); // research note id whose shelf badge is currently an open input, or null
   const [bibExpanded, setBibExpanded] = useState(false);
   const [bibleSearch, setBibleSearch] = useState("");
@@ -1205,6 +1223,8 @@ export default function App() {
     if (inft) setInfernoText(inft);
     const emb = loadStored("tt-embers");
     if (emb && Array.isArray(emb)) setEmbers(emb);
+    const lns = loadStored("tt-lines");
+    if (lns && Array.isArray(lns)) setLines(lns);
     const un = loadStored("tt-username");
     const up = loadStored("tt-userprofile");
     const od = loadStored("tt-onboarding-done");
@@ -2340,6 +2360,52 @@ Main plot: ${project?.mainPlot||"none"}`;
   };
   // Files a note onto an existing character card (matched by name or alias). Returns false if no
   // card matches, in which case the note stays in the unsorted blob untouched.
+  // Lines live in The Drawer, lighter than a full Ember, just a sentence or two the writer
+  // wants to keep without forcing it into a whole scene. Slots work exactly like Research
+  // Shelves, a writer-named tag made visible as a heading.
+  const addLine=(text)=>{
+    if(!text||!text.trim())return;
+    const newLine={id:"line_"+Date.now(),text:text.trim(),slot:"",createdAt:Date.now()};
+    const updated=[newLine,...lines];
+    setLines(updated);saveStored("tt-lines",updated);
+    return newLine.id;
+  };
+  const setLineSlot=(id,slot)=>{
+    const updated=lines.map(l=>l.id===id?{...l,slot:slot.trim()}:l);
+    setLines(updated);saveStored("tt-lines",updated);
+  };
+  const deleteLine=(id)=>{
+    const updated=lines.filter(l=>l.id!==id);
+    setLines(updated);saveStored("tt-lines",updated);
+    if(activeLine===id)setActiveLine(null);
+  };
+  // Bloom into an Ember: always the same simple, mechanical action, no forced choice about
+  // guidance. The Line's exact words become the new Ember's starting content. Once it's a
+  // real Ember, the writer already has the existing "Let Agnes read this ember" option
+  // whenever they want it, nothing new to build for that part.
+  const [lineAgnesLoading, setLineAgnesLoading] = useState(null); // line id currently being read
+  const [lineAgnesResults, setLineAgnesResults] = useState({}); // {[lineId]: suggestion text}
+  const askAgnesAboutLine=async(line)=>{
+    setLineAgnesLoading(line.id);
+    try{
+      const resp=await fetch("/api/chat",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({
+        system:`You are Agnes, a meticulous literary archivist. In one or two sentences, tell the writer where this single line might belong in their story, based on the Story Bible below. Be direct and specific. Never use em dashes.\n\nSTORY CONTEXT:\n${bibleSummaryCtx(project)}`,
+        messages:[{role:"user",content:`The line: "${line.text}"`}]
+      })});
+      const data=await resp.json();
+      const raw=finnClean(data.content?.filter(b=>b.type==="text").map(b=>b.text).join(""))||"";
+      setLineAgnesResults(prev=>({...prev,[line.id]:raw}));
+    }catch(e){console.log("Line Agnes read error:",e);}
+    setLineAgnesLoading(null);
+  };
+  const bloomLineIntoEmber=(line)=>{
+    const newEmber={id:"ember-"+Date.now(),title:"",text:line.text,createdAt:Date.now(),status:"active",agnesAnalysis:null};
+    const updatedEmbers=[newEmber,...embers];
+    setEmbers(updatedEmbers);saveStored("tt-embers",updatedEmbers);
+    deleteLine(line.id);
+    setActiveEmber(newEmber.id);
+    setEmberGroupBy("none");
+  };
   const appendToCharacter=(name,note)=>{
     const existing=Array.isArray(project?.characters)?[...project.characters]:[];
     const nl=(name||"").toLowerCase();
@@ -3902,8 +3968,8 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
               </div>
               <div style={{borderTop:"1px solid #D8CEB0",paddingTop:24}}>
                 <p style={{fontFamily:"'Cormorant Garamond',serif",fontSize:16,fontStyle:"italic",color:"#5A5040",marginBottom:14}}>What should I call you?</p>
-                <input autoFocus value={welcomeInput} onChange={e=>setWelcomeInput(e.target.value)} onKeyDown={e=>{if(e.key==="Enter"&&welcomeInput.trim()){const n=welcomeInput.trim();setUserName(n);saveStored("tt-username",n);cloudSave("tt-username",n);setWelcomeStep("routing");setWelcomeInput("");}}} placeholder="Your first name, or whatever you'd like" style={{width:"100%",background:"transparent",border:"none",borderBottom:"1px solid #C8BC9A",padding:"8px 0",fontFamily:"'Cormorant Garamond',serif",fontSize:17,color:"#1E1C14",outline:"none",letterSpacing:"0.01em"}}/>
-                {welcomeInput.trim()&&<div onClick={()=>{const n=welcomeInput.trim();setUserName(n);saveStored("tt-username",n);cloudSave("tt-username",n);setWelcomeStep("routing");setWelcomeInput("");}} style={{background:"#5A6B3A",borderRadius:7,padding:"11px",textAlign:"center",cursor:"pointer",marginTop:18}}>
+                <input autoFocus value={welcomeInput} onChange={e=>setWelcomeInput(e.target.value)} onKeyDown={e=>{if(e.key==="Enter"&&welcomeInput.trim()){const n=welcomeInput.trim();setUserName(n);saveStored("tt-username",n);cloudSave("tt-username",n);setWelcomeStep("writer-type");setWelcomeInput("");}}} placeholder="Your first name, or whatever you'd like" style={{width:"100%",background:"transparent",border:"none",borderBottom:"1px solid #C8BC9A",padding:"8px 0",fontFamily:"'Cormorant Garamond',serif",fontSize:17,color:"#1E1C14",outline:"none",letterSpacing:"0.01em"}}/>
+                {welcomeInput.trim()&&<div onClick={()=>{const n=welcomeInput.trim();setUserName(n);saveStored("tt-username",n);cloudSave("tt-username",n);setWelcomeStep("writer-type");setWelcomeInput("");}} style={{background:"#5A6B3A",borderRadius:7,padding:"11px",textAlign:"center",cursor:"pointer",marginTop:18}}>
                   <span style={{fontSize:13,fontWeight:500,color:"#F0EAE0",fontFamily:"'DM Sans',sans-serif"}}>Continue</span>
                 </div>}
               </div>
@@ -3935,31 +4001,71 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
               </div>}
             </>}
 
+            {welcomeStep==="writer-type"&&<>
+              <div style={{borderTop:"1px solid #D8CEB0",paddingTop:24,marginBottom:20}}>
+                <p style={{fontFamily:"'Cormorant Garamond',serif",fontSize:18,color:"#1E1C14",marginBottom:6}}>Good to meet you, {userName}.</p>
+                <p style={{fontFamily:"'Cormorant Garamond',serif",fontSize:16,fontStyle:"italic",color:"#5A5040"}}>Before we start. How do you and your story usually meet?</p>
+              </div>
+              <div style={{display:"flex",flexDirection:"column",gap:10}}>
+                {[
+                  {id:"planner",label:"Planner",sub:"I map my story out before I write it."},
+                  {id:"discovery",label:"Discovery writer",sub:"I find my story through writing it."},
+                  {id:"hybrid",label:"Hybrid",sub:"Some of it is mapped. Some of it finds me."}
+                ].map(opt=>(
+                  <div key={opt.id} onClick={()=>{setWriterType(opt.id);if(opt.id==="discovery"){setWelcomeStep("discovery-reminder");}else{setWelcomeStep("material-check");}}} style={{background:writerType===opt.id?"#F5EEE4":"#F0EAE0",border:"1px solid "+(writerType===opt.id?"#A8884A":"#C8BC9A"),borderRadius:8,padding:"14px 16px",cursor:"pointer",transition:"all .2s"}}>
+                    <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:16,color:"#1E1C14",marginBottom:4}}>{opt.label}</div>
+                    <div style={{fontSize:11,color:"#7A6E60",fontFamily:"'DM Sans',sans-serif"}}>{opt.sub}</div>
+                  </div>
+                ))}
+              </div>
+              {!welcomeDefsOpen&&<div onClick={()=>setWelcomeDefsOpen(true)} style={{marginTop:14,fontSize:11,color:"#7A6E60",cursor:"pointer",fontFamily:"'DM Sans',sans-serif",textDecoration:"underline"}}>Curious what these are called?</div>}
+              {welcomeDefsOpen&&<div style={{marginTop:14,background:"#F0EAE0",border:"1px solid #D8CEB0",borderRadius:8,padding:"14px 16px"}}>
+                <p style={{fontFamily:"'Cormorant Garamond',serif",fontSize:13,lineHeight:1.7,color:"#3A3428",marginBottom:8}}><b>Planner (or plotter):</b> you map the story before you write it, outline, characters, arcs, mostly settled in advance.</p>
+                <p style={{fontFamily:"'Cormorant Garamond',serif",fontSize:13,lineHeight:1.7,color:"#3A3428",marginBottom:8}}><b>Discovery writer (or pantser):</b> you find the story by writing it, a spark, maybe a character, and the rest reveals itself on the page.</p>
+                <p style={{fontFamily:"'Cormorant Garamond',serif",fontSize:13,lineHeight:1.7,color:"#3A3428"}}><b>Hybrid:</b> a real, recognized mix of both. Most writers land somewhere here, especially if your process runs hot then crashes then rebuilds. If that's you, there's already a word for it.</p>
+              </div>}
+            </>}
+
+            {welcomeStep==="discovery-reminder"&&<>
+              <div style={{borderTop:"1px solid #D8CEB0",paddingTop:24,marginBottom:20}}>
+                <p style={{fontFamily:"'Cormorant Garamond',serif",fontSize:16,fontWeight:300,color:"#3A3428",lineHeight:1.85,marginBottom:14}}>You said you find the story as you write. Agnes checks each chapter against your Story Bible and points out anything that changed. That can feel like being questioned for doing exactly what discovery writing is supposed to do.</p>
+                <p style={{fontFamily:"'Cormorant Garamond',serif",fontSize:16,fontWeight:300,color:"#3A3428",lineHeight:1.85}}>You can turn her checks down, off, or leave them as they are, any time, on your Profile page. If you want her to look back over everything you have written, not just what happens after you change her level, that option lives there too. Nothing you write without her gets left behind.</p>
+              </div>
+              <div onClick={()=>{setWelcomeRoute("idealab");setWelcomeStep("response");}} style={{background:"#5A6B3A",borderRadius:7,padding:"11px",textAlign:"center",cursor:"pointer"}}><span style={{fontSize:13,fontWeight:500,color:"#F0EAE0",fontFamily:"'DM Sans',sans-serif"}}>Continue</span></div>
+              <div style={{textAlign:"center",marginTop:12}}><span onClick={()=>setWelcomeStep("writer-type")} style={{fontSize:11,color:"#908878",cursor:"pointer",fontFamily:"'DM Sans',sans-serif"}}>That's not quite right</span></div>
+            </>}
+
+            {welcomeStep==="material-check"&&<>
+              <div style={{borderTop:"1px solid #D8CEB0",paddingTop:24,marginBottom:20}}>
+                <p style={{fontFamily:"'Cormorant Garamond',serif",fontSize:16,fontStyle:"italic",color:"#5A5040"}}>Do you already have notes, characters, an outline, or chapters, or are we building fresh, right here?</p>
+              </div>
+              <div style={{display:"flex",flexDirection:"column",gap:10}}>
+                <div onClick={()=>{setWelcomeRoute("storybible");setWelcomeStep("response");}} style={{background:"#F0EAE0",border:"1px solid #C8BC9A",borderRadius:8,padding:"14px 16px",cursor:"pointer"}}>
+                  <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:16,color:"#1E1C14",marginBottom:4}}>Paste in what I have</div>
+                  <div style={{fontSize:11,color:"#7A6E60",fontFamily:"'DM Sans',sans-serif"}}>Agnes reads through it and helps you organize your Story Bible.</div>
+                </div>
+                <div onClick={()=>{setWelcomeRoute("manuscript");setWelcomeStep("response");}} style={{background:"#F0EAE0",border:"1px solid #C8BC9A",borderRadius:8,padding:"14px 16px",cursor:"pointer"}}>
+                  <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:16,color:"#1E1C14",marginBottom:4}}>I have chapters already drafted</div>
+                  <div style={{fontSize:11,color:"#7A6E60",fontFamily:"'DM Sans',sans-serif"}}>Bring your manuscript in, and Agnes will help you go deeper.</div>
+                </div>
+                <div onClick={()=>{setWelcomeRoute("buildfresh");setWelcomeStep("response");}} style={{background:"#F0EAE0",border:"1px solid #C8BC9A",borderRadius:8,padding:"14px 16px",cursor:"pointer"}}>
+                  <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:16,color:"#1E1C14",marginBottom:4}}>Build it fresh here</div>
+                  <div style={{fontSize:11,color:"#7A6E60",fontFamily:"'DM Sans',sans-serif"}}>Open Story Bible, no guided prompts, just you and the fields.</div>
+                </div>
+              </div>
+              <div style={{textAlign:"center",marginTop:12}}><span onClick={()=>setWelcomeStep("writer-type")} style={{fontSize:11,color:"#908878",cursor:"pointer",fontFamily:"'DM Sans',sans-serif"}}>That's not quite right</span></div>
+            </>}
+
             {welcomeStep==="response"&&welcomeRoute&&<>
               <div style={{borderTop:"1px solid #D8CEB0",paddingTop:24,marginBottom:24}}>
                 {welcomeRoute==="idealab"&&<>
                   <p style={{fontFamily:"'Cormorant Garamond',serif",fontSize:16,fontWeight:300,color:"#3A3428",lineHeight:1.85,marginBottom:14}}>Good. Ideas are where everything starts.</p>
-                  {!ideaSubChoice&&<>
-                    <p style={{fontFamily:"'Cormorant Garamond',serif",fontSize:16,fontWeight:300,color:"#3A3428",lineHeight:1.85,marginBottom:14}}>One more thing worth knowing before we begin: do you want to find the rest of this story as you write it, or would you rather map it out first, on your own?</p>
-                    <div style={{display:"flex",flexDirection:"column",gap:8,marginBottom:10}}>
-                      <div onClick={()=>setIdeaSubChoice("discover")} style={{border:"1px solid #C8BC9A",borderRadius:8,padding:"12px 14px",cursor:"pointer"}}>
-                        <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:15,color:"#1E1C14"}}>Find it as I write</div>
-                        <div style={{fontSize:11,color:"#7A6E60",fontFamily:"'DM Sans',sans-serif",marginTop:2}}>The Idea Lab, no structure required. Pour it out, we build from there.</div>
-                      </div>
-                      <div onClick={()=>setIdeaSubChoice("plan")} style={{border:"1px solid #C8BC9A",borderRadius:8,padding:"12px 14px",cursor:"pointer"}}>
-                        <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:15,color:"#1E1C14"}}>Map it out first, on my own</div>
-                        <div style={{fontSize:11,color:"#7A6E60",fontFamily:"'DM Sans',sans-serif",marginTop:2}}>Your Story Bible, open and unlocked. No guided prompts, just you and the fields.</div>
-                      </div>
-                    </div>
-                  </>}
-                  {ideaSubChoice==="discover"&&<>
-                    <p style={{fontFamily:"'Cormorant Garamond',serif",fontSize:16,fontWeight:300,color:"#3A3428",lineHeight:1.85,marginBottom:14}}>I'm going to take you to The Forge. There's a space in there called the Idea Lab, and that's where we'll begin. No structure required. Just pour everything out, whatever you know, whatever you're feeling, whatever questions you're sitting with.</p>
-                    <p style={{fontFamily:"'Cormorant Garamond',serif",fontSize:16,fontWeight:300,color:"#3A3428",lineHeight:1.85}}>We'll build from there, {userName}.</p>
-                  </>}
-                  {ideaSubChoice==="plan"&&<>
-                    <p style={{fontFamily:"'Cormorant Garamond',serif",fontSize:16,fontWeight:300,color:"#3A3428",lineHeight:1.85,marginBottom:14}}>Your Story Bible is yours to build. Fill in what you know, skip what you don't, come back any time. No guided path, just the fields and your story.</p>
-                    <p style={{fontFamily:"'Cormorant Garamond',serif",fontSize:16,fontWeight:300,color:"#3A3428",lineHeight:1.85}}>I'll be here when you want a second pair of eyes, {userName}.</p>
-                  </>}
+                  <p style={{fontFamily:"'Cormorant Garamond',serif",fontSize:16,fontWeight:300,color:"#3A3428",lineHeight:1.85,marginBottom:14}}>I'm going to take you to The Forge. There's a space in there called the Idea Lab, and that's where we'll begin. No structure required. Just pour everything out, whatever you know, whatever you're feeling, whatever questions you're sitting with.</p>
+                  <p style={{fontFamily:"'Cormorant Garamond',serif",fontSize:16,fontWeight:300,color:"#3A3428",lineHeight:1.85}}>We'll build from there, {userName}.</p>
+                </>}
+                {welcomeRoute==="buildfresh"&&<>
+                  <p style={{fontFamily:"'Cormorant Garamond',serif",fontSize:16,fontWeight:300,color:"#3A3428",lineHeight:1.85,marginBottom:14}}>Your Story Bible is yours to build. Fill in what you know, skip what you don't, come back any time. No guided path, just the fields and your story.</p>
+                  <p style={{fontFamily:"'Cormorant Garamond',serif",fontSize:16,fontWeight:300,color:"#3A3428",lineHeight:1.85}}>I'll be here when you want a second pair of eyes, {userName}.</p>
                 </>}
                 {welcomeRoute==="storybible"&&<>
                   <p style={{fontFamily:"'Cormorant Garamond',serif",fontSize:16,fontWeight:300,color:"#3A3428",lineHeight:1.85,marginBottom:14}}>You know your story. You just haven't put it on the page yet.</p>
@@ -3981,9 +4087,8 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
                   <p style={{fontFamily:"'Cormorant Garamond',serif",fontSize:16,fontWeight:300,color:"#3A3428",lineHeight:1.85,marginBottom:14}}>You know your story. You know what needs to be written. The only thing standing between you and the page is getting there.</p>
                   <p style={{fontFamily:"'Cormorant Garamond',serif",fontSize:16,fontWeight:300,color:"#3A3428",lineHeight:1.85}}>The Forge is yours, {userName}. No detours, no setup, just you and your story. I'll be here when you need me and out of your way when you don't.</p>
                 </>}
-                {welcomeRoute==="idealab"&&ideaSubChoice&&<div onClick={()=>setWelcomeStep("profile-prompt")} style={{background:"#5A6B3A",borderRadius:7,padding:"11px",textAlign:"center",cursor:"pointer",marginTop:20}}><span style={{fontSize:13,fontWeight:500,color:"#F0EAE0",fontFamily:"'DM Sans',sans-serif"}}>Continue</span></div>}
-                {welcomeRoute!=="storybible"&&welcomeRoute!=="manuscript"&&welcomeRoute!=="idealab"&&<div onClick={()=>setWelcomeStep("profile-prompt")} style={{background:"#5A6B3A",borderRadius:7,padding:"11px",textAlign:"center",cursor:"pointer",marginTop:20}}><span style={{fontSize:13,fontWeight:500,color:"#F0EAE0",fontFamily:"'DM Sans',sans-serif"}}>Continue</span></div>}
-                <div style={{textAlign:"center",marginTop:12}}><span onClick={()=>setWelcomeStep("routing")} style={{fontSize:11,color:"#908878",cursor:"pointer",fontFamily:"'DM Sans',sans-serif"}}>That's not quite right</span></div>
+                {welcomeRoute!=="storybible"&&welcomeRoute!=="manuscript"&&<div onClick={()=>setWelcomeStep("profile-prompt")} style={{background:"#5A6B3A",borderRadius:7,padding:"11px",textAlign:"center",cursor:"pointer",marginTop:20}}><span style={{fontSize:13,fontWeight:500,color:"#F0EAE0",fontFamily:"'DM Sans',sans-serif"}}>Continue</span></div>}
+                <div style={{textAlign:"center",marginTop:12}}><span onClick={()=>setWelcomeStep(welcomeRoute==="idealab"?"writer-type":"material-check")} style={{fontSize:11,color:"#908878",cursor:"pointer",fontFamily:"'DM Sans',sans-serif"}}>That's not quite right</span></div>
               </div>
             </>}
 
@@ -5749,17 +5854,43 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
             {forgeMode==="embers"&&<>
               <div style={{flex:1,overflowY:"auto"}}>
                 <div style={{fontSize:9,textTransform:"uppercase",letterSpacing:"0.18em",color:"#8A7AAA",fontWeight:500,marginBottom:8}}>Embers</div>
+                {(embers.length>2||lines.length>2)&&<div style={{display:"flex",gap:6,marginBottom:10}}>
+                  <input value={embersSearch} onChange={e=>setEmbersSearch(e.target.value)} placeholder="Search..." style={{flex:1,fontFamily:"'Cormorant Garamond',serif",fontStyle:"italic",fontSize:11,color:"var(--text-primary)",background:"var(--bg-card)",border:"1px solid var(--border)",borderRadius:6,padding:"6px 9px",outline:"none"}}/>
+                  <select value={embersSearchType} onChange={e=>setEmbersSearchType(e.target.value)} style={{fontFamily:"'DM Sans',sans-serif",fontSize:9,color:"var(--text-dim)",background:"var(--bg-card)",border:"1px solid var(--border)",borderRadius:6,padding:"0 4px"}}>
+                    <option value="all">All</option>
+                    <option value="embers">Embers</option>
+                    <option value="lines">Lines</option>
+                  </select>
+                </div>}
                 <div onClick={()=>setAddEmberOpen(true)} style={{background:"var(--bg-card)",border:"1px dashed #8A7AAA50",borderRadius:8,padding:"8px 10px",marginBottom:10,cursor:"pointer",textAlign:"center"}}>
                   <div style={{fontSize:10,color:"#8A7AAA",fontFamily:"'DM Sans',sans-serif"}}>+ New ember</div>
                 </div>
-                {embers.length===0&&<div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:12,color:"var(--text-dim)",fontStyle:"italic",lineHeight:1.6}}>Scenes without a home. Drop them here. Agnes reads each one and suggests where it might belong.</div>}
-                {embers.filter(e=>e.status!=="archived").length>2&&<div style={{display:"flex",flexWrap:"wrap",gap:4,marginBottom:10}}>
+                {embers.length===0&&emberGroupBy!=="drawer"&&<div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:12,color:"var(--text-dim)",fontStyle:"italic",lineHeight:1.6}}>Scenes without a home. Drop them here. Agnes reads each one and suggests where it might belong.</div>}
+                {(embers.filter(e=>e.status!=="archived").length>2||lines.length>0)&&<div style={{display:"flex",flexWrap:"wrap",gap:4,marginBottom:10}}>
                   {[["none","All"],["character","Character"],["position","Position"],["status","Status"]].map(([id,label])=>(
                     <span key={id} onClick={()=>setEmberGroupBy(id)} style={{fontSize:9,padding:"3px 8px",borderRadius:4,cursor:"pointer",fontFamily:"'DM Sans',sans-serif",background:emberGroupBy===id?"#8A7AAA25":"transparent",border:"1px solid "+(emberGroupBy===id?"#8A7AAA":"var(--border)"),color:emberGroupBy===id?"#8A7AAA":"var(--text-dim)"}}>{label}</span>
                   ))}
                   <span onClick={()=>setEmberGroupBy("shelf")} style={{fontSize:9,padding:"3px 8px",borderRadius:4,cursor:"pointer",fontFamily:"'DM Sans',sans-serif",background:emberGroupBy==="shelf"?"var(--accent)":"transparent",border:"1px solid "+(emberGroupBy==="shelf"?"var(--accent)":"var(--border)"),color:emberGroupBy==="shelf"?"#F4EEDF":"var(--text-dim)"}}>My Shelves</span>
+                  <span onClick={()=>setEmberGroupBy("drawer")} style={{fontSize:9,padding:"3px 8px",borderRadius:4,cursor:"pointer",fontFamily:"'DM Sans',sans-serif",display:"flex",alignItems:"center",gap:3,background:emberGroupBy==="drawer"?"var(--accent)":"transparent",border:"1px "+(emberGroupBy==="drawer"?"solid":"dashed")+" "+(emberGroupBy==="drawer"?"var(--accent)":"var(--border-mid)"),color:emberGroupBy==="drawer"?"#F4EEDF":"var(--text-dim)"}}>🗄 The Drawer</span>
                 </div>}
-                {groupEmbers(embers,emberGroupBy).map((group,gi)=>(
+                {emberGroupBy==="drawer"?<>
+                  <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:11,color:"var(--text-dim)",fontStyle:"italic",lineHeight:1.5,marginBottom:10}}>Sometimes just a line or two sticks in your head. Like Embers, you are unsure of the line's home in your manuscript, but you know the line belongs. Keep them here until you decide.</div>
+                  <div onClick={()=>{const t=prompt("What's the line?");if(t)addLine(t);}} style={{background:"var(--accent)",borderRadius:6,padding:"7px 10px",marginBottom:12,cursor:"pointer",textAlign:"center"}}>
+                    <span style={{fontFamily:"'DM Sans',sans-serif",fontSize:10,color:"#F4EEDF",fontWeight:500}}>+ Add a Line</span>
+                  </div>
+                  {lines.length===0&&<div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:12,color:"var(--text-dim)",fontStyle:"italic"}}>Nothing here yet.</div>}
+                  {groupLines(lines.filter(l=>!embersSearch||l.text.toLowerCase().includes(embersSearch.toLowerCase()))).map((group,gi)=>(
+                    <div key={gi}>
+                      <div style={{fontSize:9,textTransform:"uppercase",letterSpacing:"0.08em",color:group.label==="Unsorted"?"var(--text-faint)":"var(--text-dim)",fontFamily:"'DM Sans',sans-serif",margin:"10px 0 5px"}}>{group.label}</div>
+                      {group.items.map(l=>(
+                        <div key={l.id} onClick={()=>setActiveLine(l.id)} style={{background:activeLine===l.id?"var(--bg-card-alt)":"var(--bg-card)",border:"1px solid "+(activeLine===l.id?"#8A7AAA60":"var(--border)"),borderRadius:6,padding:"7px 9px",marginBottom:6,cursor:"pointer"}}>
+                          <div style={{fontSize:12,color:"var(--text-primary)",fontFamily:"'Cormorant Garamond',serif",fontStyle:"italic",lineHeight:1.4}}>{l.text}</div>
+                        </div>
+                      ))}
+                    </div>
+                  ))}
+                </>:<>
+                {groupEmbers(embers.filter(e=>!embersSearch||embersSearchType==="lines"||(e.text||"").toLowerCase().includes(embersSearch.toLowerCase())||(e.title||"").toLowerCase().includes(embersSearch.toLowerCase())),emberGroupBy).map((group,gi)=>(
                   <div key={gi}>
                     {group.label&&<div style={{fontSize:9,textTransform:"uppercase",letterSpacing:"0.08em",color:"var(--text-dim)",fontFamily:"'DM Sans',sans-serif",margin:"10px 0 5px",paddingTop:gi>0?4:0,borderTop:gi>0?"1px dashed var(--border)":"none"}}>{group.label}</div>}
                     {group.items.map(e=>(
@@ -5771,6 +5902,7 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
                     ))}
                   </div>
                 ))}
+                </>}
               </div>
               <div style={{borderTop:"1px solid var(--border)",paddingTop:10,marginTop:"auto"}}>
                 <div style={{fontSize:9,color:"var(--text-dim)"}}>Auto-saving</div>
@@ -5995,6 +6127,31 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
                     {/* Decide later */}
                     <button onClick={()=>setEmberPlacerOpen(false)} style={{width:"100%",background:"none",border:"1px solid var(--border)",borderRadius:7,padding:"9px",fontSize:12,color:"var(--text-dim)",cursor:"pointer",fontFamily:"'DM Sans',sans-serif"}}>Keep here, I'll decide later</button>
                   </div>
+                </div>;
+              })()}
+              {activeLine&&emberGroupBy==="drawer"&&(()=>{
+                const line=lines.find(l=>l.id===activeLine);
+                if(!line)return null;
+                return <div style={{flex:1,display:"flex",flexDirection:"column",padding:"32px 40px",overflowY:"auto"}}>
+                  <div style={{fontSize:9,textTransform:"uppercase",letterSpacing:"0.18em",color:"#8A7AAA",fontWeight:500,marginBottom:14}}>A Line, opened</div>
+                  <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:20,color:"var(--text-primary)",fontStyle:"italic",lineHeight:1.6,marginBottom:20}}>{line.text}</div>
+                  <div style={{display:"flex",alignItems:"center",gap:8,background:"var(--bg-card)",border:"1px solid var(--border)",borderRadius:8,padding:"9px 12px",marginBottom:14,maxWidth:340}}>
+                    <span style={{fontFamily:"'DM Sans',sans-serif",fontSize:9,textTransform:"uppercase",letterSpacing:"0.1em",color:"var(--text-dim)"}}>Slot</span>
+                    {editingLineSlot?<input autoFocus defaultValue={line.slot||""} onBlur={e=>{setLineSlot(line.id,e.target.value);setEditingLineSlot(false);}} onKeyDown={e=>{if(e.key==="Enter")e.target.blur();}} placeholder="Slot name..." style={{fontSize:11,color:"var(--accent)",fontFamily:"'DM Sans',sans-serif",background:"var(--bg-card-alt)",border:"1px solid var(--accent)",borderRadius:4,padding:"2px 6px",outline:"none",flex:1}}/>
+                      :<span onClick={()=>setEditingLineSlot(true)} style={{fontFamily:"'DM Sans',sans-serif",fontSize:11,color:line.slot?"var(--accent)":"var(--text-faint)",fontWeight:600,cursor:"pointer"}}>{line.slot||"+ Assign to a slot"}</span>}
+                  </div>
+                  <div style={{background:"#8A7AAA10",border:"1px solid #8A7AAA50",borderRadius:8,padding:"12px 14px",marginBottom:10,maxWidth:420}}>
+                    {lineAgnesResults[line.id]?<div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:13,color:"var(--text-secondary)",lineHeight:1.6,fontStyle:"italic"}}>{lineAgnesResults[line.id]}</div>
+                      :<div style={{display:"flex",alignItems:"center",gap:10}}>
+                        <span style={{fontFamily:"'Cormorant Garamond',serif",fontSize:13,color:"var(--text-secondary)",flex:1,fontStyle:"italic"}}>Want Agnes to tell you where this line might live in your story?</span>
+                        <span onClick={()=>askAgnesAboutLine(line)} style={{background:"#8A7AAA",borderRadius:6,padding:"7px 14px",fontFamily:"'DM Sans',sans-serif",fontSize:10,color:"#F4EEDF",fontWeight:600,whiteSpace:"nowrap",cursor:lineAgnesLoading===line.id?"default":"pointer"}}>{lineAgnesLoading===line.id?"Reading...":"Ask Agnes"}</span>
+                      </div>}
+                  </div>
+                  <div style={{display:"flex",alignItems:"center",gap:10,background:"rgba(90,107,58,0.08)",border:"1px solid #5A6B3A",borderRadius:8,padding:"12px 14px",maxWidth:420}}>
+                    <span style={{fontFamily:"'Cormorant Garamond',serif",fontSize:13,color:"var(--text-secondary)",flex:1,fontStyle:"italic"}}>Ready to grow this into something more?</span>
+                    <span onClick={()=>bloomLineIntoEmber(line)} style={{background:"#5A6B3A",borderRadius:6,padding:"7px 14px",fontFamily:"'DM Sans',sans-serif",fontSize:10,color:"#F4EEDF",fontWeight:600,whiteSpace:"nowrap",cursor:"pointer"}}>Bloom into an Ember</span>
+                  </div>
+                  <div onClick={()=>deleteLine(line.id)} style={{marginTop:16,fontSize:10,color:"var(--text-dim)",cursor:"pointer",fontFamily:"'DM Sans',sans-serif"}}>Delete this line</div>
                 </div>;
               })()}
               {(()=>{
