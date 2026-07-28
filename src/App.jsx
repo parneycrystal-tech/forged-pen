@@ -12,7 +12,7 @@ const FINN = `ABSOLUTE RULE, ZERO EXCEPTIONS: Never use em dashes in any respons
 
 You are Finn (short for Finnigan), the writing coach behind Forged Pen. Lit major, psych minor. Old soul, sharp but never cutting, dry wit, warm underneath. You ask the one question that unlocks everything.
 
-VOICE REGISTER: Finn is eloquent, not exclusionary. His lit-major mind shows in precision, not in obscure vocabulary. Every word he uses shou272079021ld land the same way for a writer regardless of their educational, economic, or cultural background. Depth of thought is what makes him sound sharp, not difficulty of language. Writers are writers, regardless of where they flower from. A working-class writer and a tenured professor should both feel like he's speaking directly to them, respecting their intelligence without ever requiring a dictionary.
+VOICE REGISTER: Finn is eloquent, not exclusionary. His lit-major mind shows in precision, not in obscure vocabulary. Every word he uses should land the same way for a writer regardless of their educational, economic, or cultural background. Depth of thought is what makes him sound sharp, not difficulty of language. Writers are writers, regardless of where they flower from. A working-class writer and a tenured professor should both feel like he's speaking directly to them, respecting their intelligence without ever requiring a dictionary.
 
 NEVER USE THIS CADENCE, IN ANY MODE, EITHER VOICE: "That's not X. That's Y." Negating one framing and asserting another in a short parallel clause is one of the most recognizable AI patterns there is. It reads as performed no matter how true the content underneath it actually is. Finn and Agnes both avoid it entirely.
 
@@ -690,6 +690,21 @@ function computeNewMaterialSignal(project,embers){
   const shouldAlert=words>=NEW_MATERIAL_WORD_THRESHOLD||(daysSince>=NEW_MATERIAL_RETURN_DAYS&&newOnes.length>0);
   return {shouldAlert,words,count:newOnes.length};
 }
+// Detects the perfectionism trap a writer might not notice from the inside: repeatedly
+// recapturing an early chapter while a later chapter has never been captured at all. Three
+// or more recaptures is the threshold, a genuine pattern, not one revision pass, which is
+// completely normal and not what this is meant to catch.
+const REVISION_LOOP_THRESHOLD=3;
+function detectRevisionLoop(project,scenes){
+  const counts=project?.chapterCaptureCounts||{};
+  const realChapters=[...new Set((scenes||[]).map(s=>s.chapter))].sort((a,b)=>a-b);
+  if(realChapters.length<2)return null;
+  const loopingChapter=realChapters.find(ch=>(counts[ch]||0)>=REVISION_LOOP_THRESHOLD);
+  if(!loopingChapter)return null;
+  const laterUncaptured=realChapters.find(ch=>ch>loopingChapter&&!(counts[ch]||0));
+  if(laterUncaptured==null)return null;
+  return {loopingChapter,laterUncaptured,loopingCount:counts[loopingChapter],realChapters,counts};
+}
 function firstSparkCtx(project){
   const spark=project?.firstSpark;
   if(!Array.isArray(spark)||spark.length===0)return "";
@@ -991,6 +1006,8 @@ export default function App() {
   const [embersSearch, setEmbersSearch] = useState("");
   const [embersSearchType, setEmbersSearchType] = useState("all"); // "all" | "embers" | "lines"
   const [editingLineSlot, setEditingLineSlot] = useState(false);
+  const [addLineOpen, setAddLineOpen] = useState(false);
+  const [addLineDraft, setAddLineDraft] = useState("");
   const [editingShelfId, setEditingShelfId] = useState(null); // research note id whose shelf badge is currently an open input, or null
   const [bibExpanded, setBibExpanded] = useState(false);
   const [bibleSearch, setBibleSearch] = useState("");
@@ -1983,6 +2000,14 @@ Respond with ONLY this JSON:
     setExtractResult(null);
     setHandledProposedThreads({});
     setHandledProposedCharacters({});
+
+    // Track how many times this chapter has been captured, and which chapters have ever been
+    // captured at all. This is the one new piece of data behind Agnes noticing a revision loop,
+    // nothing existing before today recorded this.
+    const captureCounts={...(project?.chapterCaptureCounts||{})};
+    captureCounts[chapterNum]=(captureCounts[chapterNum]||0)+1;
+    const updatedWithCounts={...project,chapterCaptureCounts:captureCounts,updated:Date.now()};
+    setProject(updatedWithCounts);saveStored("tt-project",updatedWithCounts);cloudSave("tt-project",updatedWithCounts);
 
     // Get draft status of the current scene for Agnes context
     const currentScn=scenes.find(s=>s.chapter===chapterNum)||scenes.find(s=>s.id===activeScene);
@@ -5870,14 +5895,21 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
                   {[["none","All"],["character","Character"],["position","Position"],["status","Status"]].map(([id,label])=>(
                     <span key={id} onClick={()=>setEmberGroupBy(id)} style={{fontSize:9,padding:"3px 8px",borderRadius:4,cursor:"pointer",fontFamily:"'DM Sans',sans-serif",background:emberGroupBy===id?"#8A7AAA25":"transparent",border:"1px solid "+(emberGroupBy===id?"#8A7AAA":"var(--border)"),color:emberGroupBy===id?"#8A7AAA":"var(--text-dim)"}}>{label}</span>
                   ))}
-                  <span onClick={()=>setEmberGroupBy("shelf")} style={{fontSize:9,padding:"3px 8px",borderRadius:4,cursor:"pointer",fontFamily:"'DM Sans',sans-serif",background:emberGroupBy==="shelf"?"var(--accent)":"transparent",border:"1px solid "+(emberGroupBy==="shelf"?"var(--accent)":"var(--border)"),color:emberGroupBy==="shelf"?"#F4EEDF":"var(--text-dim)"}}>My Shelves</span>
-                  <span onClick={()=>setEmberGroupBy("drawer")} style={{fontSize:9,padding:"3px 8px",borderRadius:4,cursor:"pointer",fontFamily:"'DM Sans',sans-serif",display:"flex",alignItems:"center",gap:3,background:emberGroupBy==="drawer"?"var(--accent)":"transparent",border:"1px "+(emberGroupBy==="drawer"?"solid":"dashed")+" "+(emberGroupBy==="drawer"?"var(--accent)":"var(--border-mid)"),color:emberGroupBy==="drawer"?"#F4EEDF":"var(--text-dim)"}}>🗄 The Drawer</span>
+                  <span onClick={()=>setEmberGroupBy("shelf")} style={{fontSize:9,padding:"3px 8px",borderRadius:4,cursor:"pointer",fontFamily:"'DM Sans',sans-serif",background:emberGroupBy==="shelf"?"#C07848":"transparent",border:"1px solid "+(emberGroupBy==="shelf"?"#C07848":"var(--border)"),color:emberGroupBy==="shelf"?"#F4EEDF":"var(--text-dim)"}}>My Shelves</span>
+                  <span onClick={()=>setEmberGroupBy("drawer")} style={{fontSize:9,padding:"3px 8px",borderRadius:4,cursor:"pointer",fontFamily:"'DM Sans',sans-serif",display:"flex",alignItems:"center",gap:3,background:emberGroupBy==="drawer"?"#C07848":"transparent",border:"1px "+(emberGroupBy==="drawer"?"solid":"dashed")+" "+(emberGroupBy==="drawer"?"#C07848":"var(--border-mid)"),color:emberGroupBy==="drawer"?"#F4EEDF":"var(--text-dim)"}}>🗄 The Drawer</span>
                 </div>}
                 {emberGroupBy==="drawer"?<>
                   <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:11,color:"var(--text-dim)",fontStyle:"italic",lineHeight:1.5,marginBottom:10}}>Sometimes just a line or two sticks in your head. Like Embers, you are unsure of the line's home in your manuscript, but you know the line belongs. Keep them here until you decide.</div>
-                  <div onClick={()=>{const t=prompt("What's the line?");if(t)addLine(t);}} style={{background:"var(--accent)",borderRadius:6,padding:"7px 10px",marginBottom:12,cursor:"pointer",textAlign:"center"}}>
-                    <span style={{fontFamily:"'DM Sans',sans-serif",fontSize:10,color:"#F4EEDF",fontWeight:500}}>+ Add a Line</span>
+                  {addLineOpen?<div style={{background:"var(--bg-card)",border:"1px solid #C07848",borderRadius:6,padding:"8px 10px",marginBottom:12}}>
+                    <textarea autoFocus value={addLineDraft} onChange={e=>setAddLineDraft(e.target.value)} placeholder="What's the line?" rows={2} onKeyDown={e=>{if(e.key==="Enter"&&!e.shiftKey){e.preventDefault();if(addLineDraft.trim())addLine(addLineDraft);setAddLineDraft("");setAddLineOpen(false);}if(e.key==="Escape"){setAddLineDraft("");setAddLineOpen(false);}}} style={{width:"100%",background:"var(--bg-card-alt)",border:"1px solid var(--border)",borderRadius:4,padding:"6px 8px",fontFamily:"'Cormorant Garamond',serif",fontStyle:"italic",fontSize:12,color:"var(--text-primary)",outline:"none",resize:"none",marginBottom:6}}/>
+                    <div style={{display:"flex",gap:6}}>
+                      <span onClick={()=>{if(addLineDraft.trim())addLine(addLineDraft);setAddLineDraft("");setAddLineOpen(false);}} style={{fontSize:9,padding:"3px 9px",borderRadius:4,background:"#C07848",color:"#F4EEDF",cursor:"pointer",fontFamily:"'DM Sans',sans-serif"}}>Save</span>
+                      <span onClick={()=>{setAddLineDraft("");setAddLineOpen(false);}} style={{fontSize:9,padding:"3px 9px",borderRadius:4,border:"1px solid var(--border)",color:"var(--text-dim)",cursor:"pointer",fontFamily:"'DM Sans',sans-serif"}}>Cancel</span>
+                    </div>
                   </div>
+                  :<div onClick={()=>setAddLineOpen(true)} style={{background:"#C07848",borderRadius:6,padding:"7px 10px",marginBottom:12,cursor:"pointer",textAlign:"center"}}>
+                    <span style={{fontFamily:"'DM Sans',sans-serif",fontSize:10,color:"#F4EEDF",fontWeight:500}}>+ Add a Line</span>
+                  </div>}
                   {lines.length===0&&<div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:12,color:"var(--text-dim)",fontStyle:"italic"}}>Nothing here yet.</div>}
                   {groupLines(lines.filter(l=>!embersSearch||l.text.toLowerCase().includes(embersSearch.toLowerCase()))).map((group,gi)=>(
                     <div key={gi}>
@@ -6137,8 +6169,8 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
                   <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:20,color:"var(--text-primary)",fontStyle:"italic",lineHeight:1.6,marginBottom:20}}>{line.text}</div>
                   <div style={{display:"flex",alignItems:"center",gap:8,background:"var(--bg-card)",border:"1px solid var(--border)",borderRadius:8,padding:"9px 12px",marginBottom:14,maxWidth:340}}>
                     <span style={{fontFamily:"'DM Sans',sans-serif",fontSize:9,textTransform:"uppercase",letterSpacing:"0.1em",color:"var(--text-dim)"}}>Slot</span>
-                    {editingLineSlot?<input autoFocus defaultValue={line.slot||""} onBlur={e=>{setLineSlot(line.id,e.target.value);setEditingLineSlot(false);}} onKeyDown={e=>{if(e.key==="Enter")e.target.blur();}} placeholder="Slot name..." style={{fontSize:11,color:"var(--accent)",fontFamily:"'DM Sans',sans-serif",background:"var(--bg-card-alt)",border:"1px solid var(--accent)",borderRadius:4,padding:"2px 6px",outline:"none",flex:1}}/>
-                      :<span onClick={()=>setEditingLineSlot(true)} style={{fontFamily:"'DM Sans',sans-serif",fontSize:11,color:line.slot?"var(--accent)":"var(--text-faint)",fontWeight:600,cursor:"pointer"}}>{line.slot||"+ Assign to a slot"}</span>}
+                    {editingLineSlot?<input autoFocus defaultValue={line.slot||""} onBlur={e=>{setLineSlot(line.id,e.target.value);setEditingLineSlot(false);}} onKeyDown={e=>{if(e.key==="Enter")e.target.blur();}} placeholder="Slot name..." style={{fontSize:11,color:"#C07848",fontFamily:"'DM Sans',sans-serif",background:"var(--bg-card-alt)",border:"1px solid #C07848",borderRadius:4,padding:"2px 6px",outline:"none",flex:1}}/>
+                      :<span onClick={()=>setEditingLineSlot(true)} style={{fontFamily:"'DM Sans',sans-serif",fontSize:11,color:line.slot?"#C07848":"var(--text-faint)",fontWeight:600,cursor:"pointer"}}>{line.slot||"+ Assign to a slot"}</span>}
                   </div>
                   <div style={{background:"#8A7AAA10",border:"1px solid #8A7AAA50",borderRadius:8,padding:"12px 14px",marginBottom:10,maxWidth:420}}>
                     {lineAgnesResults[line.id]?<div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:13,color:"var(--text-secondary)",lineHeight:1.6,fontStyle:"italic"}}>{lineAgnesResults[line.id]}</div>
