@@ -5924,7 +5924,16 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
                     <span key={id} onClick={()=>setEmberGroupBy(id)} style={{fontSize:9,padding:"3px 8px",borderRadius:4,cursor:"pointer",fontFamily:"'DM Sans',sans-serif",background:emberGroupBy===id?"#8A7AAA25":"transparent",border:"1px solid "+(emberGroupBy===id?"#8A7AAA":"var(--border)"),color:emberGroupBy===id?"#8A7AAA":"var(--text-dim)"}}>{label}</span>
                   ))}
                   <span onClick={()=>setEmberGroupBy("shelf")} style={{fontSize:9,padding:"3px 8px",borderRadius:4,cursor:"pointer",fontFamily:"'DM Sans',sans-serif",background:emberGroupBy==="shelf"?"#C07848":"transparent",border:"1px solid "+(emberGroupBy==="shelf"?"#C07848":"var(--border)"),color:emberGroupBy==="shelf"?"#F4EEDF":"var(--text-dim)"}}>My Shelves</span>
-                  <span onClick={()=>setEmberGroupBy("drawer")} style={{fontSize:9,padding:"3px 8px",borderRadius:4,cursor:"pointer",fontFamily:"'DM Sans',sans-serif",display:"flex",alignItems:"center",gap:3,background:emberGroupBy==="drawer"?"#C07848":"transparent",border:"1px "+(emberGroupBy==="drawer"?"solid":"dashed")+" "+(emberGroupBy==="drawer"?"#C07848":"var(--border-mid)"),color:emberGroupBy==="drawer"?"#F4EEDF":"var(--text-dim)"}}>🗄 The Drawer</span>
+                </div>}
+                {/* The Drawer, its own inviting door, not squeezed into the small toggle row.
+                    Wider, terracotta, a real button rather than another small pill. */}
+                {emberGroupBy!=="drawer"&&<div onClick={()=>setEmberGroupBy("drawer")} style={{display:"flex",alignItems:"center",justifyContent:"center",gap:8,background:"#C0784818",border:"1.5px dashed #C07848",borderRadius:8,padding:"10px 14px",marginBottom:10,cursor:"pointer"}}>
+                  <span style={{fontSize:15}}>🗄</span>
+                  <span style={{fontSize:11,fontFamily:"'DM Sans',sans-serif",fontWeight:600,color:"#C07848"}}>Open The Drawer</span>
+                </div>}
+                {emberGroupBy==="drawer"&&<div onClick={()=>setEmberGroupBy("none")} style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:8,background:"#C07848",borderRadius:8,padding:"10px 14px",marginBottom:10,cursor:"pointer"}}>
+                  <span style={{fontSize:11,fontFamily:"'DM Sans',sans-serif",fontWeight:600,color:"#F4EEDF",display:"flex",alignItems:"center",gap:8}}><span style={{fontSize:15}}>🗄</span>The Drawer</span>
+                  <span style={{fontSize:9,fontFamily:"'DM Sans',sans-serif",color:"#F4EEDF",opacity:0.85}}>Back to Embers</span>
                 </div>}
                 {emberGroupBy==="drawer"?<>
                   <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:11,color:"var(--text-dim)",fontStyle:"italic",lineHeight:1.5,marginBottom:10}}>Sometimes just a line or two sticks in your head. Like Embers, you are unsure of the line's home in your manuscript, but you know the line belongs. Keep them here until you decide.</div>
