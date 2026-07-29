@@ -964,7 +964,7 @@ export default function App() {
   const [flipped, setFlipped] = useState(false);
   const [loadMsg, setLoadMsg] = useState(LOAD[Math.floor(Math.random()*LOAD.length)]);
   const [project, setProject] = useState(null);
-  const [pForm, setPForm] = useState({title:"",genre:"",synopsis:"",protagonist:"",protagonistGoal:"",protagonistDream:"",protagonistFear:"",protagonistWound:"",protagonistBackstory:"",protagonistMisbelief:"",supporting:"",antagonist:"",worldSetting:"",worldRules:"",worldMythology:"",worldBeliefs:"",worldDanger:"",worldTone:"",themes:"",mainPlot:"",characters:[],openQuestions:[],chapters:[{num:1,summary:""}],where:"",stuck:"",excites:"",currentChapter:""});
+  const [pForm, setPForm] = useState({title:"",genre:"",synopsis:"",protagonist:"",protagonistGoal:"",protagonistDream:"",protagonistFear:"",protagonistWound:"",protagonistBackstory:"",protagonistMisbelief:"",supporting:"",antagonist:"",worldSetting:"",worldRules:"",worldMythology:"",worldBeliefs:"",worldDanger:"",worldTone:"",themes:"",mainPlot:"",characters:[],openQuestions:[],chapters:[{num:1,summary:""}],where:"",stuck:"",excites:"",currentChapter:"",multiPOV:false});
   const [sparks, setSparks] = useState([]);
   const [flaggedIdx, setFlaggedIdx] = useState(null);
   const [ideaLabSparked, setIdeaLabSparked] = useState(false);
@@ -1062,6 +1062,7 @@ export default function App() {
   const [activeEmber, setActiveEmber] = useState(null);
   const [editingEmberTitle, setEditingEmberTitle] = useState(false); // is the title field in the ember header editable right now
   const [editingEmberShelf, setEditingEmberShelf] = useState(false); // ember id whose manual shelf field is open for editing, or false
+  const [editingChapterPOV, setEditingChapterPOV] = useState(null); // chapter number whose POV dropdown is open, or null
   const [emberAnalysisError, setEmberAnalysisError] = useState(null); // ember id whose last analysis attempt failed, for a visible retry instead of silent revert
   const emberRef = useRef(null); // auto-grow ref for the ember writing field, same pattern as ideaLabRef/infernoRef
   // Auto-select the most recently edited ember when arriving at Embers with nothing chosen yet.
@@ -2054,6 +2055,10 @@ Main plot: ${project?.mainPlot||"none"}`;
     const existingThreadsList=(project?.threads||[]).filter(t=>t.status!=="resolved").map(t=>`- ${t.name}: ${t.description}`).join("\n")||"none tracked yet";
     const existingCharacterNames=existingCharacterNamesList(project);
 
+    const existingChapterObj=(project?.chapters||[]).find(c=>c.num===chapterNum);
+    const povRoster=[project?.protagonist?.split(":")[0]?.trim(),...(project?.characters||[]).filter(c=>c.isPOVCharacter).map(c=>c.name)].filter(Boolean);
+    const povInstructions=(project?.multiPOV&&!existingChapterObj?.povCharacter&&povRoster.length>1)?`,\n  "povCharacterGuess": "which of these named POV characters this chapter is actually written from, exactly as given: ${povRoster.join(", ")}. Empty string if genuinely unclear."`:"";
+
     const driftInstructions=skipDrift?"":`
 
 Then, as Agnes, the meticulous record keeper, compare what this chapter reveals against the EXISTING STORY BIBLE above, field by field. Only flag a field as drift if the existing entry is a real, substantial entry (not "none") AND this chapter appears to move in a meaningfully different direction from it, not just add consistent detail. Agnes's voice is direct, selective, specific, and slightly pointed. She never uses the words "inconsistency", "error", "problem", or "contradiction". She says "evolving", "different direction", "moving toward something new". She is not alarmed. She is precise.
@@ -2127,7 +2132,7 @@ Respond with ONLY this JSON:
   "proposedCharacters": [{"name": "the character's actual name", "role": "best guess: Antagonist / villain, Love interest, Mentor, Best friend / confidant, Foil, Family, or Secondary character", "description": "what this chapter actually shows about them"}],
   "beats": [{"beat": "a short label for the shift, a few words", "shift": "one sentence naming what specifically changed because of it, not what happened in general"}],
   "craftNote": "one observation about what is working well in this chapter, specific and precise, that Finn would point out as a coach. Not generic praise.",
-  "openQuestion": "the most important unresolved question this chapter raises for the story going forward."${skipDrift?"":',\n  "drifts": []'}
+  "openQuestion": "the most important unresolved question this chapter raises for the story going forward."${povInstructions}${skipDrift?"":',\n  "drifts": []'}
 }`}]
       })});
       const d=await r.json();
@@ -2142,6 +2147,14 @@ Respond with ONLY this JSON:
           if(!Array.isArray(result.threadUpdates))result.threadUpdates=[];
           if(!Array.isArray(result.proposedThreads))result.proposedThreads=[];
           if(!Array.isArray(result.proposedCharacters))result.proposedCharacters=[];
+          // Agnes's POV guess fills in a blank only, it never overwrites a writer's own choice.
+          // Quiet by design, matching how First Spark stays untouched, this is a soft default,
+          // not a proposal needing its own review step.
+          if(result.povCharacterGuess&&result.povCharacterGuess.trim()){
+            const updatedChapters=(project?.chapters||[]).map(c=>c.num===chapterNum&&!c.povCharacter?{...c,povCharacter:result.povCharacterGuess.trim()}:c);
+            const updatedProj={...updatedWithCounts,chapters:updatedChapters,updated:Date.now()};
+            setProject(updatedProj);saveStored("tt-project",updatedProj);cloudSave("tt-project",updatedProj);
+          }
           setExtractResult(result);
           // Persist so it survives navigation
           saveStored("tt-pending-extract",result);
@@ -4746,6 +4759,44 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
           <FormField label="What is your story about?" k="synopsis" ph="One sentence is enough to start..." value={pForm.synopsis} onChange={updateField} multi/>
           <FormField label="Themes" k="themes" ph="What ideas keep surfacing? Type what you already know, or leave it, Agnes will notice patterns as chapters come in..." value={pForm.themes} onChange={updateField} multi/>
 
+          {/* POV Characters — off for most books, on only when a story actually needs it. The
+              roster is just the existing character list with one new switch each, nothing new
+              to build there. What's genuinely new is the per-chapter tag this roster enables. */}
+          <div style={{fontSize:11,textTransform:"uppercase",letterSpacing:"0.1em",color:"var(--text-dim)",marginBottom:8,marginTop:4}}>Structure</div>
+          <div style={{background:"var(--bg-card-alt)",border:"1px solid var(--border)",borderRadius:9,padding:"14px 16px",marginBottom:14,display:"flex",justifyContent:"space-between",alignItems:"center",gap:12}}>
+            <div>
+              <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:15,color:"var(--text-primary)"}}>Does your story have more than one POV character?</div>
+              <div style={{fontSize:10,color:"var(--text-dim)",marginTop:2}}>Whoever's head the reader is in for a chapter, first person or third</div>
+            </div>
+            <div onClick={()=>updateField("multiPOV",!pForm.multiPOV)} style={{width:40,height:22,borderRadius:11,position:"relative",cursor:"pointer",flexShrink:0,background:pForm.multiPOV?"var(--accent)":"var(--border-mid)"}}>
+              <div style={{width:18,height:18,borderRadius:"50%",background:"#F4EEDF",position:"absolute",top:2,left:pForm.multiPOV?20:2,transition:"left .15s"}}/>
+            </div>
+          </div>
+
+          {pForm.multiPOV&&<div style={{background:"var(--agnes-15,rgba(122,106,138,0.1))",borderLeft:"3px solid var(--agnes,#7A6A8A)",borderRadius:"0 9px 9px 0",padding:"16px 18px",marginBottom:18}}>
+            <div style={{fontSize:9,textTransform:"uppercase",letterSpacing:"0.14em",color:"var(--agnes,#7A6A8A)",fontWeight:600,marginBottom:4}}>Agnes</div>
+            <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:13,color:"var(--text-secondary)",fontStyle:"italic",lineHeight:1.6,marginBottom:14}}>Mark which characters narrate their own chapters. I'll use this to know whose scene I'm reading, instead of guessing.</div>
+            {[{name:pForm.protagonist?.split(":")[0]?.trim()||"Protagonist",role:"Protagonist",isProtag:true},...(pForm.characters||[])].map((c,ci)=>{
+              const charKey=c.isProtag?"__protagonist__":c.name;
+              const isOn=c.isProtag?(pForm.protagPOV!==false):(pForm.characters.find(x=>x.name===c.name)?.isPOVCharacter||false);
+              return <div key={ci} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"10px 12px",background:"var(--bg-card)",border:"1px solid var(--border)",borderRadius:7,marginBottom:8}}>
+                <div>
+                  <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:14,color:"var(--text-primary)"}}>{c.name||"Untitled"}</div>
+                  <div style={{fontSize:9,color:"var(--text-dim)",marginTop:1}}>{c.isProtag?"Protagonist":(c.role||"Character")}</div>
+                </div>
+                <div onClick={()=>{
+                  if(c.isProtag){updateField("protagPOV",!isOn);}
+                  else{
+                    const existing=(pForm.characters||[]).map(x=>x.name===c.name?{...x,isPOVCharacter:!isOn}:x);
+                    updateField("characters",existing);
+                  }
+                }} style={{width:34,height:19,borderRadius:10,position:"relative",cursor:"pointer",flexShrink:0,background:isOn?"var(--agnes,#7A6A8A)":"var(--border-mid)"}}>
+                  <div style={{width:15,height:15,borderRadius:"50%",background:"#F4EEDF",position:"absolute",top:2,left:isOn?17:2,transition:"left .15s"}}/>
+                </div>
+              </div>;
+            })}
+          </div>}
+
           {!bibExpanded&&<div onClick={()=>setBibExpanded(true)} style={{background:"none",border:"1px dashed var(--border-mid)",borderRadius:8,padding:"10px 16px",color:"var(--text-dim)",fontSize:12,cursor:"pointer",textAlign:"left",marginBottom:14,fontFamily:"'DM Sans',sans-serif"}}>
             <span style={{color:"var(--accent)",marginRight:8}}>+</span>Add more detail: characters, world, what excites you
           </div>}
@@ -6375,6 +6426,28 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
                     })}
                   </div>
                   <span style={{fontSize:9,color:noteColor,fontFamily:"'DM Sans',sans-serif",fontStyle:"italic",marginLeft:"auto"}}>{agnesNote}</span>
+                </div>;
+              })()}
+              {/* POV pill — only shows once a story has said it has more than one POV character.
+                  The chapter's actual povCharacter tag is the piece that fixes the misattribution
+                  bug, Agnes reads this instead of guessing whose scene it is. */}
+              {project?.multiPOV&&(()=>{
+                const chapterNum=currentScene.chapter;
+                const chapterObj=(project?.chapters||[]).find(c=>c.num===chapterNum);
+                const povName=chapterObj?.povCharacter||"";
+                const povOptions=[project?.protagonist?.split(":")[0]?.trim(),...(project?.characters||[]).filter(c=>c.isPOVCharacter).map(c=>c.name)].filter(Boolean);
+                return <div style={{padding:"8px 40px",borderBottom:"1px solid var(--border)",background:"var(--bg-card-alt)",display:"flex",alignItems:"center",gap:10,flexWrap:"wrap"}}>
+                  {editingChapterPOV===chapterNum?<select autoFocus value={povName} onChange={e=>{
+                      const updatedChapters=(project?.chapters||[]).map(c=>c.num===chapterNum?{...c,povCharacter:e.target.value}:c);
+                      const updated={...project,chapters:updatedChapters,updated:Date.now()};
+                      setProject(updated);saveStored("tt-project",updated);cloudSave("tt-project",updated);
+                      setEditingChapterPOV(null);
+                    }} style={{fontSize:11,fontFamily:"'DM Sans',sans-serif",color:"var(--agnes,#7A6A8A)",background:"var(--bg-card)",border:"1px solid var(--agnes,#7A6A8A)",borderRadius:5,padding:"4px 8px"}}>
+                      <option value="">Not set</option>
+                      {povOptions.map((name,i)=><option key={i} value={name}>{name}</option>)}
+                    </select>
+                    :<span onClick={()=>setEditingChapterPOV(chapterNum)} style={{fontSize:10,padding:"4px 12px",borderRadius:5,background:povName?"var(--agnes-15,rgba(122,106,138,0.1))":"none",border:povName?"1px solid var(--agnes,#7A6A8A)":"1px dashed var(--border-mid)",color:povName?"var(--agnes,#7A6A8A)":"var(--text-faint)",fontWeight:povName?600:400,cursor:"pointer",fontFamily:"'DM Sans',sans-serif"}}>{povName?`${povName}'s POV`:"+ Set POV character"}</span>}
+                  <span style={{fontSize:9,color:"var(--text-dim)",fontFamily:"'DM Sans',sans-serif"}}>Tap to change</span>
                 </div>;
               })()}
               {currentScene.notes&&<div style={{padding:"10px 40px",background:"var(--bg-card-alt)",borderBottom:"1px solid var(--border)"}}>
