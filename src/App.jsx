@@ -627,7 +627,8 @@ function groupResearchNotes(notes){
   const push=(label,n)=>{if(!buckets[label]){buckets[label]=[];order.push(label);}buckets[label].push(n);};
   (notes||[]).forEach(n=>{
     const tags=(n.links||"").split(",").map(t=>t.trim()).filter(Boolean);
-    push(tags[0]||"Unsorted",n);
+    if(tags.length===0)push("Unsorted",n);
+    else tags.forEach(tag=>push(tag,n));
   });
   const sorted=order.sort((a,b)=>a==="Unsorted"?1:b==="Unsorted"?-1:0);
   return sorted.map(label=>({label,items:buckets[label]}));
@@ -5566,16 +5567,20 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
                 <div key={n.id} style={{background:"var(--bg-card)",border:shelf.label==="Unsorted"?"1px dashed var(--border-mid)":"1px solid var(--border)",borderRadius:10,padding:"14px 16px",marginBottom:8,marginLeft:14}}>
                   <div style={{display:"flex",justifyContent:"space-between",alignItems:"baseline",gap:8,flexWrap:"wrap",marginBottom:6}}>
                     <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:16,color:"var(--text-primary)"}}>{n.title}</div>
-                    <div style={{display:"flex",gap:6,alignItems:"center"}}>
-                      {editingShelfId===n.id?<input autoFocus defaultValue={(n.links||"").split(",")[0]?.trim()||""} onBlur={e=>{
-                          const rest=(n.links||"").split(",").slice(1).join(",");
-                          const newLinks=[e.target.value.trim(),rest].filter(Boolean).join(", ");
-                          const existing=(project?.researchNotes||[]).map(x=>x.id===n.id?{...x,links:newLinks}:x);
-                          const updated={...project,researchNotes:existing,updated:Date.now()};
-                          setProject(updated);saveStored("tt-project",updated);cloudSave("tt-project",updated);
+                    <div style={{display:"flex",gap:6,alignItems:"center",flexWrap:"wrap"}}>
+                      {(n.links||"").split(",").map(t=>t.trim()).filter(Boolean).map((tag,ti)=>(
+                        <span key={ti} style={{fontSize:9,textTransform:"uppercase",letterSpacing:"0.06em",padding:"3px 9px",borderRadius:4,fontFamily:"'DM Sans',sans-serif",background:"var(--accent-15,rgba(192,120,72,0.12))",color:"var(--accent)"}}>{tag}</span>
+                      ))}
+                      {editingShelfId===n.id?<input autoFocus placeholder="New shelf..." onBlur={e=>{
+                          if(e.target.value.trim()){
+                            const newLinks=[(n.links||""),e.target.value.trim()].filter(Boolean).join(", ");
+                            const existing=(project?.researchNotes||[]).map(x=>x.id===n.id?{...x,links:newLinks}:x);
+                            const updated={...project,researchNotes:existing,updated:Date.now()};
+                            setProject(updated);saveStored("tt-project",updated);cloudSave("tt-project",updated);
+                          }
                           setEditingShelfId(null);
-                        }} onKeyDown={e=>{if(e.key==="Enter")e.target.blur();}} placeholder="Shelf name..." style={{fontSize:9,fontFamily:"'DM Sans',sans-serif",border:"1px solid var(--accent)",borderRadius:4,padding:"2px 8px",outline:"none",background:"var(--bg-card-alt)",color:"var(--accent)",width:110}}/>
-                        :<span onClick={()=>setEditingShelfId(n.id)} style={{fontSize:9,textTransform:"uppercase",letterSpacing:"0.06em",padding:"3px 9px",borderRadius:4,fontFamily:"'DM Sans',sans-serif",cursor:"pointer",background:(n.links||"").split(",")[0]?.trim()?"var(--accent-15,rgba(192,120,72,0.12))":"none",border:(n.links||"").split(",")[0]?.trim()?"none":"1px dashed var(--border-mid)",color:(n.links||"").split(",")[0]?.trim()?"var(--accent)":"var(--text-faint)"}}>{(n.links||"").split(",")[0]?.trim()||"+ Shelf"}</span>}
+                        }} onKeyDown={e=>{if(e.key==="Enter")e.target.blur();}} style={{fontSize:9,fontFamily:"'DM Sans',sans-serif",border:"1px solid var(--accent)",borderRadius:4,padding:"2px 8px",outline:"none",background:"var(--bg-card-alt)",color:"var(--accent)",width:100}}/>
+                        :<span onClick={()=>setEditingShelfId(n.id)} style={{fontSize:9,textTransform:"uppercase",letterSpacing:"0.06em",padding:"3px 9px",borderRadius:4,fontFamily:"'DM Sans',sans-serif",cursor:"pointer",border:"1px dashed var(--border-mid)",color:"var(--text-faint)"}}>+ Shelf</span>}
                       <span onClick={()=>toggleResearchStatus(n.id)} style={{fontSize:9,textTransform:"uppercase",letterSpacing:"0.08em",padding:"3px 9px",borderRadius:4,fontFamily:"'DM Sans',sans-serif",fontWeight:500,cursor:"pointer",background:n.status==="used"?"rgba(110,138,106,0.14)":"rgba(176,151,90,0.16)",color:n.status==="used"?"#6E8A6A":"#B0975A"}}>{n.status==="used"?"Incorporated":"Not yet used"}</span>
                     </div>
                   </div>
