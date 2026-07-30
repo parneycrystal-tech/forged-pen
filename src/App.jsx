@@ -706,6 +706,27 @@ function detectRevisionLoop(project,scenes){
   if(laterUncaptured==null)return null;
   return {loopingChapter,laterUncaptured,loopingCount:counts[loopingChapter],realChapters,counts};
 }
+// The Ledger's presence timeline. A rough, honest proxy: checks whether a character's name or
+// an alias appears in a chapter's own summary, since that's the closest thing to "what actually
+// happened" already sitting in the data. Not perfect, a character could appear off-page from
+// what the summary mentions, but it's real signal from real text, not invented.
+function computeCharacterPresence(project,realChapters){
+  const protagName=project?.protagonist?.split(":")[0]?.trim();
+  const roster=[
+    protagName?{name:protagName,role:"Protagonist"}:null,
+    ...(project?.characters||[]).map(c=>({name:c.name,role:c.role||"Character",aliases:c.aliases||""}))
+  ].filter(Boolean);
+  return roster.map(person=>{
+    const names=[person.name,...(person.aliases?person.aliases.split(",").map(a=>a.trim()):[])].filter(Boolean);
+    const presence=realChapters.map(ch=>{
+      const chObj=(project?.chapters||[]).find(c=>c.num===ch);
+      const text=(chObj?.summary||"").toLowerCase();
+      return names.some(n=>n&&text.includes(n.toLowerCase()));
+    });
+    const lastSeenIdx=presence.lastIndexOf(true);
+    return {name:person.name,presence,lastSeenChapter:lastSeenIdx>=0?realChapters[lastSeenIdx]:null};
+  });
+}
 function firstSparkCtx(project){
   const spark=project?.firstSpark;
   if(!Array.isArray(spark)||spark.length===0)return "";
@@ -951,6 +972,14 @@ export default function App() {
   const [newMaterialAlert, setNewMaterialAlert] = useState(null); // {words,count} | null — Full-tier proactive banner for "File new material"
   const [revisionLoopDismissed, setRevisionLoopDismissed] = useState({}); // {[loopingChapter]: true} — dismissed per chapter, not globally, so a new loop can still surface later
   const [revisionLoopEvidenceOpen, setRevisionLoopEvidenceOpen] = useState(false);
+  // The Ledger — a placeholder tier flag, since no billing or subscription system exists yet.
+  // Defaults to unlocked so it's fully testable now. Swap this for the real check once tiers
+  // actually exist in the app.
+  const [higherTier, setHigherTier] = useState(true);
+  const [ledgerAgnesRead, setLedgerAgnesRead] = useState(null);
+  const [ledgerAgnesLoading, setLedgerAgnesLoading] = useState(false);
+  const [ledgerCraftRead, setLedgerCraftRead] = useState(null);
+  const [ledgerCraftLoading, setLedgerCraftLoading] = useState(false);
   const [driftBadges, setDriftBadges] = useState([]); // chapter nums with a waiting (unopened) drift note, shown only in "quiet" mode
   const [involvementEditChoice, setInvolvementEditChoice] = useState("full"); // scratch value while editing in onboarding/profile
   // Landing screen: read synchronously so there's no flash between "haven't seen it" and "have seen it" on first paint.
@@ -4486,6 +4515,11 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
             <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:13,fontWeight:600,color:"var(--text-primary)"}}>Contain</div>
             <div style={{fontSize:9,color:"var(--text-dim)",marginTop:3}}>Pull it all together</div>
           </div>
+          <div className="card" onClick={()=>{setScreen("ledger");setLedgerAgnesRead(null);setLedgerCraftRead(null);}}>
+            <span style={{fontSize:16,marginBottom:8,display:"block"}}>📚</span>
+            <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:13,fontWeight:600,color:"var(--text-primary)"}}>The Ledger</div>
+            <div style={{fontSize:9,color:"var(--text-dim)",marginTop:3}}>The whole shape of your story</div>
+          </div>
         </div>
 
         {/* Card Grid Row 2 */}
@@ -5736,6 +5770,112 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
           </div>}
         </div>
       </div>}
+
+      {/* THE LEDGER — narrative first, on purpose. Agnes's read sits above every section, so
+          nothing here reads as a spreadsheet you have to scan yourself. */}
+      {screen==="ledger"&&project&&(()=>{
+        const realChapters=[...new Set(scenes.map(s=>s.chapter))].sort((a,b)=>a-b);
+        const presence=computeCharacterPresence(project,realChapters);
+        const activeThreads=(project?.threads||[]).filter(t=>t.status!=="resolved");
+        const allDrifts=driftQueue.flatMap(entry=>(entry.driftResult?.drifts||[]).map(d=>({...d,chapterNum:entry.driftResult?.chapterNum})));
+        const generateLedgerRead=async()=>{
+          setLedgerAgnesLoading(true);
+          try{
+            const r=await fetch("/api/chat",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({
+              system:`You are Agnes, a meticulous literary archivist. In two to three sentences, summarize the current state of this manuscript for the writer, drawing only from what is actually given below. Name a character who has not appeared in a while if that is genuinely true, name an open thread if one is genuinely quiet, name a real drift finding if one exists. If nothing notable is true, say that plainly and briefly. Never invent detail. Never use em dashes.`,
+              messages:[{role:"user",content:`Chapters captured: ${realChapters.length}.\nCharacter presence: ${presence.map(p=>`${p.name} last appeared ch. ${p.lastSeenChapter||"never"}`).join("; ")}.\nActive threads: ${activeThreads.map(t=>t.name).join(", ")||"none"}.\nRecent drift findings: ${allDrifts.slice(0,3).map(d=>d.observation).join(" ")||"none"}.`}]
+            })});
+            const d=await r.json();
+            const raw=finnClean(d.content?.filter(b=>b.type==="text").map(b=>b.text).join(""))||"";
+            setLedgerAgnesRead(raw);
+          }catch(e){console.log("Ledger read error:",e);}
+          setLedgerAgnesLoading(false);
+        };
+        const generateCraftRead=async()=>{
+          setLedgerCraftLoading(true);
+          try{
+            const capturedText=(project?.chapters||[]).map(c=>c.summary||"").join(" ").substring(0,6000);
+            const r=await fetch("/api/chat",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({
+              system:`You are Finn, this writer's coach. Look at these chapter summaries from their actual manuscript and name one or two genuine, specific patterns in their craft, recurring imagery, a shift in the kind of question they seem to be asking about their characters, something real. Speak directly to the writer, warm, specific, a little proud when it is earned. Never invent a pattern that is not really there, if nothing stands out, say so honestly and briefly. Never use em dashes.`,
+              messages:[{role:"user",content:`Chapter summaries so far: ${capturedText||"nothing captured yet"}`}]
+            })});
+            const d=await r.json();
+            const raw=finnClean(d.content?.filter(b=>b.type==="text").map(b=>b.text).join(""))||"";
+            setLedgerCraftRead(raw);
+          }catch(e){console.log("Craft read error:",e);}
+          setLedgerCraftLoading(false);
+        };
+        return <div style={{maxWidth:820,margin:"0 auto",padding:"0 20px 40px",animation:"fu .5s ease-out"}}>
+          <div onClick={goHome} style={{fontSize:12,color:"var(--text-dim)",cursor:"pointer",marginBottom:16}}>Back</div>
+          <div style={{fontSize:9,textTransform:"uppercase",letterSpacing:"0.2em",color:"var(--agnes,#7A6A8A)",fontWeight:600,marginBottom:6}}>Agnes</div>
+          <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:26,color:"var(--text-primary)",marginBottom:20}}>The Ledger</div>
+
+          <div style={{background:"var(--agnes-15,rgba(122,106,138,0.1))",borderLeft:"3px solid var(--agnes,#7A6A8A)",borderRadius:"0 9px 9px 0",padding:"16px 20px",marginBottom:24}}>
+            <div style={{fontSize:9,textTransform:"uppercase",letterSpacing:"0.14em",color:"var(--agnes,#7A6A8A)",fontWeight:600,marginBottom:6}}>Her read, right now</div>
+            {ledgerAgnesRead?<div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:16,color:"var(--text-primary)",lineHeight:1.7,fontStyle:"italic"}}>{ledgerAgnesRead}</div>
+              :<span onClick={generateLedgerRead} style={{fontSize:12,color:"var(--agnes,#7A6A8A)",cursor:ledgerAgnesLoading?"default":"pointer",fontFamily:"'DM Sans',sans-serif",textDecoration:"underline"}}>{ledgerAgnesLoading?"Reading...":"Ask Agnes to read your story"}</span>}
+          </div>
+
+          <div style={{marginBottom:26}}>
+            <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:17,color:"var(--text-primary)",fontWeight:600,marginBottom:12}}>Manuscript</div>
+            <div style={{display:"flex",gap:20}}>
+              <div style={{flex:1,textAlign:"center"}}><div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:26,color:"var(--text-primary)",fontWeight:600}}>{getTotalWords().toLocaleString()}</div><div style={{fontSize:9,textTransform:"uppercase",letterSpacing:"0.08em",color:"var(--text-dim)",marginTop:2}}>Words</div></div>
+              <div style={{flex:1,textAlign:"center"}}><div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:26,color:"var(--text-primary)",fontWeight:600}}>{realChapters.length}</div><div style={{fontSize:9,textTransform:"uppercase",letterSpacing:"0.08em",color:"var(--text-dim)",marginTop:2}}>Chapters drafted</div></div>
+              <div style={{flex:1,textAlign:"center"}}><div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:26,color:"var(--text-primary)",fontWeight:600}}>{(project?.chapters||[]).filter(c=>c.summary).length}</div><div style={{fontSize:9,textTransform:"uppercase",letterSpacing:"0.08em",color:"var(--text-dim)",marginTop:2}}>Chapters captured</div></div>
+            </div>
+          </div>
+
+          {presence.length>0&&realChapters.length>0&&<div style={{marginBottom:26}}>
+            <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:17,color:"var(--text-primary)",fontWeight:600,marginBottom:12}}>Where your characters are</div>
+            {presence.map((p,pi)=>(
+              <div key={pi} style={{display:"flex",alignItems:"center",gap:10,marginBottom:9}}>
+                <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:13,color:"var(--text-primary)",width:90,flexShrink:0}}>{p.name}</div>
+                <div style={{flex:1,display:"flex",gap:2}}>
+                  {p.presence.map((on,ci)=>(<div key={ci} style={{flex:1,height:14,borderRadius:2,background:on?"var(--accent)":"var(--border)"}}/>))}
+                </div>
+                <div style={{fontSize:9,color:"var(--text-faint)",width:110,textAlign:"right",flexShrink:0}}>{p.lastSeenChapter?`Through ch. ${p.lastSeenChapter}`:"Not yet seen"}</div>
+              </div>
+            ))}
+          </div>}
+
+          {activeThreads.length>0&&<div style={{marginBottom:26}}>
+            <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:17,color:"var(--text-primary)",fontWeight:600,marginBottom:12}}>Threads</div>
+            {activeThreads.map((t,ti)=>(
+              <div key={ti} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"8px 0",borderBottom:ti<activeThreads.length-1?"1px solid var(--border)":"none"}}>
+                <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:14,color:"var(--text-primary)"}}>{t.name}</div>
+                <span style={{fontSize:9,textTransform:"uppercase",letterSpacing:"0.06em",padding:"2px 8px",borderRadius:4,background:"rgba(90,107,58,0.08)",color:"#5A6B3A"}}>{t.status||"Active"}</span>
+              </div>
+            ))}
+          </div>}
+
+          <div style={{marginBottom:26}}>
+            <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:12}}>
+              <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:17,color:"var(--text-primary)",fontWeight:600}}>Your craft, over time</div>
+              <span style={{fontSize:8,textTransform:"uppercase",letterSpacing:"0.08em",background:"var(--accent-15)",color:"var(--accent)",padding:"2px 8px",borderRadius:4,fontWeight:600}}>Higher tier</span>
+            </div>
+            {!higherTier?<div style={{border:"1px dashed var(--border-mid)",borderRadius:8,padding:16,textAlign:"center"}}>
+              <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:14,color:"var(--text-secondary)",fontStyle:"italic",lineHeight:1.7,marginBottom:12}}>This is where Finn would show you real patterns in your voice and how your thinking about your story has grown. It needs a deeper kind of reading than the rest of the Ledger, the kind available on a higher tier.</div>
+              <span style={{background:"var(--accent)",borderRadius:6,padding:"8px 18px",fontFamily:"'DM Sans',sans-serif",fontSize:11,color:"#F4EEDF",fontWeight:600,cursor:"pointer",display:"inline-block"}}>See what's included</span>
+            </div>
+            :<div style={{background:"var(--accent-15)",borderLeft:"3px solid var(--accent)",borderRadius:"0 9px 9px 0",padding:"16px 20px"}}>
+              <div style={{fontSize:9,textTransform:"uppercase",letterSpacing:"0.1em",color:"var(--accent)",fontWeight:600,marginBottom:6}}>Finn</div>
+              {ledgerCraftRead?<div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:14,color:"var(--text-primary)",lineHeight:1.65,fontStyle:"italic"}}>{ledgerCraftRead}</div>
+                :<span onClick={generateCraftRead} style={{fontSize:12,color:"var(--accent)",cursor:ledgerCraftLoading?"default":"pointer",fontFamily:"'DM Sans',sans-serif",textDecoration:"underline"}}>{ledgerCraftLoading?"Reading your chapters...":"Ask Finn what he's noticed"}</span>}
+            </div>}
+          </div>
+
+          {allDrifts.length>0&&<div>
+            <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:17,color:"var(--text-primary)",fontWeight:600,marginBottom:12}}>What Agnes has noticed</div>
+            {allDrifts.map((d,di)=>(
+              <div key={di} style={{background:"var(--bg-card-alt)",border:"1px solid var(--border)",borderRadius:8,padding:"12px 14px",marginBottom:8}}>
+                <div style={{fontSize:9,textTransform:"uppercase",letterSpacing:"0.08em",color:"var(--agnes,#7A6A8A)",fontWeight:600,marginBottom:5}}>Chapter {d.chapterNum}</div>
+                <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:13,color:"var(--text-secondary)",lineHeight:1.55,marginBottom:3}}>{d.observation}</div>
+                <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:13,color:"var(--text-primary)",fontStyle:"italic",lineHeight:1.55}}>{d.question}</div>
+              </div>
+            ))}
+          </div>}
+        </div>;
+      })()}
 
       {/* THE FORGE - WRITING CONTAINER */}
       {screen==="container"&&(()=>{
