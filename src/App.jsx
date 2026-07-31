@@ -980,6 +980,8 @@ export default function App() {
   const [ledgerAgnesLoading, setLedgerAgnesLoading] = useState(false);
   const [ledgerCraftRead, setLedgerCraftRead] = useState(null);
   const [ledgerCraftLoading, setLedgerCraftLoading] = useState(false);
+  const [ledgerFeedback, setLedgerFeedback] = useState(null);
+  const [ledgerFeedbackLoading, setLedgerFeedbackLoading] = useState(false);
   const [driftBadges, setDriftBadges] = useState([]); // chapter nums with a waiting (unopened) drift note, shown only in "quiet" mode
   const [involvementEditChoice, setInvolvementEditChoice] = useState("full"); // scratch value while editing in onboarding/profile
   // Landing screen: read synchronously so there's no flash between "haven't seen it" and "have seen it" on first paint.
@@ -4453,6 +4455,16 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
         </div>
         {project&&project.chapters&&Array.isArray(project.chapters)&&project.chapters.some(c=>c.summary)&&getTotalWords()<100&&<div onClick={(e)=>{e.stopPropagation();importChaptersToForge()}} style={{textAlign:"center",padding:"6px 0 12px"}}><span style={{fontSize:11,color:"var(--accent-80)",cursor:"pointer"}}>Import {project.chapters.filter(c=>c.summary).length} chapters from Story Bible into The Forge</span></div>}
 
+        {/* The Ledger, sitting right after The Forge, its own long button */}
+        <div className="card" onClick={()=>{setScreen("ledger");setLedgerAgnesRead(null);setLedgerCraftRead(null);setLedgerFeedback(null);}} style={{marginBottom:16,display:"flex",alignItems:"center",gap:14,padding:"14px 18px",border:"1px solid var(--agnes-30,rgba(122,106,138,0.3))"}}>
+          <span style={{fontSize:18,flexShrink:0}}>📚</span>
+          <div style={{flex:1}}>
+            <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:14,fontWeight:600,color:"var(--agnes,#7A6A8A)"}}>The Ledger</div>
+            <div style={{fontSize:10,color:"var(--text-dim)",marginTop:2}}>The whole shape of your story</div>
+          </div>
+          <span style={{color:"var(--text-dim)",fontSize:14}}>&#8594;</span>
+        </div>
+
         {/* Last Pulse moved to right sidebar */}
 
         {/* Dopamine Map moved to right sidebar — Latest Spark card there covers this, no need for it twice */}
@@ -4514,11 +4526,6 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
             <svg width="16" height="16" viewBox="0 0 16 16" style={{marginBottom:8}}><circle cx="8" cy="8" r="5.5" fill="none" stroke="#908050" strokeWidth="0.9"/><path d="M5 8c1.5-2.5 4.5-2.5 6 0c-1.5 2.5-4.5 2.5-6 0z" fill="#908050" opacity="0.1"/></svg>
             <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:13,fontWeight:600,color:"var(--text-primary)"}}>Contain</div>
             <div style={{fontSize:9,color:"var(--text-dim)",marginTop:3}}>Pull it all together</div>
-          </div>
-          <div className="card" onClick={()=>{setScreen("ledger");setLedgerAgnesRead(null);setLedgerCraftRead(null);}}>
-            <span style={{fontSize:16,marginBottom:8,display:"block"}}>📚</span>
-            <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:13,fontWeight:600,color:"var(--text-primary)"}}>The Ledger</div>
-            <div style={{fontSize:9,color:"var(--text-dim)",marginTop:3}}>The whole shape of your story</div>
           </div>
         </div>
 
@@ -5781,9 +5788,10 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
         const generateLedgerRead=async()=>{
           setLedgerAgnesLoading(true);
           try{
+            const capturedSummaries=(project?.chapters||[]).filter(c=>c.summary).map(c=>`Ch. ${c.num}: ${c.summary}`).join("\n").substring(0,6000);
             const r=await fetch("/api/chat",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({
-              system:`You are Agnes, a meticulous literary archivist. In two to three sentences, summarize the current state of this manuscript for the writer, drawing only from what is actually given below. Name a character who has not appeared in a while if that is genuinely true, name an open thread if one is genuinely quiet, name a real drift finding if one exists. If nothing notable is true, say that plainly and briefly. Never invent detail. Never use em dashes.`,
-              messages:[{role:"user",content:`Chapters captured: ${realChapters.length}.\nCharacter presence: ${presence.map(p=>`${p.name} last appeared ch. ${p.lastSeenChapter||"never"}`).join("; ")}.\nActive threads: ${activeThreads.map(t=>t.name).join(", ")||"none"}.\nRecent drift findings: ${allDrifts.slice(0,3).map(d=>d.observation).join(" ")||"none"}.`}]
+              system:`You are Agnes, a meticulous literary archivist. In two to four sentences, summarize the current state of this manuscript for the writer, drawing from the actual chapter summaries given below, not just the metadata. Name a character who has not appeared in a while if that is genuinely true, name an open thread if one is genuinely quiet, name a real drift finding if one exists, and where useful, reference something specific that actually happened in the story. If nothing notable is true, say that plainly and briefly. Never invent detail. Never use em dashes.`,
+              messages:[{role:"user",content:`Chapter summaries so far:\n${capturedSummaries||"nothing captured yet"}\n\nChapters captured: ${realChapters.length}.\nCharacter presence: ${presence.map(p=>`${p.name} last appeared ch. ${p.lastSeenChapter||"never"}`).join("; ")}.\nActive threads: ${activeThreads.map(t=>t.name).join(", ")||"none"}.\nRecent drift findings: ${allDrifts.slice(0,3).map(d=>d.observation).join(" ")||"none"}.`}]
             })});
             const d=await r.json();
             const raw=finnClean(d.content?.filter(b=>b.type==="text").map(b=>b.text).join(""))||"";
@@ -5796,14 +5804,32 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
           try{
             const capturedText=(project?.chapters||[]).map(c=>c.summary||"").join(" ").substring(0,6000);
             const r=await fetch("/api/chat",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({
-              system:`You are Finn, this writer's coach. Look at these chapter summaries from their actual manuscript and name one or two genuine, specific patterns in their craft, recurring imagery, a shift in the kind of question they seem to be asking about their characters, something real. Speak directly to the writer, warm, specific, a little proud when it is earned. Never invent a pattern that is not really there, if nothing stands out, say so honestly and briefly. Never use em dashes.`,
+              system:`You are Finn, this writer's coach. Look at these chapter summaries from their actual manuscript and name one or two genuine, specific patterns in their craft, recurring imagery, a shift in the kind of question they seem to be asking about their characters, something real. Speak directly to the writer, warm, specific, a little proud when it is earned. Never invent a pattern that is not really there. Never claim something is rare or that you don't see it often, you have no way to compare this writer against others, speak only to what is true about this manuscript specifically. If a genuine caveat exists, note it separately from the main observations, brief, honest, not padded into a third point. Never use em dashes. Respond ONLY with a JSON object: {"observations":[{"title":"short title, a few words","text":"the actual observation, two to four sentences"}],"caveat":"one honest caveat sentence, or empty string if none is genuinely needed"}`,
               messages:[{role:"user",content:`Chapter summaries so far: ${capturedText||"nothing captured yet"}`}]
             })});
             const d=await r.json();
             const raw=finnClean(d.content?.filter(b=>b.type==="text").map(b=>b.text).join(""))||"";
-            setLedgerCraftRead(raw);
-          }catch(e){console.log("Craft read error:",e);}
+            const cleaned=raw.replace(/```json\s*/g,"").replace(/```\s*/g,"").trim();
+            const parsed=JSON.parse(cleaned);
+            setLedgerCraftRead(parsed);
+          }catch(e){console.log("Craft read error:",e);setLedgerCraftRead({observations:[{title:"Finn had trouble reading that",text:"Try again in a moment."}],caveat:""});}
           setLedgerCraftLoading(false);
+        };
+        const generateHonestFeedback=async()=>{
+          setLedgerFeedbackLoading(true);
+          try{
+            const capturedText=(project?.chapters||[]).map(c=>c.summary||"").join(" ").substring(0,6000);
+            const r=await fetch("/api/chat",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({
+              system:`You are Finn, this writer's coach. The writer has explicitly asked for honest feedback on their manuscript so far, they want real critique, not just encouragement. Read these chapter summaries and give genuine feedback. Lead with what is actually working, specific, grounded in real detail, never generic praise. Then name what is not working yet, framed as something worth a closer look, never as an error or a verdict, the writer's own judgment always has the last word. Never invent a weakness that is not really there. Never claim rarity or comparison to other writers. Never use em dashes. Respond ONLY with a JSON object: {"strengths":[{"title":"short title","text":"the actual observation, two to four sentences"}],"worthALook":[{"title":"short title","text":"the actual observation, two to four sentences, framed as worth a look, not a problem"}]}`,
+              messages:[{role:"user",content:`Chapter summaries so far: ${capturedText||"nothing captured yet"}`}]
+            })});
+            const d=await r.json();
+            const raw=finnClean(d.content?.filter(b=>b.type==="text").map(b=>b.text).join(""))||"";
+            const cleaned=raw.replace(/```json\s*/g,"").replace(/```\s*/g,"").trim();
+            const parsed=JSON.parse(cleaned);
+            setLedgerFeedback(parsed);
+          }catch(e){console.log("Honest feedback error:",e);}
+          setLedgerFeedbackLoading(false);
         };
         return <div style={{maxWidth:820,margin:"0 auto",padding:"0 20px 40px",animation:"fu .5s ease-out"}}>
           <div onClick={goHome} style={{fontSize:12,color:"var(--text-dim)",cursor:"pointer",marginBottom:16}}>Back</div>
@@ -5827,15 +5853,22 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
 
           {presence.length>0&&realChapters.length>0&&<div style={{marginBottom:26}}>
             <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:17,color:"var(--text-primary)",fontWeight:600,marginBottom:12}}>Where your characters are</div>
-            {presence.map((p,pi)=>(
-              <div key={pi} style={{display:"flex",alignItems:"center",gap:10,marginBottom:9}}>
-                <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:13,color:"var(--text-primary)",width:90,flexShrink:0}}>{p.name}</div>
-                <div style={{flex:1,display:"flex",gap:2}}>
-                  {p.presence.map((on,ci)=>(<div key={ci} style={{flex:1,height:14,borderRadius:2,background:on?"var(--accent)":"var(--border)"}}/>))}
-                </div>
-                <div style={{fontSize:9,color:"var(--text-faint)",width:110,textAlign:"right",flexShrink:0}}>{p.lastSeenChapter?`Through ch. ${p.lastSeenChapter}`:"Not yet seen"}</div>
-              </div>
-            ))}
+            {(()=>{
+              const palette=["#C07848","#5A7A8A","#7A6A8A","#5A6B3A","#9A8A50","#B06848"];
+              let lastColor=null;
+              return presence.map((p,pi)=>{
+                let color=p.presence.some(x=>x)?palette[pi%palette.length]:"var(--border-mid)";
+                if(color===lastColor)color=palette[(pi+1)%palette.length];
+                lastColor=color;
+                return <div key={pi} style={{display:"flex",alignItems:"center",gap:10,marginBottom:9}}>
+                  <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:13,color:"var(--text-primary)",width:90,flexShrink:0}}>{p.name}</div>
+                  <div style={{flex:1,display:"flex",gap:2}}>
+                    {p.presence.map((on,ci)=>(<div key={ci} style={{flex:1,height:14,borderRadius:2,background:on?color:"var(--border)"}}/>))}
+                  </div>
+                  <div style={{fontSize:9,color:"var(--text-faint)",width:110,textAlign:"right",flexShrink:0}}>{p.lastSeenChapter?`Through ch. ${p.lastSeenChapter}`:"Not yet seen"}</div>
+                </div>;
+              });
+            })()}
           </div>}
 
           {activeThreads.length>0&&<div style={{marginBottom:26}}>
@@ -5857,10 +5890,54 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
               <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:14,color:"var(--text-secondary)",fontStyle:"italic",lineHeight:1.7,marginBottom:12}}>This is where Finn would show you real patterns in your voice and how your thinking about your story has grown. It needs a deeper kind of reading than the rest of the Ledger, the kind available on a higher tier.</div>
               <span style={{background:"var(--accent)",borderRadius:6,padding:"8px 18px",fontFamily:"'DM Sans',sans-serif",fontSize:11,color:"#F4EEDF",fontWeight:600,cursor:"pointer",display:"inline-block"}}>See what's included</span>
             </div>
-            :<div style={{background:"var(--accent-15)",borderLeft:"3px solid var(--accent)",borderRadius:"0 9px 9px 0",padding:"16px 20px"}}>
-              <div style={{fontSize:9,textTransform:"uppercase",letterSpacing:"0.1em",color:"var(--accent)",fontWeight:600,marginBottom:6}}>Finn</div>
-              {ledgerCraftRead?<div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:14,color:"var(--text-primary)",lineHeight:1.65,fontStyle:"italic"}}>{ledgerCraftRead}</div>
-                :<span onClick={generateCraftRead} style={{fontSize:12,color:"var(--accent)",cursor:ledgerCraftLoading?"default":"pointer",fontFamily:"'DM Sans',sans-serif",textDecoration:"underline"}}>{ledgerCraftLoading?"Reading your chapters...":"Ask Finn what he's noticed"}</span>}
+            :<>
+              {ledgerCraftRead?<>
+                {ledgerCraftRead.observations?.map((obs,oi)=>(
+                  <div key={oi} style={{background:"var(--accent-15)",borderLeft:"3px solid var(--accent)",borderRadius:"0 9px 9px 0",padding:"16px 18px",marginBottom:10}}>
+                    <div style={{fontSize:9,textTransform:"uppercase",letterSpacing:"0.1em",color:"var(--accent)",fontWeight:600,marginBottom:6}}>Finn</div>
+                    <div><span style={{display:"inline-block",width:18,height:18,borderRadius:"50%",background:"var(--accent)",color:"#F4EEDF",fontSize:10,fontWeight:600,textAlign:"center",lineHeight:"18px",marginRight:8,fontFamily:"'DM Sans',sans-serif"}}>{oi+1}</span><span style={{fontFamily:"'Cormorant Garamond',serif",fontSize:15,fontWeight:600,color:"var(--text-primary)"}}>{obs.title}</span></div>
+                    <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:14,color:"var(--text-secondary)",lineHeight:1.65,marginTop:8}}>{obs.text}</div>
+                    {oi===ledgerCraftRead.observations.length-1&&ledgerCraftRead.caveat&&<div style={{fontFamily:"'DM Sans',sans-serif",fontSize:10,color:"var(--text-faint)",fontStyle:"italic",marginTop:10,borderTop:"1px dashed var(--border-mid)",paddingTop:8}}>{ledgerCraftRead.caveat}</div>}
+                  </div>
+                ))}
+              </>
+              :<div style={{background:"var(--accent-15)",borderLeft:"3px solid var(--accent)",borderRadius:"0 9px 9px 0",padding:"16px 20px"}}>
+                <div style={{fontSize:9,textTransform:"uppercase",letterSpacing:"0.1em",color:"var(--accent)",fontWeight:600,marginBottom:6}}>Finn</div>
+                <span onClick={generateCraftRead} style={{fontSize:12,color:"var(--accent)",cursor:ledgerCraftLoading?"default":"pointer",fontFamily:"'DM Sans',sans-serif",textDecoration:"underline"}}>{ledgerCraftLoading?"Reading your chapters...":"Ask Finn what he's noticed"}</span>
+              </div>}
+            </>}
+          </div>
+
+          <div style={{marginBottom:26}}>
+            <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:12}}>
+              <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:17,color:"var(--text-primary)",fontWeight:600}}>Ask for Honest Feedback</div>
+              <span style={{fontSize:8,textTransform:"uppercase",letterSpacing:"0.08em",background:"var(--accent-15)",color:"var(--accent)",padding:"2px 8px",borderRadius:4,fontWeight:600}}>Higher tier</span>
+            </div>
+            {!higherTier?<div style={{border:"1px dashed var(--border-mid)",borderRadius:8,padding:16,textAlign:"center"}}>
+              <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:14,color:"var(--text-secondary)",fontStyle:"italic",lineHeight:1.7,marginBottom:12}}>Finn can give you honest feedback on what's working and what isn't yet, when you're ready to hear it. Available on a higher tier.</div>
+              <span style={{background:"var(--accent)",borderRadius:6,padding:"8px 18px",fontFamily:"'DM Sans',sans-serif",fontSize:11,color:"#F4EEDF",fontWeight:600,cursor:"pointer",display:"inline-block"}}>See what's included</span>
+            </div>
+            :ledgerFeedback?<>
+              <div style={{fontSize:9,textTransform:"uppercase",letterSpacing:"0.14em",color:"var(--text-dim)",display:"flex",alignItems:"center",gap:10,margin:"4px 0 10px"}}>What's genuinely working<div style={{flex:1,height:1,background:"var(--border-mid)"}}/></div>
+              {ledgerFeedback.strengths?.map((s,si)=>(
+                <div key={si} style={{background:"rgba(90,107,58,0.08)",borderLeft:"3px solid #5A6B3A",borderRadius:"0 9px 9px 0",padding:"16px 18px",marginBottom:10}}>
+                  <div style={{fontSize:9,textTransform:"uppercase",letterSpacing:"0.1em",color:"#5A6B3A",fontWeight:600,marginBottom:6}}>Finn</div>
+                  <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:15,fontWeight:600,color:"var(--text-primary)",marginBottom:6}}>{s.title}</div>
+                  <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:14,color:"var(--text-secondary)",lineHeight:1.65}}>{s.text}</div>
+                </div>
+              ))}
+              <div style={{fontSize:9,textTransform:"uppercase",letterSpacing:"0.14em",color:"var(--text-dim)",display:"flex",alignItems:"center",gap:10,margin:"16px 0 10px"}}>Worth a closer look<div style={{flex:1,height:1,background:"var(--border-mid)"}}/></div>
+              {ledgerFeedback.worthALook?.map((w,wi)=>(
+                <div key={wi} style={{background:"var(--accent-15)",borderLeft:"3px solid var(--accent)",borderRadius:"0 9px 9px 0",padding:"16px 18px",marginBottom:10}}>
+                  <div style={{fontSize:9,textTransform:"uppercase",letterSpacing:"0.1em",color:"var(--accent)",fontWeight:600,marginBottom:6}}>Finn</div>
+                  <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:15,fontWeight:600,color:"var(--text-primary)",marginBottom:6}}>{w.title}</div>
+                  <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:14,color:"var(--text-secondary)",lineHeight:1.65}}>{w.text}</div>
+                </div>
+              ))}
+            </>
+            :<div style={{border:"1px dashed var(--border-mid)",borderRadius:8,padding:16,textAlign:"center"}}>
+              <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:13,color:"var(--text-secondary)",fontStyle:"italic",lineHeight:1.65,marginBottom:12}}>Finn will read what you've captured so far and tell you honestly what's working and what isn't yet. He'll lead with what's genuinely strong before anything else.</div>
+              <span onClick={generateHonestFeedback} style={{background:"var(--accent)",borderRadius:7,padding:"10px 22px",fontFamily:"'DM Sans',sans-serif",fontSize:12,color:"#F4EEDF",fontWeight:600,cursor:ledgerFeedbackLoading?"default":"pointer",display:"inline-block"}}>{ledgerFeedbackLoading?"Reading...":"I'd like honest feedback"}</span>
             </div>}
           </div>
 
