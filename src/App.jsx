@@ -5192,6 +5192,13 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
           {/* Story identity below */}
           <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:22,fontWeight:500,color:"var(--text-primary)",marginBottom:16}}>{project.title||"Untitled"}</div>
           <ReadField label="Genre" value={project.genre}/>
+          {project.multiPOV&&(()=>{
+            const povNames=[
+              ...(project.protagPOV!==false?[(project.protagonist?.split(/[:.]/)[0]?.trim())||"Protagonist"]:[]),
+              ...((project.characters||[]).filter(c=>c.isPOVCharacter).map(c=>c.name||"Unnamed"))
+            ];
+            return <ReadField label="Structure" value={"Multiple POV characters"+(povNames.length?": "+povNames.join(", "):"")}/>;
+          })()}
           <ReadField label="What this story is about" value={project.synopsis} multi/>
           <TrackedField project={project} label="Themes" fieldKey="themes" expandedMap={expandedFieldHistory} onToggle={toggleFieldHistory}/>
           <ReadField label="What excites you most" value={project.excites} multi/>
