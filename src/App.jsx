@@ -995,7 +995,7 @@ export default function App() {
   const [flipped, setFlipped] = useState(false);
   const [loadMsg, setLoadMsg] = useState(LOAD[Math.floor(Math.random()*LOAD.length)]);
   const [project, setProject] = useState(null);
-  const [pForm, setPForm] = useState({title:"",genre:"",synopsis:"",protagonist:"",protagonistGoal:"",protagonistDream:"",protagonistFear:"",protagonistWound:"",protagonistBackstory:"",protagonistMisbelief:"",supporting:"",antagonist:"",worldSetting:"",worldRules:"",worldMythology:"",worldBeliefs:"",worldDanger:"",worldTone:"",themes:"",mainPlot:"",characters:[],openQuestions:[],chapters:[{num:1,summary:""}],where:"",stuck:"",excites:"",currentChapter:"",multiPOV:false});
+  const [pForm, setPForm] = useState({title:"",authorName:"",genre:"",synopsis:"",protagonist:"",protagonistGoal:"",protagonistDream:"",protagonistFear:"",protagonistWound:"",protagonistBackstory:"",protagonistMisbelief:"",supporting:"",antagonist:"",worldSetting:"",worldRules:"",worldMythology:"",worldBeliefs:"",worldDanger:"",worldTone:"",themes:"",mainPlot:"",characters:[],openQuestions:[],chapters:[{num:1,summary:""}],where:"",stuck:"",excites:"",currentChapter:"",multiPOV:false});
   const [sparks, setSparks] = useState([]);
   const [flaggedIdx, setFlaggedIdx] = useState(null);
   const [ideaLabSparked, setIdeaLabSparked] = useState(false);
@@ -4796,6 +4796,7 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
 
           {/* STORY IDENTITY — stable fields below */}
           <FormField label="Project title" k="title" ph="My Novel" value={pForm.title} onChange={updateField}/>
+          <FormField label="Author name or pen name" k="authorName" ph="How your name should appear on the title page (optional)" value={pForm.authorName} onChange={updateField}/>
           <FormField label="Genre" k="genre" ph="Contemporary fiction, fantasy, memoir..." value={pForm.genre} onChange={updateField}/>
 
           {/* POV Characters — off for most books, on only when a story actually needs it. The
@@ -5190,7 +5191,8 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
             </div>
           </div>
           {/* Story identity below */}
-          <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:22,fontWeight:500,color:"var(--text-primary)",marginBottom:16}}>{project.title||"Untitled"}</div>
+          <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:22,fontWeight:500,color:"var(--text-primary)",marginBottom:project.authorName?2:16}}>{project.title||"Untitled"}</div>
+          {project.authorName&&<div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:13,fontStyle:"italic",color:"var(--text-muted)",marginBottom:16}}>by {project.authorName}</div>}
           <ReadField label="Genre" value={project.genre}/>
           {project.multiPOV&&(()=>{
             const povNames=[
@@ -6079,21 +6081,58 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
                     e.target.value="";
                   }}/>
                 </label>
-                {getTotalWords()>0&&<div onClick={()=>{
-                  const chapters=[...new Set(scenes.map(s=>s.chapter))].sort((a,b)=>a-b);
-                  let output=project?project.title+"\n\n":"";
-                  chapters.forEach(ch=>{
-                    const chScenes=scenes.filter(s=>s.chapter===ch).sort((a,b)=>a.scene-b.scene);
-                    output+="Chapter "+ch+"\n\n";
-                    chScenes.forEach(s=>{if(s.text&&s.text.trim()){output+=s.text.trim()+"\n\n"}});
-                  });
-                  // UTF-8 BOM so Windows apps (Notepad/Word) decode curly quotes correctly; CRLF so older editors keep paragraph breaks
-                  const blob=new Blob(["\uFEFF"+output.replace(/\n/g,"\r\n")],{type:"text/plain;charset=utf-8"});
-                  const url=URL.createObjectURL(blob);
-                  const a=document.createElement("a");
-                  a.href=url;a.download=(project?.title||"manuscript").replace(/[^a-zA-Z0-9]/g,"_")+".txt";
-                  document.body.appendChild(a);a.click();document.body.removeChild(a);URL.revokeObjectURL(url);
-                }} style={{fontSize:11,color:"var(--accent)",cursor:"pointer",marginTop:6,display:"block",background:"var(--bg-card-alt)",border:"1px solid var(--border)",borderRadius:6,padding:"6px 10px",textAlign:"center"}}>Export manuscript</div>}
+                {getTotalWords()>0&&(()=>{
+                  const buildChapters=()=>{
+                    const nums=[...new Set(scenes.map(s=>s.chapter))].sort((a,b)=>a-b);
+                    return nums.map(ch=>({
+                      num:ch,
+                      paras:scenes.filter(s=>s.chapter===ch).sort((a,b)=>a.scene-b.scene)
+                        .flatMap(s=>(s.text||"").split("\n").map(t=>t.trim()).filter(Boolean))
+                    }));
+                  };
+                  const downloadBlob=(blob,ext)=>{
+                    const url=URL.createObjectURL(blob);
+                    const a=document.createElement("a");
+                    a.href=url;a.download=(project?.title||"manuscript").replace(/[^a-zA-Z0-9]/g,"_")+ext;
+                    document.body.appendChild(a);a.click();document.body.removeChild(a);URL.revokeObjectURL(url);
+                  };
+                  const exportWord=async()=>{
+                    try{
+                      const {Document,Packer,Paragraph,TextRun,AlignmentType}=await import("docx");
+                      const chapters=buildChapters();
+                      const run=(text,opts)=>new TextRun({text,font:"Times New Roman",...opts});
+                      const titlePage=[
+                        new Paragraph({alignment:AlignmentType.CENTER,spacing:{before:4800},children:[run(project?.title||"Untitled",{size:56})]}),
+                        ...(project?.authorName?[new Paragraph({alignment:AlignmentType.CENTER,spacing:{before:360},children:[run("by "+project.authorName,{size:28})]})]:[])
+                      ];
+                      const body=chapters.flatMap(ch=>[
+                        new Paragraph({pageBreakBefore:true,alignment:AlignmentType.CENTER,spacing:{after:480},children:[run("Chapter "+ch.num,{size:28,bold:true})]}),
+                        ...ch.paras.map(t=>new Paragraph({spacing:{line:480},indent:{firstLine:720},children:[run(t,{size:24})]}))
+                      ]);
+                      const doc=new Document({sections:[{children:[...titlePage,...body]}]});
+                      const blob=await Packer.toBlob(doc);
+                      downloadBlob(blob,".docx");
+                    }catch(err){
+                      console.error("Word export failed:",err);
+                      alert("Word export hit a snag. Your manuscript is safe. Try again, or use the plain text export below.");
+                    }
+                  };
+                  const exportTxt=()=>{
+                    const chapters=buildChapters();
+                    let output=project?project.title+"\n\n":"";
+                    chapters.forEach(ch=>{
+                      output+="Chapter "+ch.num+"\n\n";
+                      ch.paras.forEach(t=>{output+=t+"\n\n"});
+                    });
+                    // UTF-8 BOM so Windows apps (Notepad/Word) decode curly quotes correctly; CRLF so older editors keep paragraph breaks
+                    const blob=new Blob(["\uFEFF"+output.replace(/\n/g,"\r\n")],{type:"text/plain;charset=utf-8"});
+                    downloadBlob(blob,".txt");
+                  };
+                  return <div style={{marginTop:6}}>
+                    <div onClick={exportWord} style={{fontSize:11,color:"var(--accent)",cursor:"pointer",display:"block",background:"var(--bg-card-alt)",border:"1px solid var(--accent)",borderRadius:6,padding:"6px 10px",textAlign:"center"}}>Export as Word</div>
+                    <div onClick={exportTxt} style={{fontSize:10,color:"var(--text-dim)",cursor:"pointer",textAlign:"center",marginTop:5}}>Export as plain text (.txt)</div>
+                  </div>;
+                })()}
               </div>
             </>}
 
