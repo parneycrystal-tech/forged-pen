@@ -453,7 +453,12 @@ const LOAD = ["Reading. Give me a second.","Sitting with this.","Let me think ab
 const LOAD_EXTENDED = ["Looking that up for you...","Checking a few sources...","Almost there. Want to get this right."];
 
 function loadStored(key) { try { const v = localStorage.getItem(key); return v ? JSON.parse(v) : null; } catch { return null; } }
-function saveStored(key, val) { try { localStorage.setItem(key, JSON.stringify(val)); cloudSave(key, val); } catch {} }
+function saveStored(key, val) {
+  // Local and cloud saves are independent: if the device's localStorage is full (quota), the cloud save must still run.
+  try { localStorage.setItem(key, JSON.stringify(val)); window.__fpLocalSaveFailed=false; }
+  catch { window.__fpLocalSaveFailed=true; }
+  try { cloudSave(key, val); } catch {}
+}
 function clearLocalUserData() {
   try {
     Object.keys(localStorage).filter(k=>k.startsWith("tt-")).forEach(k=>localStorage.removeItem(k));
@@ -6044,12 +6049,20 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
               </div>
               <div style={{borderTop:"1px solid var(--border)",paddingTop:10,marginTop:"auto"}}>
                 <div style={{fontSize:9,color:"var(--text-dim)"}}>{getTotalWords()} words total</div>
-                <div style={{fontSize:9,color:"var(--text-dim)",marginTop:3}}>Auto-saving</div>
+                <div style={{fontSize:9,color:window.__fpLocalSaveFailed?"#B06848":"var(--text-dim)",marginTop:3}}>{window.__fpLocalSaveFailed?"Saving to cloud only (device storage full)":"Auto-saving"}</div>
                 <label style={{fontSize:11,color:"var(--accent)",cursor:"pointer",marginTop:10,display:"block",background:"var(--bg-card-alt)",border:"1px solid var(--border)",borderRadius:6,padding:"6px 10px",textAlign:"center"}}>
                   Upload .txt
                   <input type="file" accept=".txt" style={{display:"none"}} onChange={e=>{
                     const file=e.target.files?.[0];
                     if(!file)return;
+                    // GUARD: uploading replaces everything in The Forge. Never let that happen silently.
+                    const existingWords=getTotalWords();
+                    if(existingWords>0){
+                      const chCount=[...new Set(scenes.map(s=>s.chapter))].length;
+                      const ok=window.confirm("Uploading will replace your current manuscript in The Forge: "+existingWords.toLocaleString()+" words across "+chCount+" chapter"+(chCount===1?"":"s")+".\n\nYour current version will be kept as a backup on this device first.\n\nReplace it with the uploaded file?");
+                      if(!ok){e.target.value="";return;}
+                      try{localStorage.setItem("tt-scenes-backup",JSON.stringify({savedAt:Date.now(),scenes}));}catch{}
+                    }
                     const reader=new FileReader();
                     reader.onload=ev=>{
                       const text=ev.target.result;
@@ -6166,7 +6179,7 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
                 </>}
               </div>
               <div style={{borderTop:"1px solid var(--border)",paddingTop:10,marginTop:"auto"}}>
-                <div style={{fontSize:9,color:"var(--text-dim)"}}>Auto-saving</div>
+                <div style={{fontSize:9,color:window.__fpLocalSaveFailed?"#B06848":"var(--text-dim)"}}>{window.__fpLocalSaveFailed?"Saving to cloud only (device storage full)":"Auto-saving"}</div>
               </div>
             </>}
 
@@ -6220,7 +6233,7 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
               </div>
               <div style={{borderTop:"1px solid var(--border)",paddingTop:10,marginTop:"auto"}}>
                 <div style={{fontSize:9,color:"#C07848"}}>Session active</div>
-                <div style={{fontSize:9,color:"var(--text-dim)",marginTop:3}}>Auto-saving</div>
+                <div style={{fontSize:9,color:window.__fpLocalSaveFailed?"#B06848":"var(--text-dim)",marginTop:3}}>{window.__fpLocalSaveFailed?"Saving to cloud only (device storage full)":"Auto-saving"}</div>
               </div>
             </>}
 
@@ -6295,7 +6308,7 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
                 </>}
               </div>
               <div style={{borderTop:"1px solid var(--border)",paddingTop:10,marginTop:"auto"}}>
-                <div style={{fontSize:9,color:"var(--text-dim)"}}>Auto-saving</div>
+                <div style={{fontSize:9,color:window.__fpLocalSaveFailed?"#B06848":"var(--text-dim)"}}>{window.__fpLocalSaveFailed?"Saving to cloud only (device storage full)":"Auto-saving"}</div>
               </div>
             </>}
           </div>
