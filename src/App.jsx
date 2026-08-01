@@ -4797,8 +4797,6 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
           {/* STORY IDENTITY — stable fields below */}
           <FormField label="Project title" k="title" ph="My Novel" value={pForm.title} onChange={updateField}/>
           <FormField label="Genre" k="genre" ph="Contemporary fiction, fantasy, memoir..." value={pForm.genre} onChange={updateField}/>
-          <FormField label="What is your story about?" k="synopsis" ph="One sentence is enough to start..." value={pForm.synopsis} onChange={updateField} multi/>
-          <FormField label="Themes" k="themes" ph="What ideas keep surfacing? Type what you already know, or leave it, Agnes will notice patterns as chapters come in..." value={pForm.themes} onChange={updateField} multi/>
 
           {/* POV Characters — off for most books, on only when a story actually needs it. The
               roster is just the existing character list with one new switch each, nothing new
@@ -4837,6 +4835,9 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
               </div>;
             })}
           </div>}
+
+          <FormField label="What is your story about?" k="synopsis" ph="One sentence is enough to start..." value={pForm.synopsis} onChange={updateField} multi/>
+          <FormField label="Themes" k="themes" ph="What ideas keep surfacing? Type what you already know, or leave it, Agnes will notice patterns as chapters come in..." value={pForm.themes} onChange={updateField} multi/>
 
           {!bibExpanded&&<div onClick={()=>setBibExpanded(true)} style={{background:"none",border:"1px dashed var(--border-mid)",borderRadius:8,padding:"10px 16px",color:"var(--text-dim)",fontSize:12,cursor:"pointer",textAlign:"left",marginBottom:14,fontFamily:"'DM Sans',sans-serif"}}>
             <span style={{color:"var(--accent)",marginRight:8}}>+</span>Add more detail: characters, world, what excites you
@@ -6079,7 +6080,8 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
                     output+="Chapter "+ch+"\n\n";
                     chScenes.forEach(s=>{if(s.text&&s.text.trim()){output+=s.text.trim()+"\n\n"}});
                   });
-                  const blob=new Blob([output],{type:"text/plain"});
+                  // UTF-8 BOM so Windows apps (Notepad/Word) decode curly quotes correctly; CRLF so older editors keep paragraph breaks
+                  const blob=new Blob(["\uFEFF"+output.replace(/\n/g,"\r\n")],{type:"text/plain;charset=utf-8"});
                   const url=URL.createObjectURL(blob);
                   const a=document.createElement("a");
                   a.href=url;a.download=(project?.title||"manuscript").replace(/[^a-zA-Z0-9]/g,"_")+".txt";
