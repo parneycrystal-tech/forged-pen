@@ -453,6 +453,14 @@ const LOAD = ["Reading. Give me a second.","Sitting with this.","Let me think ab
 const LOAD_EXTENDED = ["Looking that up for you...","Checking a few sources...","Almost there. Want to get this right."];
 
 function loadStored(key) { try { const v = localStorage.getItem(key); return v ? JSON.parse(v) : null; } catch { return null; } }
+// Single source of truth for the protagonist's display name. The dedicated name field wins;
+// legacy projects without it fall back to parsing the first segment of the prose field.
+function getProtagName(proj, fallback) {
+  const n = (proj?.protagonistName || "").trim();
+  if (n) return n;
+  const parsed = proj?.protagonist?.split(/[:.]/)[0]?.trim();
+  return parsed || fallback || null;
+}
 function saveStored(key, val) {
   // Local and cloud saves are independent: if the device's localStorage is full (quota), the cloud save must still run.
   try { localStorage.setItem(key, JSON.stringify(val)); window.__fpLocalSaveFailed=false; }
@@ -652,7 +660,7 @@ function groupLines(lines){
 }
 
 function existingCharacterNamesList(project){
-  const protagName=project?.protagonist?(project.protagonist.split(":")[0]||"").trim():null;
+  const protagName=getProtagName(project);
   const entries=[protagName,...(project?.characters||[]).map(c=>{
     const aliases=(c.aliases||"").split(",").map(a=>a.trim()).filter(Boolean);
     return aliases.length?`${c.name} (also called ${aliases.join(", ")})`:c.name;
@@ -716,7 +724,7 @@ function detectRevisionLoop(project,scenes){
 // happened" already sitting in the data. Not perfect, a character could appear off-page from
 // what the summary mentions, but it's real signal from real text, not invented.
 function computeCharacterPresence(project,realChapters){
-  const protagName=project?.protagonist?.split(":")[0]?.trim();
+  const protagName=getProtagName(project);
   const roster=[
     protagName?{name:protagName,role:"Protagonist"}:null,
     ...(project?.characters||[]).map(c=>({name:c.name,role:c.role||"Character",aliases:c.aliases||""}))
@@ -930,7 +938,7 @@ function ClockFace({total,left,size=104,muted=false,color="var(--accent)"}){
 const THREAD_TYPES=[{id:"Subplot",color:"#5A6B3A"},{id:"Question",color:"#7A6EA0"},{id:"Object",color:"#907860"},{id:"Relationship",color:"#A8884A"}];
 
 const AGNES_INVOLVEMENT_LEVELS=[
-  {id:"full",label:"Full",desc:"Agnes speaks up on her own. Drift notes, ember analysis, and her read on where you are all surface automatically."},
+  {id:"full",label:"Full",desc:"Agnes speaks up on her own. Drift notes, ember analysis, and her read on where you are surface automatically, on Home, never inside a writing session. While you\u2019re writing, she reads quietly and holds anything she notices until you step away from the page."},
   {id:"quiet",label:"Quiet",desc:"Agnes still reads everything. She won't interrupt, but a quiet marker lets you know when she has something. You decide when to look."},
   {id:"off",label:"Off",desc:"Agnes stays fully out of the way. No markers, no automatic notes. She's still there if you ask, just never uninvited."}
 ];
@@ -1000,7 +1008,7 @@ export default function App() {
   const [flipped, setFlipped] = useState(false);
   const [loadMsg, setLoadMsg] = useState(LOAD[Math.floor(Math.random()*LOAD.length)]);
   const [project, setProject] = useState(null);
-  const [pForm, setPForm] = useState({title:"",authorName:"",genre:"",synopsis:"",protagonist:"",protagonistGoal:"",protagonistDream:"",protagonistFear:"",protagonistWound:"",protagonistBackstory:"",protagonistMisbelief:"",supporting:"",antagonist:"",worldSetting:"",worldRules:"",worldMythology:"",worldBeliefs:"",worldDanger:"",worldTone:"",themes:"",mainPlot:"",characters:[],openQuestions:[],chapters:[{num:1,summary:""}],where:"",stuck:"",excites:"",currentChapter:"",multiPOV:false});
+  const [pForm, setPForm] = useState({title:"",authorName:"",genre:"",protagonistName:"",protagonistAppearance:"",synopsis:"",protagonist:"",protagonistGoal:"",protagonistDream:"",protagonistFear:"",protagonistWound:"",protagonistBackstory:"",protagonistMisbelief:"",supporting:"",antagonist:"",worldSetting:"",worldRules:"",worldMythology:"",worldBeliefs:"",worldDanger:"",worldTone:"",themes:"",mainPlot:"",characters:[],openQuestions:[],chapters:[{num:1,summary:""}],where:"",stuck:"",excites:"",currentChapter:"",multiPOV:false});
   const [sparks, setSparks] = useState([]);
   const [flaggedIdx, setFlaggedIdx] = useState(null);
   const [ideaLabSparked, setIdeaLabSparked] = useState(false);
@@ -2092,8 +2100,11 @@ Main plot: ${project?.mainPlot||"none"}`;
     const existingCharacterNames=existingCharacterNamesList(project);
 
     const existingChapterObj=(project?.chapters||[]).find(c=>c.num===chapterNum);
-    const povRoster=[project?.protagonist?.split(":")[0]?.trim(),...(project?.characters||[]).filter(c=>c.isPOVCharacter).map(c=>c.name)].filter(Boolean);
-    const povInstructions=(project?.multiPOV&&!existingChapterObj?.povCharacter&&povRoster.length>1)?`,\n  "povCharacterGuess": "which of these named POV characters this chapter is actually written from, exactly as given: ${povRoster.join(", ")}. Empty string if genuinely unclear."`:"";
+    const povRoster=[getProtagName(project),...(project?.characters||[]).filter(c=>c.isPOVCharacter).map(c=>c.name)].filter(Boolean);
+    // Aliases ride along so Agnes can match a chapter that only ever says "Eva" to Evangeline,
+    // but her answer must be the canonical name so tags stay consistent.
+    const povRosterDescribed=[getProtagName(project),...(project?.characters||[]).filter(c=>c.isPOVCharacter).map(c=>c.name+(c.aliases&&String(c.aliases).trim()?` (also called ${String(c.aliases).trim()})`:""))].filter(Boolean);
+    const povInstructions=(project?.multiPOV&&!existingChapterObj?.povCharacter&&povRoster.length>1)?`,\n  "povCharacterGuess": "which of these named POV characters this chapter is actually written from: ${povRosterDescribed.join(", ")}. Answer with the canonical name only, exactly as listed before any parenthetical. Empty string if genuinely unclear."`:"";
 
     const driftInstructions=skipDrift?"":`
 
@@ -2187,7 +2198,11 @@ Respond with ONLY this JSON:
           // Quiet by design, matching how First Spark stays untouched, this is a soft default,
           // not a proposal needing its own review step.
           if(result.povCharacterGuess&&result.povCharacterGuess.trim()){
-            const updatedChapters=(project?.chapters||[]).map(c=>c.num===chapterNum&&!c.povCharacter?{...c,povCharacter:result.povCharacterGuess.trim()}:c);
+            // Uploaded chapters have no Bible entry until first capture; create one so the guess
+            // has somewhere to land instead of silently vanishing (bug found in testing, Aug 2026).
+            const baseChapters=Array.isArray(project?.chapters)?[...project.chapters]:[];
+            if(!baseChapters.some(c=>c.num===chapterNum))baseChapters.push({num:chapterNum,summary:""});
+            const updatedChapters=baseChapters.map(c=>c.num===chapterNum&&!c.povCharacter?{...c,povCharacter:result.povCharacterGuess.trim()}:c).sort((a,b)=>a.num-b.num);
             const updatedProj={...updatedWithCounts,chapters:updatedChapters,updated:Date.now()};
             setProject(updatedProj);saveStored("tt-project",updatedProj);cloudSave("tt-project",updatedProj);
           }
@@ -2258,6 +2273,23 @@ Main plot: ${project?.mainPlot||"none"}`;
 
   const applyExtractToBible=(result)=>{
     if(!result)return;
+    // The Card Catalog: file this capture card so the writer can revisit Agnes's full read later.
+    // Stored slim and defensively; capped so the archive can't grow without bound.
+    try{
+      const archive=loadStored("tt-capture-archive")||[];
+      archive.push({
+        id:Date.now(),
+        date:new Date().toLocaleDateString(),
+        chapterNum:result.chapterNum,
+        chapterSummary:typeof result.chapterSummary==="string"?result.chapterSummary:"",
+        beats:Array.isArray(result.beats)?result.beats.map(b=>typeof b==="string"?b:(b?.beat||b?.text||"")).filter(Boolean):[],
+        craftNote:typeof result.craftNote==="string"?result.craftNote:"",
+        openQuestion:typeof result.openQuestion==="string"?result.openQuestion:"",
+        threads:Array.isArray(result.proposedThreads)?result.proposedThreads.map(t=>({title:t?.title||t?.name||"",description:t?.description||t?.desc||t?.summary||"",type:t?.type||""})).filter(t=>t.title||t.description):[],
+        drifts:Array.isArray(result.drifts)?result.drifts.map(d=>({field:d?.field||d?.label||"",bible:d?.bibleText||d?.bible||"",chapter:d?.chapterText||d?.chapter||"",note:d?.note||d?.analysis||d?.summary||""})):[]
+      });
+      saveStored("tt-capture-archive",archive.slice(-200));
+    }catch{}
     setLastSavedChapterNum(result.chapterNum);
     // Capture the pre-merge Bible so Agnes can compare what WAS there vs what the chapter shows,
     // and so drift resolution can revert to the true original if the writer chooses "keep original"
@@ -3616,7 +3648,7 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
   };
   const getNatalName=(target)=>{
     if(!target)return"";
-    if(target.type==="protagonist")return pForm.protagonist?pForm.protagonist.split(/[:.]/)[0].substring(0,30):"the protagonist";
+    if(target.type==="protagonist")return getProtagName(pForm,"the protagonist").substring(0,30);
     const c=(project?.characters||[]).find(ch=>ch.id===target.id);
     return c?.name||"this character";
   };
@@ -4165,8 +4197,8 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
                   </div>
                 </>}
                 {welcomeRoute==="manuscript"&&<>
-                  <p style={{fontFamily:"'Cormorant Garamond',serif",fontSize:16,fontWeight:300,color:"#3A3428",lineHeight:1.85,marginBottom:14}}>You can't let your story go, and it refuses to let you go. The only choice is forward, for both of you. I'm here to help you do that.</p>
-                  <p style={{fontFamily:"'Cormorant Garamond',serif",fontSize:16,fontWeight:300,color:"#3A3428",lineHeight:1.85,marginBottom:14}}>Bring your work into Forged Pen. Paste in your manuscript, your notes, whatever's built up so far. I'll read through it and show you what I found before anything gets built.</p>
+                  <p style={{fontFamily:"'Cormorant Garamond',serif",fontSize:16,fontWeight:300,color:"#3A3428",lineHeight:1.85,marginBottom:14}}>You arrive with chapters. That's real work, already done. From here my job is simple: help you build on what you've made, not around it, and make sure none of it gets lost along the way.</p>
+                  <p style={{fontFamily:"'Cormorant Garamond',serif",fontSize:16,fontWeight:300,color:"#3A3428",lineHeight:1.85,marginBottom:14}}>Bring it all in. A manuscript in a file can be uploaded inside The Forge, where it splits into chapters automatically. Notes, outlines, and loose pieces can be pasted right here, and I'll read what you bring and show you what I found before anything gets built.</p>
                   <div style={{display:"flex",gap:10,marginTop:16}}>
                     <div onClick={()=>{setWelcomeStep("profile-prompt");setBibleOrganize({step:"paste"});}} style={{background:"var(--agnes,#7A6A8A)",borderRadius:7,padding:"11px 16px",textAlign:"center",cursor:"pointer",flex:1}}><span style={{fontSize:12,fontWeight:500,color:"#F0EAE0",fontFamily:"'DM Sans',sans-serif"}}>Paste in what I have</span></div>
                     <div onClick={()=>setWelcomeStep("profile-prompt")} style={{background:"transparent",border:"1px solid #C8BC9A",borderRadius:7,padding:"11px 16px",textAlign:"center",cursor:"pointer",flex:1}}><span style={{fontSize:12,fontWeight:500,color:"#5A5040",fontFamily:"'DM Sans',sans-serif"}}>I'll build it myself</span></div>
@@ -4821,7 +4853,7 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
           {pForm.multiPOV&&<div style={{background:"var(--agnes-15,rgba(122,106,138,0.1))",borderLeft:"3px solid var(--agnes,#7A6A8A)",borderRadius:"0 9px 9px 0",padding:"16px 18px",marginBottom:18}}>
             <div style={{fontSize:9,textTransform:"uppercase",letterSpacing:"0.14em",color:"var(--agnes,#7A6A8A)",fontWeight:600,marginBottom:4}}>Agnes</div>
             <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:13,color:"var(--text-secondary)",fontStyle:"italic",lineHeight:1.6,marginBottom:14}}>Mark which characters narrate their own chapters. I'll use this to know whose scene I'm reading, instead of guessing.</div>
-            {[{name:pForm.protagonist?.split(":")[0]?.trim()||"Protagonist",role:"Protagonist",isProtag:true},...(pForm.characters||[])].map((c,ci)=>{
+            {[{name:getProtagName(pForm,"Protagonist"),role:"Protagonist",isProtag:true},...(pForm.characters||[])].map((c,ci)=>{
               const charKey=c.isProtag?"__protagonist__":c.name;
               const isOn=c.isProtag?(pForm.protagPOV!==false):(pForm.characters.find(x=>x.name===c.name)?.isPOVCharacter||false);
               return <div key={ci} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"10px 12px",background:"var(--bg-card)",border:"1px solid var(--border)",borderRadius:7,marginBottom:8}}>
@@ -4864,7 +4896,7 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
               <div>
                 <div style={{fontSize:9,textTransform:"uppercase",letterSpacing:"0.14em",color:"var(--text-dim)",fontFamily:"'DM Sans',sans-serif",marginBottom:8}}>Characters</div>
                 <div onClick={()=>{setSelectedCharKey("protagonist");setCharFormOpen(false);}} style={{padding:"8px 10px",marginBottom:4,borderRadius:6,cursor:"pointer",background:isProtagonist?"var(--accent-15)":"transparent",borderLeft:isProtagonist?"2px solid var(--accent)":"2px solid transparent"}}>
-                  <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:13,color:"var(--text-primary)"}}>{pForm.protagonist?pForm.protagonist.split(/[:.]/)[0].substring(0,20):"Protagonist"}</div>
+                  <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:13,color:"var(--text-primary)"}}>{getProtagName(pForm,"Protagonist").substring(0,20)}</div>
                   <div style={{fontSize:9,color:"var(--accent)"}}>Protagonist</div>
                 </div>
                 {chars.map((c,idx)=>(
@@ -4884,7 +4916,7 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
                   const key=isProtagonist?"protagonist":(target?.id||"__new");
                   const expanded=!!charDetailsExpanded[key];
                   return <>
-                    <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:16,color:"var(--accent)",marginBottom:2}}>{isProtagonist?(pForm.protagonist?pForm.protagonist.split(/[:.]/)[0].substring(0,30):"Protagonist"):(charForm.name||(charFormEdit===null?"New character":"Unnamed"))}</div>
+                    <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:16,color:"var(--accent)",marginBottom:2}}>{isProtagonist?getProtagName(pForm,"Protagonist").substring(0,30):(charForm.name||(charFormEdit===null?"New character":"Unnamed"))}</div>
                     {isProtagonist?<div style={{fontSize:10,color:"var(--accent)",marginBottom:10}}>Protagonist</div>:charForm.relationship&&<div style={{fontSize:12,fontStyle:"italic",color:"var(--text-dim)",marginBottom:10}}>{charForm.relationship}</div>}
                     {!isProtagonist&&charForm.aliases&&<div style={{fontSize:11,color:"var(--text-faint)",marginBottom:10,marginTop:-6}}>also called {charForm.aliases}</div>}
                     {!isProtagonist&&charForm.appearance&&<div style={{marginBottom:10}}>
@@ -4894,7 +4926,9 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
                     {target&&renderCharacterSummary(target)}
                     {(expanded||!target)&&<div style={{borderTop:target?"1px solid var(--border)":"none",paddingTop:target?12:0,marginTop:4}}>
                       {isProtagonist?<>
-                        <FormField label="Protagonist" k="protagonist" ph="Name, age, core trait, internal conflict, arc..." value={pForm.protagonist} onChange={updateField} multi/>
+                        <FormField label="Protagonist name" k="protagonistName" ph="Just their name, what the roster and POV tags should show" value={pForm.protagonistName} onChange={updateField}/>
+                        <FormField label="Protagonist" k="protagonist" ph="Age, core trait, internal conflict, arc..." value={pForm.protagonist} onChange={updateField} multi/>
+                        <FormField label="Appearance & identity" k="protagonistAppearance" ph="How they look, dress, carry themselves" value={pForm.protagonistAppearance} onChange={updateField} multi/>
                         <div style={{fontSize:9,textTransform:"uppercase",letterSpacing:"0.14em",color:"var(--accent-70)",fontWeight:500,marginBottom:12,marginTop:4,paddingTop:8,borderTop:"1px solid var(--border)"}}>Protagonist Inner Life</div>
                         <FormField label="Goal" k="protagonistGoal" ph="What are they visibly pursuing? The surface want..." value={pForm.protagonistGoal} onChange={updateField} multi/>
                         <FormField label="Dream" k="protagonistDream" ph="What do they want at the deepest level, often unspoken..." value={pForm.protagonistDream} onChange={updateField} multi/>
@@ -5071,6 +5105,7 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
           <BibTab id="plot" label="Plot & Structure" active={bibViewTab==="plot"} onClick={setBibViewTab}/>
           <BibTab id="chapters" label="Chapters" active={bibViewTab==="chapters"} onClick={setBibViewTab}/>
           <BibTab id="research" label="Research" active={bibViewTab==="research"} onClick={setBibViewTab}/>
+          <BibTab id="catalog" label="The Card Catalog" active={bibViewTab==="catalog"} onClick={setBibViewTab}/>
         </div>}
         {bibleSearch&&<div>
           {(()=>{
@@ -5201,7 +5236,7 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
           <ReadField label="Genre" value={project.genre}/>
           {project.multiPOV&&(()=>{
             const povNames=[
-              ...(project.protagPOV!==false?[(project.protagonist?.split(/[:.]/)[0]?.trim())||"Protagonist"]:[]),
+              ...(project.protagPOV!==false?[getProtagName(project,"Protagonist")]:[]),
               ...((project.characters||[]).filter(c=>c.isPOVCharacter).map(c=>c.name||"Unnamed"))
             ];
             return <ReadField label="Structure" value={"Multiple POV characters"+(povNames.length?": "+povNames.join(", "):"")}/>;
@@ -5600,6 +5635,38 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
         </div>}
         {/* RESEARCH TAB — sixth Bible section. Cards, not chapter-history; research either
             gets used or sits waiting, tracked by a tap-to-toggle status chip. */}
+        {!bibleSearch&&bibViewTab==="catalog"&&(()=>{
+          const cards=(loadStored("tt-capture-archive")||[]).slice().reverse();
+          const sub={fontSize:9,textTransform:"uppercase",letterSpacing:"0.12em",color:"var(--text-dim)",fontFamily:"'DM Sans',sans-serif",marginBottom:4};
+          const body={fontFamily:"'Cormorant Garamond',serif",fontSize:13,color:"var(--text-muted)",lineHeight:1.65};
+          return <div>
+            <div style={{fontSize:13,fontFamily:'Cormorant Garamond',color:"var(--text-dim)",fontStyle:"italic",marginBottom:16}}>Every card Agnes writes at capture is filed here, newest first. Her full read of each chapter, kept for whenever you want to walk the stacks.</div>
+            {cards.length===0&&<div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:14,color:"var(--text-muted)",fontStyle:"italic"}}>No cards filed yet. Each time Agnes reads a chapter and you save it to the Story Bible, her card lands in this catalog.</div>}
+            {cards.map(card=>(
+              <div key={card.id} style={{background:"var(--bg-card)",border:"1px solid var(--border)",borderRadius:10,padding:"14px 16px",marginBottom:14}}>
+                <div style={{display:"flex",justifyContent:"space-between",alignItems:"baseline",marginBottom:8,gap:8}}>
+                  <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:16,color:"var(--accent)"}}>Chapter {card.chapterNum}</div>
+                  <div style={{fontSize:10,color:"var(--text-dim)",fontFamily:"'DM Sans',sans-serif"}}>{card.date}</div>
+                </div>
+                {card.chapterSummary&&<div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:14,color:"var(--text-primary)",lineHeight:1.7,marginBottom:10}}>{card.chapterSummary}</div>}
+                {card.beats&&card.beats.length>0&&<div style={{marginBottom:10}}>
+                  <div style={sub}>Beats</div>
+                  {card.beats.map((b,bi)=><div key={bi} style={body}>{"\u2022 "}{b}</div>)}
+                </div>}
+                {card.threads&&card.threads.length>0&&<div style={{marginBottom:10}}>
+                  <div style={sub}>Threads noticed</div>
+                  {card.threads.map((t,ti)=><div key={ti} style={{...body,marginBottom:4}}><span style={{color:"var(--text-primary)"}}>{t.title}</span>{t.type?<span style={{fontSize:10,fontFamily:"'DM Sans',sans-serif",color:"var(--text-dim)",marginLeft:6}}>{t.type}</span>:null}{t.description?<div>{t.description}</div>:null}</div>)}
+                </div>}
+                {card.drifts&&card.drifts.length>0&&<div style={{marginBottom:10}}>
+                  <div style={sub}>Drift flagged at this capture</div>
+                  {card.drifts.map((d,di)=><div key={di} style={{...body,marginBottom:4}}>{d.field?<span style={{color:"var(--text-primary)"}}>{d.field}{d.note?": ":""}</span>:null}{d.note}</div>)}
+                </div>}
+                {card.craftNote&&<div style={{marginBottom:10}}><div style={sub}>Craft note</div><div style={body}>{card.craftNote}</div></div>}
+                {card.openQuestion&&<div><div style={sub}>Open question</div><div style={{...body,fontStyle:"italic"}}>{card.openQuestion}</div></div>}
+              </div>
+            ))}
+          </div>;
+        })()}
         {!bibleSearch&&bibViewTab==="research"&&<div>
           <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",flexWrap:"wrap",gap:8,marginBottom:16}}>
             <div style={{fontSize:13,fontFamily:'Cormorant Garamond',color:"var(--text-dim)",fontStyle:"italic"}}>Worldbuilding, historical detail, craft references, comp titles — kept somewhere tighter than a browser tab.</div>
@@ -6713,7 +6780,7 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
                 const chapterNum=currentScene.chapter;
                 const chapterObj=(project?.chapters||[]).find(c=>c.num===chapterNum);
                 const povName=chapterObj?.povCharacter||"";
-                const povOptions=[project?.protagonist?.split(":")[0]?.trim(),...(project?.characters||[]).filter(c=>c.isPOVCharacter).map(c=>c.name)].filter(Boolean);
+                const povOptions=[getProtagName(project),...(project?.characters||[]).filter(c=>c.isPOVCharacter).map(c=>c.name)].filter(Boolean);
                 return <div style={{padding:"8px 40px",borderBottom:"1px solid var(--border)",background:"var(--bg-card-alt)",display:"flex",alignItems:"center",gap:10,flexWrap:"wrap"}}>
                   {editingChapterPOV===chapterNum?<select autoFocus value={povName} onChange={e=>{
                       const updatedChapters=(project?.chapters||[]).map(c=>c.num===chapterNum?{...c,povCharacter:e.target.value}:c);
@@ -7321,7 +7388,8 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
             </div>}
 
             {Array.isArray(extractResult.proposedThreads)&&extractResult.proposedThreads.length>0&&<div style={{marginBottom:14}}>
-              <div style={{fontSize:9,textTransform:"uppercase",letterSpacing:"0.14em",color:"var(--accent-80)",fontFamily:"'DM Sans',sans-serif",marginBottom:8}}>Agnes noticed a possible thread</div>
+              <div style={{fontSize:9,textTransform:"uppercase",letterSpacing:"0.14em",color:"var(--accent-80)",fontFamily:"'DM Sans',sans-serif",marginBottom:4}}>Agnes noticed a possible thread</div>
+              <div style={{fontSize:12,fontStyle:"italic",color:"var(--text-muted)",fontFamily:"'Cormorant Garamond',serif",lineHeight:1.5,marginBottom:10}}>A thread is anything your story has raised but not yet resolved: an open question, a tension still building, a detail that will matter later.</div>
               {extractResult.proposedThreads.map((pt,pi)=>{
                 const state=handledProposedThreads[pi];
                 if(state)return null;
