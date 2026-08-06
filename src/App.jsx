@@ -2455,7 +2455,10 @@ Main plot: ${project?.mainPlot||"none"}`;
         appendHistory("protagonistMisbelief",result.protagonistMisbeliefUpdate);
         // Recalibrated current-state summaries, overwritten only when Agnes actually wrote a fresh one
         // this capture; otherwise the previously stored summary carries forward untouched.
-        const setSummary=(key,value)=>{if(value&&value.trim())updated[key+"Summary"]=value.trim();};
+        // "Summary" alone collides with the pre-existing writer/Agnes elevator-pitch blurb
+        // (project.protagonistSummary, edited via the character panel's own textarea): that field
+        // predates this feature and must never be silently overwritten by it. Distinct suffix.
+        const setSummary=(key,value)=>{if(value&&value.trim())updated[key+"StateSummary"]=value.trim();};
         setSummary("protagonist",result.protagonistSummary);
         setSummary("protagonistGoal",result.protagonistGoalSummary);
         setSummary("protagonistDream",result.protagonistDreamSummary);
@@ -3740,7 +3743,10 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
   };
   const getNatalName=(target)=>{
     if(!target)return"";
-    if(target.type==="protagonist")return getProtagName(pForm,"the protagonist").substring(0,30);
+    // project, not pForm. This is read from both the edit screen and the read-only Characters
+    // tab, and pForm is empty outside of edit, which showed "the protagonist" instead of the real
+    // name when just viewing (not editing) the Natal Chart section.
+    if(target.type==="protagonist")return getProtagName(project,"the protagonist").substring(0,30);
     const c=(project?.characters||[]).find(ch=>ch.id===target.id);
     return c?.name||"this character";
   };
@@ -5355,7 +5361,7 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
             const history=project[fieldKey+"History"];
             const legacy=project[fieldKey+"Legacy"];
             const flat=project[fieldKey];
-            const summary=project[fieldKey+"Summary"];
+            const summary=project[fieldKey+"StateSummary"];
             const hasHistory=Array.isArray(history)&&history.length>0;
             if(!hasHistory&&!flat)return null;
             const expanded=!!expandedFieldHistory[fieldKey];
@@ -5437,7 +5443,7 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
             <div>
               <div style={{fontSize:9,textTransform:"uppercase",letterSpacing:"0.14em",color:"var(--text-dim)",fontFamily:"'DM Sans',sans-serif",marginBottom:8}}>Characters</div>
               <div onClick={()=>setSelectedCharKey("protagonist")} style={{padding:"8px 10px",marginBottom:4,borderRadius:6,cursor:"pointer",background:isProtagonist?"var(--accent-15)":"transparent",borderLeft:isProtagonist?"2px solid var(--accent)":"2px solid transparent"}}>
-                <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:13,color:"var(--text-primary)"}}>{project.protagonist?project.protagonist.split(/[:.]/)[0].substring(0,20):"Protagonist"}</div>
+                <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:13,color:"var(--text-primary)"}}>{getProtagName(project,"Protagonist").substring(0,20)}</div>
                 <div style={{fontSize:9,color:"var(--accent)"}}>Protagonist</div>
               </div>
               {chars.map(c=>(
@@ -5453,8 +5459,9 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
                 const key=isProtagonist?"protagonist":selected.id;
                 const expanded=!!charDetailsExpanded[key];
                 return <>
-                  <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:16,color:"var(--accent)",marginBottom:2}}>{isProtagonist?(pForm.protagonist?pForm.protagonist.split(/[:.]/)[0].substring(0,30):"Protagonist"):(selected.name||"Unnamed")}</div>
+                  <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:16,color:"var(--accent)",marginBottom:2}}>{isProtagonist?getProtagName(project,"Protagonist").substring(0,30):(selected.name||"Unnamed")}</div>
                   {isProtagonist?<div style={{fontSize:10,color:"var(--accent)",marginBottom:10}}>Protagonist</div>:selected.relationship&&<div style={{fontSize:12,fontStyle:"italic",color:"var(--text-dim)",marginBottom:10}}>{selected.relationship}</div>}
+                  {!isProtagonist&&selected.aliases&&<div style={{fontSize:11,color:"var(--text-faint)",marginBottom:10,marginTop:-6}}>also called {selected.aliases}</div>}
                   {renderCharacterSummary(target)}
                   {expanded&&<div style={{borderTop:"1px solid var(--border)",paddingTop:12,marginTop:4}}>
                     {isProtagonist?<>
@@ -6880,7 +6887,13 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
                 const povOptions=[getProtagName(project),...(project?.characters||[]).filter(c=>c.isPOVCharacter).map(c=>c.name)].filter(Boolean);
                 return <div style={{padding:"8px 40px",borderBottom:"1px solid var(--border)",background:"var(--bg-card-alt)",display:"flex",alignItems:"center",gap:10,flexWrap:"wrap"}}>
                   {editingChapterPOV===chapterNum?<select autoFocus value={povName} onChange={e=>{
-                      const updatedChapters=(project?.chapters||[]).map(c=>c.num===chapterNum?{...c,povCharacter:e.target.value}:c);
+                      const val=e.target.value;
+                      // A chapter pasted but never captured has no entry in project.chapters yet, so
+                      // create one so a manual POV pick has somewhere to land instead of silently
+                      // reverting (same missing-entry bug already fixed for the AI's auto-guess).
+                      const baseChapters=Array.isArray(project?.chapters)?[...project.chapters]:[];
+                      if(!baseChapters.some(c=>c.num===chapterNum))baseChapters.push({num:chapterNum,summary:""});
+                      const updatedChapters=baseChapters.map(c=>c.num===chapterNum?{...c,povCharacter:val}:c).sort((a,b)=>a.num-b.num);
                       const updated={...project,chapters:updatedChapters,updated:Date.now()};
                       setProject(updated);saveStored("tt-project",updated);cloudSave("tt-project",updated);
                       setEditingChapterPOV(null);
