@@ -570,13 +570,14 @@ function TrackedField({project,label,fieldKey,expandedMap,onToggle}){
 // before any proposals are built on top of it.
 function buildBibleOrganizePrompt(rawText,project){
   const existingChars=existingCharacterNamesList(project);
+  const protagNameForOrganize=getProtagName(project);
   const hasExisting=project&&(project.protagonist||project.mainPlot||(project.characters||[]).length>0);
   return `You are Agnes, a meticulous literary archivist for a fiction writer. Be direct, specific, concise. Never use em dashes.
 
 The writer pasted in material about their story below, either starting fresh or adding to an existing project. Read it and do three things.
 
 1. reflection: In 2-3 sentences, reflect the story back as you understood it, in your own words. This is checked by the writer before anything else happens, so be accurate and specific, not generic.
-2. proposals: Sort what you found into Bible fields. Each proposal needs a field (one of: protagonist, protagonistGoal, protagonistDream, protagonistFear, protagonistWound, protagonistBackstory, protagonistMisbelief, mainPlot, themes, worldSetting, or "new character" with a name), and the text for it, preserving the writer's actual wording as closely as possible rather than paraphrasing style. ${hasExisting?`Existing cards, do not re-propose these as new: ${existingChars}.`:"This is a fresh project with nothing existing yet."}
+2. proposals: Sort what you found into Bible fields. Each proposal needs a field (one of: protagonist, protagonistGoal, protagonistDream, protagonistFear, protagonistWound, protagonistBackstory, protagonistMisbelief, mainPlot, themes, worldSetting, or "new character" with a name), and the text for it, preserving the writer's actual wording as closely as possible rather than paraphrasing style. ${protagNameForOrganize?`The protagonist is named ${protagNameForOrganize}. Only route content specifically about ${protagNameForOrganize} into the protagonist fields. Content about any OTHER named character, no matter how central or emotionally rich it reads in the material, must go to "new character" (or match an existing character below) instead, never into a protagonist field.`:"The protagonist's name is not yet established. Use judgment, but never default a vivid secondary character's material into the protagonist fields just because they read as central."} ${hasExisting?`Existing cards, do not re-propose these as new: ${existingChars}.`:"This is a fresh project with nothing existing yet."}
 3. unmatched: Anything genuinely in the material that does not fit a clean field (loose worldbuilding, questions, fragments) — keep as plain text, do not force it into a field it does not belong in.
 
 Respond ONLY with JSON. No markdown, no backticks.
@@ -2106,6 +2107,28 @@ Main plot: ${project?.mainPlot||"none"}`;
     const povRosterDescribed=[getProtagName(project),...(project?.characters||[]).filter(c=>c.isPOVCharacter).map(c=>c.name+(c.aliases&&String(c.aliases).trim()?` (also called ${String(c.aliases).trim()})`:""))].filter(Boolean);
     const povInstructions=(project?.multiPOV&&!existingChapterObj?.povCharacter&&povRoster.length>1)?`,\n  "povCharacterGuess": "which of these named POV characters this chapter is actually written from: ${povRosterDescribed.join(", ")}. Answer with the canonical name only, exactly as listed before any parenthetical. Empty string if genuinely unclear."`:"";
 
+    // POV-aware grounding: tells Finn explicitly who the protagonist is and, when already known,
+    // whose chapter this actually is, so inner-life content about a different POV character doesn't
+    // get funneled into the protagonist's own fields (bug found in testing, Aug 2026: Evangeline's
+    // family history was landing inside Emma's backstory/misbelief history).
+    const protagNameForCapture=getProtagName(project);
+    const knownPOVChar=(existingChapterObj?.povCharacter||"").trim();
+    const povAwareNote=(project?.multiPOV&&knownPOVChar&&protagNameForCapture&&knownPOVChar.toLowerCase()!==protagNameForCapture.toLowerCase())
+      ?`\n\nTHIS CHAPTER'S POV: Already tagged as ${knownPOVChar}'s perspective, not ${protagNameForCapture}'s (the story's protagonist). For the six protagonist___Update fields below, only fill them in if ${protagNameForCapture} specifically appears on the page and something new is revealed about them there. Do not use those fields for what this chapter reveals about ${knownPOVChar}'s own inner life, that belongs in "characterPOVReveal" instead.`
+      :(project?.multiPOV&&povRoster.length>1?`\n\nTHIS CHAPTER'S POV: Not yet tagged. If this chapter reads as written from a specific named character's perspective other than ${protagNameForCapture||"the protagonist"}, put what it reveals about THAT character's inner life in "characterPOVReveal", and leave the six protagonist___Update fields empty unless ${protagNameForCapture||"the protagonist"} specifically appears on the page.`:"");
+
+    // Recalibrated summaries: alongside each protagonist field's raw Update, Agnes also writes one
+    // synthesized "where this field stands now" paragraph, given the field's own history, so the
+    // writer sees a coherent current state instead of only a scrolling log of deltas.
+    const summaryFieldList=[["protagonist","Protagonist"],["protagonistGoal","Goal"],["protagonistDream","Dream"],["protagonistFear","Fear"],["protagonistWound","Wound"],["protagonistBackstory","Backstory"],["protagonistMisbelief","The lie they believe"]];
+    const fieldHistText=(key)=>{
+      const h=project?.[key+"History"];
+      if(Array.isArray(h)&&h.length>0)return h.map(e=>`Ch${e.chapterNum}: ${e.text}`).join(" | ");
+      return project?.[key]?`(untracked prior text): ${project[key]}`:"";
+    };
+    const summaryContext=summaryFieldList.map(([k,l])=>{const t=fieldHistText(k);return t?`${l} history so far: ${t}`:"";}).filter(Boolean).join("\n");
+    const summaryInstructions=`\n\nAlso, for each of these seven protagonist fields where you found new material above (that field's Update is non-empty) AND this chapter is genuinely from ${protagNameForCapture||"the protagonist"}'s own POV: protagonist, protagonistGoal, protagonistDream, protagonistFear, protagonistWound, protagonistBackstory, protagonistMisbelief. Also write a fresh 2-4 sentence synthesis of that field's current state as it now stands, in a matching key named fieldSummary (e.g. protagonistGoalSummary for protagonistGoalUpdate, protagonistSummary for the base protagonist field). Use the prior history below for context and explicitly note whether this chapter deepens, complicates, holds steady against, or contradicts what was established before. Agnes's voice: precise, craft-aware, not alarmed, never inventing beyond what the history and this chapter actually show. If a field's Update is empty, or this chapter is not the protagonist's own POV, leave that field's Summary as an empty string.\n\nPRIOR FIELD HISTORY (context for writing summaries only, not chapter text):\n${summaryContext||"none tracked yet"}`;
+
     const driftInstructions=skipDrift?"":`
 
 Then, as Agnes, the meticulous record keeper, compare what this chapter reveals against the EXISTING STORY BIBLE above, field by field. Only flag a field as drift if the existing entry is a real, substantial entry (not "none") AND this chapter appears to move in a meaningfully different direction from it, not just add consistent detail. Agnes's voice is direct, selective, specific, and slightly pointed. She never uses the words "inconsistency", "error", "problem", or "contradiction". She says "evolving", "different direction", "moving toward something new". She is not alarmed. She is precise.
@@ -2136,7 +2159,7 @@ ${existingBible}
 THREADS ALREADY BEING TRACKED (subplots and open questions spanning multiple chapters):
 ${existingThreadsList}
 
-CHARACTERS ALREADY GIVEN THEIR OWN CARD: ${existingCharacterNames}
+CHARACTERS ALREADY GIVEN THEIR OWN CARD: ${existingCharacterNames}${povAwareNote}
 
 CHAPTER DRAFT STATUS: ${draftNote}
 
@@ -2151,7 +2174,7 @@ Also check for named characters in this chapter who are not in the list of chara
 
 Also run this pacing check on the chapter as a whole, answered honestly, not generously: did something actually change by the end of it, a decision made, information revealed, a relationship shifted? Did the protagonist want something and hit real resistance, not just talk about wanting something? Does the reader know something at the end they did not know at the start? Answer each true or false based only on what is actually on the page, and give one honest sentence explaining the assessment.
 
-Also identify the beats in this chapter. A beat is one unit of change: something enters a state, something happens, it exits in a different state. If a passage could be cut and nothing about where the character stands, emotionally or tactically, would be different, it is not a beat, it is setup or texture. Only list genuine shifts, not every scene or moment. A short chapter might have two or three. A dense one might have five or six. Do not pad the list to hit a number.${driftInstructions}
+Also identify the beats in this chapter. A beat is one unit of change: something enters a state, something happens, it exits in a different state. If a passage could be cut and nothing about where the character stands, emotionally or tactically, would be different, it is not a beat, it is setup or texture. Only list genuine shifts, not every scene or moment. A short chapter might have two or three. A dense one might have five or six. Do not pad the list to hit a number.${driftInstructions}${summaryInstructions}
 
 Respond with ONLY this JSON:
 {
@@ -2163,6 +2186,14 @@ Respond with ONLY this JSON:
   "protagonistWoundUpdate": "did this chapter reveal the specific experience or pattern that created the fear? Empty string if nothing new.",
   "protagonistBackstoryUpdate": "did this chapter reveal childhood, family, or psychological history? Empty string if nothing new.",
   "protagonistMisbeliefUpdate": "did this chapter show the lie the protagonist believes about themselves operating? Empty string if nothing new.",
+  "characterPOVReveal": "if this chapter is written from a POV character other than the protagonist, what does it reveal about THAT character's own inner life, goal, fear, wound, backstory, or the lie they believe. One consolidated paragraph. Empty string if this chapter is the protagonist's own POV or multi-POV isn't in use.",
+  "protagonistSummary": "recalibrated current-state synthesis for the protagonist field, per the instructions above. Empty string if not applicable.",
+  "protagonistGoalSummary": "recalibrated current-state synthesis for Goal. Empty string if not applicable.",
+  "protagonistDreamSummary": "recalibrated current-state synthesis for Dream. Empty string if not applicable.",
+  "protagonistFearSummary": "recalibrated current-state synthesis for Fear. Empty string if not applicable.",
+  "protagonistWoundSummary": "recalibrated current-state synthesis for Wound. Empty string if not applicable.",
+  "protagonistBackstorySummary": "recalibrated current-state synthesis for Backstory. Empty string if not applicable.",
+  "protagonistMisbeliefSummary": "recalibrated current-state synthesis for The lie they believe. Empty string if not applicable.",
   "characterReveal": "new details about supporting characters (not the antagonist) revealed in this chapter. Empty string if nothing new.",
   "antagonistReveal": "new details specifically about the antagonist or opposing force revealed in this chapter. Empty string if nothing new.",
   "worldReveal": "new setting details or atmosphere established in this chapter. Empty string if nothing new.",
@@ -2366,20 +2397,59 @@ Main plot: ${project?.mainPlot||"none"}`;
         }
         updated[key+"History"]=[...existingHist,{chapterNum:result.chapterNum,text:value.trim()}];
       };
-      appendField("protagonist",result.protagonistReveal);
-      appendHistory("protagonist",result.protagonistReveal);
-      appendField("protagonistGoal",result.protagonistGoalUpdate);
-      appendHistory("protagonistGoal",result.protagonistGoalUpdate);
-      appendField("protagonistDream",result.protagonistDreamUpdate);
-      appendHistory("protagonistDream",result.protagonistDreamUpdate);
-      appendField("protagonistFear",result.protagonistFearUpdate);
-      appendHistory("protagonistFear",result.protagonistFearUpdate);
-      appendField("protagonistWound",result.protagonistWoundUpdate);
-      appendHistory("protagonistWound",result.protagonistWoundUpdate);
-      appendField("protagonistBackstory",result.protagonistBackstoryUpdate);
-      appendHistory("protagonistBackstory",result.protagonistBackstoryUpdate);
-      appendField("protagonistMisbelief",result.protagonistMisbeliefUpdate);
-      appendHistory("protagonistMisbelief",result.protagonistMisbeliefUpdate);
+      // POV-aware routing: a chapter written from a named POV character other than the protagonist
+      // never writes into the protagonist's own fields, even if the model's Update fields still picked
+      // something up despite the prompt-level steering. The effective POV prefers this response's fresh
+      // guess (only known once the response returns) and falls back to an already-saved tag. This is
+      // the deterministic guarantee. Bug found in testing, Aug 2026, where Evangeline's chapters wrote
+      // her mother's death and father's situation into Emma's backstory and misbelief history.
+      const protagNameForApply=getProtagName(project);
+      const effectivePOVChar=(result.povCharacterGuess||chapterEntry?.povCharacter||"").trim();
+      const isNonProtagPOVChapter=!!(project?.multiPOV&&effectivePOVChar&&protagNameForApply&&effectivePOVChar.toLowerCase()!==protagNameForApply.toLowerCase());
+      if(isNonProtagPOVChapter){
+        const combinedReveal=[result.characterPOVReveal,result.protagonistReveal,result.protagonistGoalUpdate,result.protagonistDreamUpdate,result.protagonistFearUpdate,result.protagonistWoundUpdate,result.protagonistBackstoryUpdate,result.protagonistMisbeliefUpdate].filter(v=>v&&v.trim()).join(" ");
+        if(combinedReveal){
+          const existingChars=Array.isArray(project.characters)?[...project.characters]:[];
+          const matchIdx=existingChars.findIndex(c=>{
+            const nm=(c.name||"").trim().toLowerCase();
+            const aliases=(c.aliases||"").split(",").map(a=>a.trim().toLowerCase());
+            return nm===effectivePOVChar.toLowerCase()||aliases.includes(effectivePOVChar.toLowerCase());
+          });
+          const stamped=`[Chapter ${result.chapterNum}] `+combinedReveal;
+          if(matchIdx>=0){
+            existingChars[matchIdx]={...existingChars[matchIdx],description:(existingChars[matchIdx].description?existingChars[matchIdx].description+"\n\n":"")+stamped};
+            updated.characters=existingChars;
+          }else{
+            // No card for this POV character yet, so don't lose the material, park it in supporting notes.
+            appendField("supporting",`[${effectivePOVChar}, Chapter ${result.chapterNum}] `+combinedReveal);
+          }
+        }
+      }else{
+        appendField("protagonist",result.protagonistReveal);
+        appendHistory("protagonist",result.protagonistReveal);
+        appendField("protagonistGoal",result.protagonistGoalUpdate);
+        appendHistory("protagonistGoal",result.protagonistGoalUpdate);
+        appendField("protagonistDream",result.protagonistDreamUpdate);
+        appendHistory("protagonistDream",result.protagonistDreamUpdate);
+        appendField("protagonistFear",result.protagonistFearUpdate);
+        appendHistory("protagonistFear",result.protagonistFearUpdate);
+        appendField("protagonistWound",result.protagonistWoundUpdate);
+        appendHistory("protagonistWound",result.protagonistWoundUpdate);
+        appendField("protagonistBackstory",result.protagonistBackstoryUpdate);
+        appendHistory("protagonistBackstory",result.protagonistBackstoryUpdate);
+        appendField("protagonistMisbelief",result.protagonistMisbeliefUpdate);
+        appendHistory("protagonistMisbelief",result.protagonistMisbeliefUpdate);
+        // Recalibrated current-state summaries, overwritten only when Agnes actually wrote a fresh one
+        // this capture; otherwise the previously stored summary carries forward untouched.
+        const setSummary=(key,value)=>{if(value&&value.trim())updated[key+"Summary"]=value.trim();};
+        setSummary("protagonist",result.protagonistSummary);
+        setSummary("protagonistGoal",result.protagonistGoalSummary);
+        setSummary("protagonistDream",result.protagonistDreamSummary);
+        setSummary("protagonistFear",result.protagonistFearSummary);
+        setSummary("protagonistWound",result.protagonistWoundSummary);
+        setSummary("protagonistBackstory",result.protagonistBackstorySummary);
+        setSummary("protagonistMisbelief",result.protagonistMisbeliefSummary);
+      }
       appendField("supporting",result.characterReveal);
       appendField("antagonist",result.antagonistReveal);
       appendField("worldSetting",result.worldReveal);
@@ -5263,11 +5333,16 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
             const history=project[fieldKey+"History"];
             const legacy=project[fieldKey+"Legacy"];
             const flat=project[fieldKey];
+            const summary=project[fieldKey+"Summary"];
             const hasHistory=Array.isArray(history)&&history.length>0;
             if(!hasHistory&&!flat)return null;
             const expanded=!!expandedFieldHistory[fieldKey];
             return <div style={{marginBottom:14}}>
               <div style={{fontSize:9,textTransform:"uppercase",letterSpacing:"0.12em",color:"var(--text-dim)",fontFamily:"'DM Sans',sans-serif",marginBottom:5}}>{label}</div>
+              {summary&&summary.trim()&&<div style={{background:"var(--bg-card)",border:"1px solid var(--border)",borderLeft:"3px solid var(--agnes,#7A6A8A)",borderRadius:8,padding:"10px 12px",marginBottom:8}}>
+                <div style={{fontSize:8,textTransform:"uppercase",letterSpacing:"0.12em",color:"var(--agnes,#7A6A8A)",fontFamily:"'DM Sans',sans-serif",marginBottom:5}}>Current, recalibrated by Agnes</div>
+                <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:13,color:"var(--text-primary)",lineHeight:1.65}}>{summary}</div>
+              </div>}
               {hasHistory?<>
                 <div style={{background:"var(--bg-card)",border:"1px solid var(--border)",borderRadius:8,padding:"10px 12px"}}>
                   <div style={{fontSize:9,color:"var(--text-dim)",marginBottom:3,fontFamily:"'DM Sans',sans-serif"}}>Chapter {history[history.length-1].chapterNum} &middot; latest</div>
