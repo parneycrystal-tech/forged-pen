@@ -1039,6 +1039,7 @@ export default function App() {
   const [bibViewTab, setBibViewTab] = useState("overview");
   const [selectedCharKey, setSelectedCharKey] = useState("protagonist"); // "protagonist" or a character's id
   const [expandedFieldHistory, setExpandedFieldHistory] = useState({}); // fieldKey -> bool
+  const [catalogOpenDrawer, setCatalogOpenDrawer] = useState(null); // chapterNum currently open in The Card Catalog, or null
   const [protagHistoryView, setProtagHistoryView] = useState("field"); // "field" | "chapter" — Character Arc Timeline toggle
   const toggleFieldHistory=(key)=>setExpandedFieldHistory(prev=>({...prev,[key]:!prev[key]})); // shared with TrackedField on Overview/Plot tabs
   const [noteSort, setNoteSort] = useState(null); // null | {loading} | {error} | {proposals:[{name,role,description}], handled:{[i]:"added"|"skipped"}, trim: null | {loading} | {error} | {remainingSupporting, remainingAntagonist}}
@@ -5285,49 +5286,73 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
             </div>
             <span onClick={()=>setBibleOrganize({step:"paste"})} style={{fontSize:10,padding:"6px 14px",borderRadius:5,border:"1px solid var(--agnes,#7A6A8A)",color:"var(--agnes,#7A6A8A)",cursor:"pointer",fontFamily:"'DM Sans',sans-serif",whiteSpace:"nowrap"}}>File new material</span>
           </div>}
-          {/* Session Focus at top — inline editable, no Edit mode required */}
-          <div style={{background:"var(--bg-card-alt)",border:"1px solid var(--border)",borderRadius:10,padding:"14px 16px",marginBottom:18}}>
-            <div style={{fontSize:9,textTransform:"uppercase",letterSpacing:"0.18em",color:"var(--accent-80)",fontWeight:500,marginBottom:12,fontFamily:"'DM Sans',sans-serif"}}>Session Focus</div>
-            <div style={{marginBottom:12}}>
-              <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:5}}>
-                <label style={{fontSize:12,color:"var(--text-muted)",fontFamily:"'DM Sans',sans-serif"}}>What are you focused on right now?</label>
-                <div style={{display:"flex",alignItems:"center",gap:8}}>
-                  {project.focusedTimestamp&&<span style={{fontSize:9,color:"var(--text-dim)",fontFamily:"'DM Sans',sans-serif"}}>Updated {project.focusedTimestamp}</span>}
-                  {project.stuck&&<span onClick={()=>{const updated={...project,stuck:"",focusedTimestamp:""};setProject(updated);saveStored("tt-project",updated);cloudSave("tt-project",updated);}} style={{fontSize:9,color:"var(--text-dim)",cursor:"pointer",border:"1px solid var(--border)",borderRadius:4,padding:"1px 7px",fontFamily:"'DM Sans',sans-serif"}}>Clear</span>}
+          {/* Session Focus at top: inline editable, no Edit mode required. When a field is empty,
+              Agnes's own read (last capture's open question; last chapter written in) sits beside it
+              as a one-tap suggestion, never auto-written. The writer's own text is never touched. */}
+          {(()=>{
+            const suggestedStuck=!project.stuck?(()=>{
+              const archive=loadStored("tt-capture-archive")||[];
+              for(let i=archive.length-1;i>=0;i--){if(archive[i]?.openQuestion&&archive[i].openQuestion.trim())return archive[i].openQuestion.trim();}
+              return "";
+            })():"";
+            const activeSceneObj=scenes.find(s=>s.id===activeScene);
+            const suggestedWhere=!project.where&&activeSceneObj?(`Chapter ${activeSceneObj.chapter}`+(activeSceneObj.title?`: ${activeSceneObj.title}`:"")):"";
+            const useSuggestion=(field,value)=>{
+              const extra=field==="stuck"?{focusedTimestamp:new Date().toLocaleDateString()}:{};
+              const updated={...project,[field]:value,...extra};
+              setProject(updated);setPForm(prev=>({...prev,[field]:value}));saveStored("tt-project",updated);cloudSave("tt-project",updated);
+            };
+            return <div style={{background:"var(--bg-card-alt)",border:"1px solid var(--border)",borderRadius:10,padding:"14px 16px",marginBottom:18}}>
+              <div style={{fontSize:9,textTransform:"uppercase",letterSpacing:"0.18em",color:"var(--accent-80)",fontWeight:500,marginBottom:12,fontFamily:"'DM Sans',sans-serif"}}>Session Focus</div>
+              <div style={{marginBottom:12}}>
+                <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:5}}>
+                  <label style={{fontSize:12,color:"var(--text-muted)",fontFamily:"'DM Sans',sans-serif"}}>What are you focused on right now?</label>
+                  <div style={{display:"flex",alignItems:"center",gap:8}}>
+                    {project.focusedTimestamp&&<span style={{fontSize:9,color:"var(--text-dim)",fontFamily:"'DM Sans',sans-serif"}}>Updated {project.focusedTimestamp}</span>}
+                    {project.stuck&&<span onClick={()=>{const updated={...project,stuck:"",focusedTimestamp:""};setProject(updated);saveStored("tt-project",updated);cloudSave("tt-project",updated);}} style={{fontSize:9,color:"var(--text-dim)",cursor:"pointer",border:"1px solid var(--border)",borderRadius:4,padding:"1px 7px",fontFamily:"'DM Sans',sans-serif"}}>Clear</span>}
+                  </div>
                 </div>
+                <input
+                  className="fi"
+                  maxLength={200}
+                  placeholder="One sentence. What thread is live right now?"
+                  value={project.stuck||""}
+                  onChange={e=>{
+                    const updated={...project,stuck:e.target.value,focusedTimestamp:new Date().toLocaleDateString()};
+                    setProject(updated);
+                    setPForm(prev=>({...prev,stuck:e.target.value}));
+                    saveStored("tt-project",updated);
+                    cloudSave("tt-project",updated);
+                  }}
+                  style={{width:"100%"}}
+                />
+                {suggestedStuck&&<div style={{marginTop:8,padding:"8px 10px",background:"var(--bg-card)",border:"1px solid var(--agnes,#7A6A8A)",borderRadius:7,display:"flex",alignItems:"center",gap:10}}>
+                  <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:12,fontStyle:"italic",color:"var(--text-muted)",flex:1,lineHeight:1.5}}>{suggestedStuck}<span style={{display:"block",fontFamily:"'DM Sans',sans-serif",fontStyle:"normal",fontSize:9,color:"var(--agnes,#7A6A8A)",marginTop:3}}>from your last capture</span></div>
+                  <span onClick={()=>useSuggestion("stuck",suggestedStuck)} style={{fontSize:10,color:"var(--agnes,#7A6A8A)",cursor:"pointer",whiteSpace:"nowrap",border:"1px solid var(--agnes,#7A6A8A)",borderRadius:5,padding:"4px 10px",fontFamily:"'DM Sans',sans-serif",flexShrink:0}}>Use this</span>
+                </div>}
               </div>
-              <input
-                className="fi"
-                maxLength={200}
-                placeholder="One sentence. What thread is live right now?"
-                value={project.stuck||""}
-                onChange={e=>{
-                  const updated={...project,stuck:e.target.value,focusedTimestamp:new Date().toLocaleDateString()};
-                  setProject(updated);
-                  setPForm(prev=>({...prev,stuck:e.target.value}));
-                  saveStored("tt-project",updated);
-                  cloudSave("tt-project",updated);
-                }}
-                style={{width:"100%"}}
-              />
-            </div>
-            <div style={{marginBottom:0}}>
-              <label style={{fontSize:12,color:"var(--text-muted)",fontFamily:"'DM Sans',sans-serif",display:"block",marginBottom:5}}>Where are you right now?</label>
-              <input
-                className="fi"
-                placeholder="Chapter 3, the confrontation scene"
-                value={project.where||""}
-                onChange={e=>{
-                  const updated={...project,where:e.target.value};
-                  setProject(updated);
-                  setPForm(prev=>({...prev,where:e.target.value}));
-                  saveStored("tt-project",updated);
-                  cloudSave("tt-project",updated);
-                }}
-                style={{width:"100%"}}
-              />
-            </div>
-          </div>
+              <div style={{marginBottom:0}}>
+                <label style={{fontSize:12,color:"var(--text-muted)",fontFamily:"'DM Sans',sans-serif",display:"block",marginBottom:5}}>Where are you right now?</label>
+                <input
+                  className="fi"
+                  placeholder="Chapter 3, the confrontation scene"
+                  value={project.where||""}
+                  onChange={e=>{
+                    const updated={...project,where:e.target.value};
+                    setProject(updated);
+                    setPForm(prev=>({...prev,where:e.target.value}));
+                    saveStored("tt-project",updated);
+                    cloudSave("tt-project",updated);
+                  }}
+                  style={{width:"100%"}}
+                />
+                {suggestedWhere&&<div style={{marginTop:8,padding:"8px 10px",background:"var(--bg-card)",border:"1px solid var(--agnes,#7A6A8A)",borderRadius:7,display:"flex",alignItems:"center",gap:10}}>
+                  <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:12,fontStyle:"italic",color:"var(--text-muted)",flex:1,lineHeight:1.5}}>{suggestedWhere}<span style={{display:"block",fontFamily:"'DM Sans',sans-serif",fontStyle:"normal",fontSize:9,color:"var(--agnes,#7A6A8A)",marginTop:3}}>your last chapter</span></div>
+                  <span onClick={()=>useSuggestion("where",suggestedWhere)} style={{fontSize:10,color:"var(--agnes,#7A6A8A)",cursor:"pointer",whiteSpace:"nowrap",border:"1px solid var(--agnes,#7A6A8A)",borderRadius:5,padding:"4px 10px",fontFamily:"'DM Sans',sans-serif",flexShrink:0}}>Use this</span>
+                </div>}
+              </div>
+            </div>;
+          })()}
           {/* Story identity below */}
           <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:22,fontWeight:500,color:"var(--text-primary)",marginBottom:project.authorName?2:16}}>{project.title||"Untitled"}</div>
           {project.authorName&&<div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:13,fontStyle:"italic",color:"var(--text-muted)",marginBottom:16}}>by {project.authorName}</div>}
@@ -5342,15 +5367,6 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
           <ReadField label="What this story is about" value={project.synopsis} multi/>
           <TrackedField project={project} label="Themes" fieldKey="themes" expandedMap={expandedFieldHistory} onToggle={toggleFieldHistory}/>
           <ReadField label="What excites you most" value={project.excites} multi/>
-          {(project.openQuestions||[]).length>0&&<div style={{marginTop:8,paddingTop:14,borderTop:"1px solid var(--border)"}}>
-            <div style={{fontSize:9,textTransform:"uppercase",letterSpacing:"0.14em",color:"var(--text-dim)",fontFamily:"'DM Sans',sans-serif",marginBottom:10}}>Open questions</div>
-            {project.openQuestions.map((q,idx)=>(
-              <div key={idx} style={{display:"flex",alignItems:"flex-start",justifyContent:"space-between",gap:10,background:"var(--bg-card)",border:"1px solid var(--border)",borderRadius:8,padding:"10px 14px",marginBottom:8}}>
-                <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:13,color:"var(--text-secondary)",lineHeight:1.6,fontStyle:"italic"}}>{q.text}</div>
-                <span onClick={()=>dismissOpenQuestion(idx)} style={{fontSize:11,color:"var(--text-dim)",cursor:"pointer",whiteSpace:"nowrap",flexShrink:0}}>Dismiss</span>
-              </div>
-            ))}
-          </div>}
         </div>}
         {!bibleSearch&&bibViewTab==="characters"&&(()=>{
           const chars=project.characters||[];
@@ -5740,35 +5756,61 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
         {/* RESEARCH TAB — sixth Bible section. Cards, not chapter-history; research either
             gets used or sits waiting, tracked by a tap-to-toggle status chip. */}
         {!bibleSearch&&bibViewTab==="catalog"&&(()=>{
-          const cards=(loadStored("tt-capture-archive")||[]).slice().reverse();
+          const allCards=(loadStored("tt-capture-archive")||[]).slice().reverse();
           const sub={fontSize:9,textTransform:"uppercase",letterSpacing:"0.12em",color:"var(--text-dim)",fontFamily:"'DM Sans',sans-serif",marginBottom:4};
           const body={fontFamily:"'Cormorant Garamond',serif",fontSize:13,color:"var(--text-muted)",lineHeight:1.65};
+          const numWords=["Zero","One","Two","Three","Four","Five","Six","Seven","Eight","Nine","Ten","Eleven","Twelve","Thirteen","Fourteen","Fifteen","Sixteen","Seventeen","Eighteen","Nineteen","Twenty"];
+          const chapterLabel=n=>(n>=0&&n<numWords.length)?numWords[n]:n;
+          // Group cards by chapter into drawers. Drawer order follows each chapter's most recent
+          // capture (newest activity first); within a drawer, captures are newest-first too, so a
+          // recaptured chapter shows how Agnes's read of it changed across drafts.
+          const drawerMap=new Map();
+          allCards.forEach(card=>{
+            if(!drawerMap.has(card.chapterNum))drawerMap.set(card.chapterNum,[]);
+            drawerMap.get(card.chapterNum).push(card);
+          });
+          const drawers=[...drawerMap.entries()].map(([chapterNum,cards])=>({chapterNum,cards})).sort((a,b)=>(b.cards[0]?.id||0)-(a.cards[0]?.id||0));
+          const renderCard=card=><>
+            {card.chapterSummary&&<div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:14,color:"var(--text-primary)",lineHeight:1.7,marginBottom:10}}>{card.chapterSummary}</div>}
+            {card.beats&&card.beats.length>0&&<div style={{marginBottom:10}}>
+              <div style={sub}>Beats</div>
+              {card.beats.map((b,bi)=><div key={bi} style={body}>{"\u2022 "}{b}</div>)}
+            </div>}
+            {card.threads&&card.threads.length>0&&<div style={{marginBottom:10}}>
+              <div style={sub}>Threads noticed</div>
+              {card.threads.map((t,ti)=><div key={ti} style={{...body,marginBottom:4}}><span style={{color:"var(--text-primary)"}}>{t.title}</span>{t.type?<span style={{fontSize:10,fontFamily:"'DM Sans',sans-serif",color:"var(--text-dim)",marginLeft:6}}>{t.type}</span>:null}{t.description?<div>{t.description}</div>:null}</div>)}
+            </div>}
+            {card.drifts&&card.drifts.length>0&&<div style={{marginBottom:10}}>
+              <div style={sub}>Drift flagged at this capture</div>
+              {card.drifts.map((d,di)=><div key={di} style={{...body,marginBottom:4}}>{d.field?<span style={{color:"var(--text-primary)"}}>{d.field}{d.note?": ":""}</span>:null}{d.note}</div>)}
+            </div>}
+            {card.craftNote&&<div style={{marginBottom:10}}><div style={sub}>Craft note</div><div style={body}>{card.craftNote}</div></div>}
+            {card.openQuestion&&<div><div style={sub}>Open question</div><div style={{...body,fontStyle:"italic"}}>{card.openQuestion}</div></div>}
+          </>;
           return <div>
-            <div style={{fontSize:13,fontFamily:'Cormorant Garamond',color:"var(--text-dim)",fontStyle:"italic",marginBottom:16}}>Every card Agnes writes at capture is filed here, newest first. Her full read of each chapter, kept for whenever you want to walk the stacks.</div>
-            {cards.length===0&&<div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:14,color:"var(--text-muted)",fontStyle:"italic"}}>No cards filed yet. Each time Agnes reads a chapter and you save it to the Story Bible, her card lands in this catalog.</div>}
-            {cards.map(card=>(
-              <div key={card.id} style={{background:"var(--bg-card)",border:"1px solid var(--border)",borderRadius:10,padding:"14px 16px",marginBottom:14}}>
-                <div style={{display:"flex",justifyContent:"space-between",alignItems:"baseline",marginBottom:8,gap:8}}>
-                  <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:16,color:"var(--accent)"}}>Chapter {card.chapterNum}</div>
-                  <div style={{fontSize:10,color:"var(--text-dim)",fontFamily:"'DM Sans',sans-serif"}}>{card.date}</div>
+            <div style={{fontSize:13,fontFamily:'Cormorant Garamond',color:"var(--text-dim)",fontStyle:"italic",marginBottom:16}}>Every card Agnes writes at capture is filed here, one drawer per chapter. Open a drawer to read her full card, kept for whenever you want to walk the stacks.</div>
+            {drawers.length===0&&<div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:14,color:"var(--text-muted)",fontStyle:"italic"}}>No cards filed yet. Each time Agnes reads a chapter and you save it to the Story Bible, her card lands in this catalog.</div>}
+            {drawers.map(({chapterNum,cards})=>{
+              const isOpen=catalogOpenDrawer===chapterNum;
+              return <div key={chapterNum} style={{background:"var(--bg-card)",border:"1px solid "+(isOpen?"var(--agnes,#7A6A8A)":"var(--border)"),borderRadius:10,marginBottom:10,overflow:"hidden"}}>
+                <div onClick={()=>setCatalogOpenDrawer(isOpen?null:chapterNum)} style={{display:"flex",alignItems:"center",gap:12,padding:"12px 16px",cursor:"pointer"}}>
+                  <span style={{width:22,height:7,borderRadius:4,border:"1px solid var(--accent-80,var(--accent))",background:"var(--bg-card-alt)",flexShrink:0}}/>
+                  <span style={{fontFamily:"'Cormorant Garamond',serif",fontSize:16,color:"var(--text-primary)",flex:1}}>Chapter {chapterLabel(chapterNum)} Card</span>
+                  {cards.length>1&&<span style={{fontSize:9,fontFamily:"'DM Sans',sans-serif",color:"var(--agnes,#7A6A8A)",border:"1px solid var(--agnes,#7A6A8A)",borderRadius:10,padding:"1px 8px",flexShrink:0}}>{cards.length} captures</span>}
+                  <span style={{fontSize:10,color:"var(--text-dim)",fontFamily:"'DM Sans',sans-serif",flexShrink:0}}>{cards[0]?.date}</span>
+                  <span style={{fontSize:11,color:"var(--text-dim)",flexShrink:0,transform:isOpen?"rotate(90deg)":"none",display:"inline-block"}}>{"\u25B6"}</span>
                 </div>
-                {card.chapterSummary&&<div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:14,color:"var(--text-primary)",lineHeight:1.7,marginBottom:10}}>{card.chapterSummary}</div>}
-                {card.beats&&card.beats.length>0&&<div style={{marginBottom:10}}>
-                  <div style={sub}>Beats</div>
-                  {card.beats.map((b,bi)=><div key={bi} style={body}>{"\u2022 "}{b}</div>)}
+                {isOpen&&<div style={{padding:"0 16px 16px 16px"}}>
+                  {cards.map((card,ci)=><div key={card.id}>
+                    {cards.length>1&&<div style={{fontSize:9,textTransform:"uppercase",letterSpacing:"0.1em",color:"var(--text-dim)",fontFamily:"'DM Sans',sans-serif",margin:"10px 0 6px",display:"flex",alignItems:"center",gap:8}}>
+                      <span>{ci===0?"Latest capture":"Earlier capture"} &middot; {card.date}</span>
+                      <span style={{flex:1,height:1,background:"var(--border)"}}/>
+                    </div>}
+                    {renderCard(card)}
+                  </div>)}
                 </div>}
-                {card.threads&&card.threads.length>0&&<div style={{marginBottom:10}}>
-                  <div style={sub}>Threads noticed</div>
-                  {card.threads.map((t,ti)=><div key={ti} style={{...body,marginBottom:4}}><span style={{color:"var(--text-primary)"}}>{t.title}</span>{t.type?<span style={{fontSize:10,fontFamily:"'DM Sans',sans-serif",color:"var(--text-dim)",marginLeft:6}}>{t.type}</span>:null}{t.description?<div>{t.description}</div>:null}</div>)}
-                </div>}
-                {card.drifts&&card.drifts.length>0&&<div style={{marginBottom:10}}>
-                  <div style={sub}>Drift flagged at this capture</div>
-                  {card.drifts.map((d,di)=><div key={di} style={{...body,marginBottom:4}}>{d.field?<span style={{color:"var(--text-primary)"}}>{d.field}{d.note?": ":""}</span>:null}{d.note}</div>)}
-                </div>}
-                {card.craftNote&&<div style={{marginBottom:10}}><div style={sub}>Craft note</div><div style={body}>{card.craftNote}</div></div>}
-                {card.openQuestion&&<div><div style={sub}>Open question</div><div style={{...body,fontStyle:"italic"}}>{card.openQuestion}</div></div>}
-              </div>
-            ))}
+              </div>;
+            })}
           </div>;
         })()}
         {!bibleSearch&&bibViewTab==="research"&&<div>
