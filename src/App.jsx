@@ -1729,20 +1729,25 @@ INFERNO TOOLS: If a message begins with "INFERNO TOOL:", the writer tapped a too
     }catch(e){console.log("Write loop check error:",e);}
   };
 
+  // Named distinctly from the many other local `currentScene` declarations elsewhere in this file
+  // (each function scopes its own) — HOTFIX: the original version of this effect referenced a bare
+  // `currentScene` that was never actually declared in this scope, crashing the whole app on load
+  // with a ReferenceError. Fixed Aug 12, 2026.
+  const writeLoopCurrentScene=scenes.find(s=>s.id===activeScene);
   useEffect(()=>{
     if(forgeMode!=="manuscript")return; // only regular Write mode, not Inferno, Lab, or Embers
     if(agnesInvolvement==="off")return;
-    if(!currentScene)return;
+    if(!writeLoopCurrentScene)return;
     if(writeLoopTimerRef.current)clearTimeout(writeLoopTimerRef.current);
     // Switching scenes resets the window entirely: a loop in chapter 3 says nothing about chapter 9.
-    if(writeLoopSceneId!==currentScene.id){
-      setWriteLoopSceneId(currentScene.id);setWriteLoopSnapshots([]);setWriteLoopSuggestion(null);
+    if(writeLoopSceneId!==writeLoopCurrentScene.id){
+      setWriteLoopSceneId(writeLoopCurrentScene.id);setWriteLoopSnapshots([]);setWriteLoopSuggestion(null);
       return;
     }
     const WRITE_LOOP_PAUSE_MS=8000; // 8 seconds of stillness before sampling, a real pause, not mid-thought
     writeLoopTimerRef.current=setTimeout(()=>{
-      const wordCount=getWordCount(currentScene.text);
-      const tail=(currentScene.text||"").slice(-150);
+      const wordCount=getWordCount(writeLoopCurrentScene.text);
+      const tail=(writeLoopCurrentScene.text||"").slice(-150);
       setWriteLoopSnapshots(prev=>{
         const next=[...prev,{wordCount,tail,time:Date.now()}].slice(-4);
         if(next.length===4){
@@ -1754,7 +1759,7 @@ INFERNO TOOLS: If a message begins with "INFERNO TOOL:", the writer tapped a too
             const stillReworking=next[0].tail!==next[3].tail;
             const genuineActivity=new Set(next.map(s=>s.wordCount)).size>1;
             if(Math.abs(delta)<15&&stillReworking&&genuineActivity){
-              checkWriteLoop(currentScene.text,currentScene.chapter);
+              checkWriteLoop(writeLoopCurrentScene.text,writeLoopCurrentScene.chapter);
             }
           }
         }
@@ -1762,7 +1767,7 @@ INFERNO TOOLS: If a message begins with "INFERNO TOOL:", the writer tapped a too
       });
     },WRITE_LOOP_PAUSE_MS);
     return ()=>{if(writeLoopTimerRef.current)clearTimeout(writeLoopTimerRef.current);};
-  },[currentScene?.text,forgeMode,agnesInvolvement,currentScene?.id]);
+  },[writeLoopCurrentScene?.text,forgeMode,agnesInvolvement,writeLoopCurrentScene?.id]);
 
   // Core send: takes the message text directly so it can be called both from the input box
   // and programmatically (Inferno tool clicks, Finn's proactive suggestion "Yes"). The tool-click
