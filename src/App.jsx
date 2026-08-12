@@ -1171,6 +1171,13 @@ export default function App() {
   const [infernoLastCheckLength, setInfernoLastCheckLength] = useState(0); // text length at last check-in
   const [infernoSuggestion, setInfernoSuggestion] = useState(null); // {tool, message} or null
   const [infernoChecksOn, setInfernoChecksOn] = useState(true); // session-only: resets to On every fresh Inferno open, deliberately not a standing preference
+  // Write mode's passive stuck-loop detector: the opposite signal from Inferno's check-ins. Inferno
+  // watches for enough NEW forward text to comment on; this watches for the SAME region getting
+  // reworked with little net progress. Session-only, no persistence, resets on scene change.
+  const [writeLoopSuggestion, setWriteLoopSuggestion] = useState(null); // {message} or null
+  const [writeLoopSnapshots, setWriteLoopSnapshots] = useState([]); // rolling window, current scene only
+  const [writeLoopSceneId, setWriteLoopSceneId] = useState(null);
+  const writeLoopTimerRef = useRef(null);
   const [infernoDotPeek, setInfernoDotPeek] = useState(false); // corner dot peek open
   const [infernoCheckLoading, setInfernoCheckLoading] = useState(false);
   const infernoCheckTimerRef = useRef(null);
@@ -1695,6 +1702,67 @@ INFERNO TOOLS: If a message begins with "INFERNO TOOL:", the writer tapped a too
     }
     return ()=>{if(infernoCheckTimerRef.current)clearTimeout(infernoCheckTimerRef.current);};
   },[infernoText,forgeMode,infernoChecksOn]);
+
+  // Write mode's passive stuck-loop detector: fires only after real stillness (a natural pause, not
+  // mid-keystroke), samples the scene's word count and its last 150 characters, and keeps a rolling
+  // window of the last 4 samples. A loop is: net word count barely moved across that window, the
+  // tail text itself has genuinely changed (still reworking the same spot, not just idle), and the
+  // word count wasn't simply identical throughout (real edit activity happened). Gated on Agnes
+  // Involvement being on, since this is Agnes-style noticing without being asked, same rule as
+  // everywhere else in the app.
+  const checkWriteLoop=async(text,chapterNum)=>{
+    try{
+      const r=await fetch("/api/chat",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({
+        max_tokens:150,
+        system:`You are Finn, a writing coach. The writer has been reworking the same passage repeatedly with little forward progress. Read what's actually on the page and decide: is this a real craft issue worth naming, or just a normal polishing loop? Either way, say one or two sentences in your own voice: direct, warm, never alarmed, never "just push through." Never use em dashes.`,
+        messages:[{role:"user",content:`Chapter ${chapterNum}. The passage they keep reworking:\n\n${text.slice(-600)}\n\nRespond with ONLY this JSON: {"message":"what you'd actually say to them right now"}`}]
+      })});
+      const d=await r.json();
+      if(!d.error){
+        const raw=finnClean(d.content?.filter(b=>b.type==="text").map(b=>b.text).join(""))||"";
+        const cleaned=raw.replace(/```json\s*/g,"").replace(/```\s*/g,"").trim();
+        try{
+          const parsed=JSON.parse(cleaned);
+          if(parsed.message)setWriteLoopSuggestion({message:parsed.message});
+        }catch(e){console.log("Write loop check parse error:",e);}
+      }
+    }catch(e){console.log("Write loop check error:",e);}
+  };
+
+  useEffect(()=>{
+    if(forgeMode!=="manuscript")return; // only regular Write mode, not Inferno, Lab, or Embers
+    if(agnesInvolvement==="off")return;
+    if(!currentScene)return;
+    if(writeLoopTimerRef.current)clearTimeout(writeLoopTimerRef.current);
+    // Switching scenes resets the window entirely: a loop in chapter 3 says nothing about chapter 9.
+    if(writeLoopSceneId!==currentScene.id){
+      setWriteLoopSceneId(currentScene.id);setWriteLoopSnapshots([]);setWriteLoopSuggestion(null);
+      return;
+    }
+    const WRITE_LOOP_PAUSE_MS=8000; // 8 seconds of stillness before sampling, a real pause, not mid-thought
+    writeLoopTimerRef.current=setTimeout(()=>{
+      const wordCount=getWordCount(currentScene.text);
+      const tail=(currentScene.text||"").slice(-150);
+      setWriteLoopSnapshots(prev=>{
+        const next=[...prev,{wordCount,tail,time:Date.now()}].slice(-4);
+        if(next.length===4){
+          const delta=next[3].wordCount-next[0].wordCount;
+          if(writeLoopSuggestion&&Math.abs(delta)>=40){
+            // Real forward movement resumed since the note was shown: they broke through, let it go.
+            setWriteLoopSuggestion(null);
+          }else if(!writeLoopSuggestion){
+            const stillReworking=next[0].tail!==next[3].tail;
+            const genuineActivity=new Set(next.map(s=>s.wordCount)).size>1;
+            if(Math.abs(delta)<15&&stillReworking&&genuineActivity){
+              checkWriteLoop(currentScene.text,currentScene.chapter);
+            }
+          }
+        }
+        return next;
+      });
+    },WRITE_LOOP_PAUSE_MS);
+    return ()=>{if(writeLoopTimerRef.current)clearTimeout(writeLoopTimerRef.current);};
+  },[currentScene?.text,forgeMode,agnesInvolvement,currentScene?.id]);
 
   // Core send: takes the message text directly so it can be called both from the input box
   // and programmatically (Inferno tool clicks, Finn's proactive suggestion "Yes"). The tool-click
@@ -7078,7 +7146,17 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
               <div style={{padding:"10px 40px 14px",borderTop:"1px solid var(--border)",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
                 <div style={{fontSize:10,color:"var(--text-dim)"}}>Auto-saved</div>
                 <div style={{display:"flex",gap:10}}>
-                  <span onClick={()=>{setFinnOpen(!finnOpen);if(!finnOpen&&containerMsgs.length===0){setContainerMsgs([{role:"assistant",content:`I'm reading Chapter ${currentScene.chapter}. ${getWordCount(currentScene.text)>0?"I can see what you're writing. Ask me anything, or tell me what you need.":"Empty page. Tell me what this chapter needs to accomplish and I'll help you find the first line."}`}])}}} style={{fontSize:12,color:finnOpen?"var(--accent)":"var(--accent-90)",background:"var(--bg-card-alt)",border:"1px solid var(--border)",borderRadius:8,padding:"7px 16px",cursor:"pointer",fontWeight:500}}>{finnOpen?"Close Finn":"Ask Finn"}</span>
+                  <span onClick={()=>{
+                    const hasNotice=!!writeLoopSuggestion;
+                    setFinnOpen(!finnOpen);
+                    if(!finnOpen&&containerMsgs.length===0){
+                      setContainerMsgs([{role:"assistant",content:hasNotice?writeLoopSuggestion.message:`I'm reading Chapter ${currentScene.chapter}. ${getWordCount(currentScene.text)>0?"I can see what you're writing. Ask me anything, or tell me what you need.":"Empty page. Tell me what this chapter needs to accomplish and I'll help you find the first line."}`}]);
+                    }
+                    if(hasNotice)setWriteLoopSuggestion(null);
+                  }} style={{fontSize:12,color:finnOpen?"var(--accent)":"var(--accent-90)",background:"var(--bg-card-alt)",border:"1px solid "+(writeLoopSuggestion?"var(--accent)":"var(--border)"),borderRadius:8,padding:"7px 16px",cursor:"pointer",fontWeight:500,display:"flex",alignItems:"center",gap:7}}>
+                    {writeLoopSuggestion&&<span style={{width:7,height:7,borderRadius:"50%",background:"var(--accent)",boxShadow:"0 0 6px var(--accent)",flexShrink:0}}/>}
+                    {finnOpen?"Close Finn":(writeLoopSuggestion?"Finn noticed something":"Ask Finn")}
+                  </span>
                   <span onClick={goHome} style={{fontSize:12,color:"var(--text-muted)",cursor:"pointer",padding:"7px 12px",background:"var(--bg-card-alt)",border:"1px solid var(--border)",borderRadius:8}}>Home</span>
                 </div>
               </div>
