@@ -7576,7 +7576,7 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
               <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:18,fontWeight:500,color:"var(--accent)"}}>Finn read your chapter</div>
               <div style={{fontSize:11,color:"var(--text-dim)",fontFamily:"'DM Sans',sans-serif",marginTop:2}}>Review what he found before anything saves to your Story Bible</div>
             </div>
-            <div onClick={()=>{setExtractOpen(false);setExtractResult(null)}} style={{fontSize:11,color:"var(--text-dim)",cursor:"pointer",padding:"4px 10px",border:"1px solid var(--border)",borderRadius:6,fontFamily:"'DM Sans',sans-serif"}}>Dismiss</div>
+            <div onClick={()=>{setExtractOpen(false);setExtractResult(null);saveStored("tt-pending-extract",null);}} style={{fontSize:11,color:"var(--text-dim)",cursor:"pointer",padding:"4px 10px",border:"1px solid var(--border)",borderRadius:6,fontFamily:"'DM Sans',sans-serif"}}>Dismiss</div>
           </div>
 
           {extracting&&!extractResult&&<div style={{textAlign:"center",padding:"40px 0"}}>
@@ -7710,7 +7710,7 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
 
             <div style={{display:"flex",gap:8,marginTop:16}}>
               <div onClick={()=>applyExtractToBible(extractResult)} style={{padding:"9px 20px",background:"var(--accent)",borderRadius:6,fontSize:12,fontWeight:500,color:"#F0EAE0",cursor:"pointer",fontFamily:"'DM Sans',sans-serif"}}>Save to Story Bible</div>
-              <div onClick={()=>{setExtractOpen(false);setExtractResult(null)}} style={{padding:"9px 14px",background:"transparent",border:"1px solid var(--border)",borderRadius:6,fontSize:12,color:"var(--text-dim)",cursor:"pointer",fontFamily:"'DM Sans',sans-serif"}}>Dismiss</div>
+              <div onClick={()=>{setExtractOpen(false);setExtractResult(null);saveStored("tt-pending-extract",null);}} style={{padding:"9px 14px",background:"transparent",border:"1px solid var(--border)",borderRadius:6,fontSize:12,color:"var(--text-dim)",cursor:"pointer",fontFamily:"'DM Sans',sans-serif"}}>Dismiss</div>
             </div>
           </>}
         </div>
