@@ -227,6 +227,45 @@ footer { background: var(--ink); border-top: 1px solid rgba(168,136,74,0.1); pad
   <p class="footer-note">forgedpen.com &middot; Beta 2026</p>
 </footer>
 
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<script>
+const waitlistSupabase = window.supabase.createClient(
+  "https://jkygrqexnoiapdubryzy.supabase.co",
+  "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImpreWdycWV4bm9pYXBkdWJyeXp5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzkzMDgxNDYsImV4cCI6MjA5NDg4NDE0Nn0.cLGoSlItw5ABr-fk-NvSr-vyXvu02NCy7mxqGOf0yGc"
+);
 
+const waitlistBtn = document.getElementById("waitlistBtn");
+const waitlistInput = document.getElementById("waitlistEmail");
+const waitlistNote = document.getElementById("waitlistNote");
+
+waitlistBtn.addEventListener("click", async () => {
+  const email = waitlistInput.value.trim();
+  if (!email || !email.includes("@")) {
+    waitlistNote.textContent = "That doesn't look like a valid email, mind checking it?";
+    waitlistNote.style.color = "#A85A3E";
+    return;
+  }
+
+  waitlistBtn.disabled = true;
+  waitlistBtn.textContent = "Submitting...";
+
+  const { error } = await waitlistSupabase.from("waitlist").insert({ email: email });
+
+  if (error) {
+    waitlistBtn.disabled = false;
+    waitlistBtn.textContent = "Request access";
+    waitlistNote.textContent = "Something didn't go through. Mind trying again in a moment?";
+    waitlistNote.style.color = "#A85A3E";
+    console.error("Waitlist submit error:", error);
+    return;
+  }
+
+  waitlistInput.value = "";
+  waitlistInput.style.display = "none";
+  waitlistBtn.style.display = "none";
+  waitlistNote.innerHTML = "You're on the list. Check your email for what's next.";
+  waitlistNote.style.color = "var(--olive)";
+});
+</script>
 </body>
 </html>
