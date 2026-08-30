@@ -1,7 +1,7 @@
 // /api/waitlist-welcome.js
 // Triggered by a Supabase Database Webhook on INSERT into the waitlist table.
 // Sends the "you're on the list" acknowledgment via Resend.
-// RESEND_API_KEY lives only as a Vercel environment variable — never hardcoded here.
+// RESEND_API_KEY lives only as a Vercel environment variable, never hardcoded here.
 
 export default async function handler(req, res) {
   if (req.method !== "POST") {
@@ -25,20 +25,17 @@ export default async function handler(req, res) {
         "Content-Type": "application/json"
       },
       body: JSON.stringify({
-        // onboarding@resend.dev is Resend's shared sending address for accounts without a
-        // verified custom domain. Swap this once forgedpen.com is verified with Resend.
         from: "Forged Pen <onboarding@resend.dev>",
         to: email,
         subject: "You're on the list",
         html: `
           <div style="font-family: Georgia, serif; font-size: 16px; line-height: 1.7; color: #3A3228; max-width: 480px; margin: 0 auto; padding: 20px;">
             <p>Hi,</p>
-            <p>Thanks for your interest in Forged Pen. You're officially on the list.</p>
-            <p>We're putting together a good first group of beta writers, a real mix of planners, discovery writers, and everyone in between, so it may take a little while to hear back. If it looks like a good fit, you'll get a real invite directly.</p>
-            <p>In the meantime, if you'd like to help us get to know how you write, here's a short form:<br>
+            <p>Thank you so much for joining the waitlist for Forged Pen.</p>
+            <p>We're building our first group of beta writers now, writers whose brains work differently, planners, discovery writers, and everyone in between. You'll hear from us soon.</p>
+            <p>In the meantime, please fill out this short survey, it's how we'll be putting that first group together:<br>
             <a href="${applicationFormUrl}" style="color: #A8884A;">${applicationFormUrl}</a></p>
-            <p>No pressure either way. Just glad you're here.</p>
-            <p>Forged Pen</p>
+            <p>Thank you,<br>Forged Pen</p>
           </div>
         `
       })
