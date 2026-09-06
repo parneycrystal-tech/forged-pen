@@ -230,7 +230,7 @@ input::placeholder { color: var(--text-dimmer); }
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
 <script>
-const supabase = window.supabase.createClient(
+const betaSupabase = window.supabase.createClient(
   "https://jkygrqexnoiapdubryzy.supabase.co",
   "sb_publishable__WqXXqVlB4xj5lepkiwoZA_RmaRa1hW"
 );
@@ -276,7 +276,7 @@ document.getElementById('applicationForm').addEventListener('submit', async (e) 
   btn.disabled = true;
   btn.textContent = 'Submitting...';
 
-  const { error } = await supabase.from('beta_applications').insert({
+  const { error } = await betaSupabase.from('beta_applications').insert({
     email: email,
     writer_type: writerType,
     writing_brain: Array.from(selectedBrain),
