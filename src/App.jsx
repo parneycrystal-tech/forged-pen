@@ -428,10 +428,10 @@ const TOUR_FULL = [
     desc:"Your writing space. Four modes, switchable from the left sidebar.",
     list:[["Manuscript","chapters and scenes. Write here. Finn is in the sidebar if you need him"],["Idea Lab","no structure required. Dump everything, sort it later"],["Inferno","hyperfocus mode. Six tools for different moments within it"],["Embers","scenes without a home yet. Covered next"],["Capture to Bible","paste a finished chapter and Agnes extracts what's new for your review"]] },
   { eyebrow:"Inside The Inferno", name:"The Six Inferno Tools", ember:true,
-    desc:"Pick the tool that matches where you are right now. Not a sequence, jump to whichever fits.",
+    desc:"Pick the tool that matches where you are right now. Not a sequence, jump to whichever fits. Covered next.",
     list:[["Capture the Flood","dump everything, one line each"],["Channel the Heat","sort what moves the story now vs later"],["Ride the Wave","pick a scene. A small clock is set for 25 minutes, tap it to begin"],["Flag Everything","flag what's alive for your Dopamine Map"],["Body Check","water, food, standing. 90 seconds"],["Wind Down","capture tomorrow's entry point, then close the document"]] },
   { eyebrow:"Inside The Forge, fourth mode", tag:"A home for scenes without one yet", name:"Embers", agnes:true,
-    desc:"Scenes that emerged without a place in your manuscript. Agnes reads each one and proposes where it might belong, who's present, and the tension underneath it. Nothing moves until you say so.",
+    desc:"Scenes that emerged without a place in your manuscript. Agnes reads each one and proposes where it might belong, who's present, and the tension underneath it. Nothing moves until you say so. Covered right after Inferno.",
     note:"I read every ember before you ask. Placement, characters, the tension underneath it. You decide what happens next. I just tell you what I see.",
     list:[["Let Agnes read it","a placement hypothesis, character tags, and a tension note, right beside the fragment"],["Place in manuscript","drop it into an existing chapter, or start a new one"],["The Drawer","for when it's not even a scene yet, just a line. File lines under your own slots, and bloom one into a full ember the moment it's ready to grow"]] },
   { eyebrow:"Coaching modes, craft", name:"Six craft modes",
@@ -441,7 +441,7 @@ const TOUR_FULL = [
     desc:"Neurodivergent support, intuition, rest, memory, and synthesis.",
     modeRows:[["Micro-Mode","Frozen. One tiny step. That's all"],["Perfectionism Bypass","A timed freewrite, clock included"],["Through the Smoke","When your work doesn't feel as great as it once did"],["Instinct Check","Skip the logic. Hear what your gut knows"],["Simmer Mode","Brain cooked. Load one question, step away"],["Rekindle","Been away awhile. Agnes reconstructs where you are",true],["Contain the Flames","Reads across every session and mode, then shows you the shape of what you've built and the one next step"]] },
   { eyebrow:"Space three", tag:"The whole shape of your story", name:"The Ledger", agnes:true, homeTag:true,
-    desc:"Agnes's read of your manuscript right now: word counts, where each character has and hasn't appeared, your active threads, and any drift she's flagged. Higher-tier sections add Finn's craft-over-time observations and honest feedback, on request.",
+    desc:"Agnes's read of your manuscript right now: word counts, where each character has and hasn't appeared, your active threads, and any drift she's flagged. Higher-tier sections add Finn's craft-over-time observations, honest feedback, and your talent stack, real craft strengths your manuscript already proves, cited to the page, on request.",
     note:"Ask me to read your story anytime. I'll tell you plainly what I see." },
   { eyebrow:"Working behind the scenes", tag:"You won't chat with her, except when you ask", name:"Agnes", agnes:true,
     desc:"The record keeper. She reads your chapters, updates your Story Bible, catches when your story drifts from what you recorded, and reads every Ember and pile of loose notes on request.",
@@ -1048,6 +1048,7 @@ export default function App() {
   const [ledgerCraftLoading, setLedgerCraftLoading] = useState(false);
   const [ledgerFeedback, setLedgerFeedback] = useState(null);
   const [ledgerFeedbackLoading, setLedgerFeedbackLoading] = useState(false);
+  const [talentStackProposals, setTalentStackProposals] = useState(null); // null | {loading:true} | {error:true} | {items:[{title,term,description}], handled:{[i]:"added"|"skipped"}}
   const [driftBadges, setDriftBadges] = useState([]); // chapter nums with a waiting (unopened) drift note, shown only in "quiet" mode
   const [involvementEditChoice, setInvolvementEditChoice] = useState("full"); // scratch value while editing in onboarding/profile
   // Landing screen: read synchronously so there's no flash between "haven't seen it" and "have seen it" on first paint.
@@ -6195,6 +6196,33 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
           }catch(e){console.log("Honest feedback error:",e);}
           setLedgerFeedbackLoading(false);
         };
+        // Talent Stack: strength-only, always cited to a specific chapter, always named by its real
+        // craft term. No mechanism here proposes gaps or imbalance, by design, so a writer's own
+        // style (dialogue-heavy, description-light, whatever it is) never gets flagged as a deficit.
+        // Each proposal is reviewed and approved individually before it becomes permanent, same
+        // pattern as the rest of the app; a fresh ask never overwrites what's already been kept.
+        const generateTalentStack=async()=>{
+          setTalentStackProposals({loading:true});
+          try{
+            const capturedText=(project?.chapters||[]).filter(c=>c.summary).map(c=>`Chapter ${c.num}: ${c.summary}`).join("\n\n").substring(0,6000);
+            const r=await fetch("/api/chat",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({
+              system:`You are Agnes, a meticulous literary archivist. The writer wants to see real craft strengths their manuscript demonstrates so far, not general encouragement. Read the chapter summaries below and propose two to four genuine strengths. Rules, all mandatory: every entry must cite a specific chapter number and the actual moment it happened, never a general trait floating free of evidence. Every entry gets tagged with the real, established craft term for what is happening, for example subtext, withholding, in medias res, foreshadowing, braiding, objective correlative, free indirect discourse, or whatever genuinely fits. If the term is one a working writer might not already know, add a short plain-language gloss in parentheses the first time it appears. Never invent a genre label. Never compare this writer to any other author or published work, you have not read anything outside this conversation. Never claim anything beyond what these specific chapters show. Only name strengths, never gaps, never anything missing or unbalanced, that is not this feature's job. If fewer than two genuine evidence-backed strengths are visible in what is captured, propose fewer, never pad the list to hit a count. Never use em dashes. Respond ONLY with a JSON object.`,
+              messages:[{role:"user",content:`Chapter summaries so far:\n${capturedText||"nothing captured yet"}\n\nRespond with ONLY this JSON:\n{"items":[{"title":"short title, a few words","term":"the real craft term, with a short plain-language gloss in parentheses if it is not common vocabulary","description":"two to three sentences, citing the specific chapter and the actual moment"}]}`}]
+            })});
+            const d=await r.json();
+            const raw=finnClean(d.content?.filter(b=>b.type==="text").map(b=>b.text).join(""))||"";
+            const cleaned=raw.replace(/```json\s*/g,"").replace(/```\s*/g,"").trim();
+            const parsed=JSON.parse(cleaned);
+            setTalentStackProposals({items:(Array.isArray(parsed.items)?parsed.items.filter(it=>it&&it.title&&it.description):[]),handled:{}});
+          }catch(e){console.log("Talent stack error:",e);setTalentStackProposals({error:true});}
+        };
+        const addToTalentStack=(item)=>{
+          const existing=Array.isArray(project?.talentStack)?[...project.talentStack]:[];
+          existing.push({id:"ts_"+Date.now()+"_"+Math.random().toString(36).slice(2,7),title:item.title,term:item.term,description:item.description,addedAt:Date.now()});
+          const updated={...project,talentStack:existing,updated:Date.now()};
+          setProject(updated);setPForm(prev=>({...prev,talentStack:existing}));
+          saveStored("tt-project",updated);cloudSave("tt-project",updated);
+        };
         return <div style={{maxWidth:820,margin:"0 auto",padding:"0 20px 40px",animation:"fu .5s ease-out"}}>
           <div onClick={goHome} style={{fontSize:12,color:"var(--text-dim)",cursor:"pointer",marginBottom:16}}>Back</div>
           <div style={{fontSize:9,textTransform:"uppercase",letterSpacing:"0.2em",color:"var(--agnes,#7A6A8A)",fontWeight:600,marginBottom:6}}>Agnes</div>
@@ -6303,6 +6331,46 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
               <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:13,color:"var(--text-secondary)",fontStyle:"italic",lineHeight:1.65,marginBottom:12}}>Finn will read what you've captured so far and tell you honestly what's working and what isn't yet. He'll lead with what's genuinely strong before anything else.</div>
               <span onClick={generateHonestFeedback} style={{background:"var(--accent)",borderRadius:7,padding:"10px 22px",fontFamily:"'DM Sans',sans-serif",fontSize:12,color:"#F4EEDF",fontWeight:600,cursor:ledgerFeedbackLoading?"default":"pointer",display:"inline-block"}}>{ledgerFeedbackLoading?"Reading...":"I'd like honest feedback"}</span>
             </div>}
+          </div>
+
+          <div style={{marginBottom:26}}>
+            <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:4}}>
+              <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:17,color:"var(--text-primary)",fontWeight:600}}>Your talent stack</div>
+              <span style={{fontSize:8,textTransform:"uppercase",letterSpacing:"0.08em",background:"var(--accent-15)",color:"var(--accent)",padding:"2px 8px",borderRadius:4,fontWeight:600}}>Higher tier</span>
+            </div>
+            <div style={{fontFamily:"'Cormorant Garamond',serif",fontStyle:"italic",fontSize:13,color:"var(--text-dim)",marginBottom:14}}>What your manuscript proves you already do well, cited to the page and named by its real technique.</div>
+            {!higherTier?<div style={{border:"1px dashed var(--border-mid)",borderRadius:8,padding:16,textAlign:"center"}}>
+              <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:14,color:"var(--text-secondary)",fontStyle:"italic",lineHeight:1.7,marginBottom:12}}>Real strengths, cited to specific chapters and named by their craft term. Available on a higher tier.</div>
+              <span style={{background:"var(--accent)",borderRadius:6,padding:"8px 18px",fontFamily:"'DM Sans',sans-serif",fontSize:11,color:"#F4EEDF",fontWeight:600,cursor:"pointer",display:"inline-block"}}>See what's included</span>
+            </div>
+            :<>
+              {(project?.talentStack||[]).map((entry,ei)=>(
+                <div key={entry.id||ei} style={{background:"var(--agnes-15,rgba(122,106,138,0.1))",borderLeft:"3px solid var(--agnes,#7A6A8A)",borderRadius:"0 9px 9px 0",padding:"13px 16px",marginBottom:10}}>
+                  <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:5,flexWrap:"wrap"}}>
+                    <span style={{fontSize:9,textTransform:"uppercase",letterSpacing:"0.1em",color:"var(--agnes,#7A6A8A)",fontWeight:600}}>Agnes</span>
+                    <span style={{fontSize:9,padding:"2px 8px",borderRadius:9,background:"var(--bg-card-alt)",border:"1px solid var(--border)",color:"var(--accent)",fontFamily:"'DM Sans',sans-serif"}}>{entry.term}</span>
+                  </div>
+                  <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:15,fontWeight:600,color:"var(--text-primary)",marginBottom:5}}>{entry.title}</div>
+                  <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:13,color:"var(--text-secondary)",lineHeight:1.65}}>{entry.description}</div>
+                </div>
+              ))}
+              {talentStackProposals?.items&&talentStackProposals.items.map((item,i)=>{
+                if(talentStackProposals.handled[i])return null;
+                return <div key={i} style={{background:"var(--bg-card-alt)",border:"1px dashed var(--border-mid)",borderRadius:8,padding:"13px 16px",marginBottom:10}}>
+                  <span style={{fontSize:9,padding:"2px 8px",borderRadius:9,background:"var(--bg-card)",border:"1px solid var(--border)",color:"var(--accent)",fontFamily:"'DM Sans',sans-serif",display:"inline-block",marginBottom:6}}>{item.term}</span>
+                  <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:15,fontWeight:600,color:"var(--text-primary)",marginBottom:5}}>{item.title}</div>
+                  <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:13,color:"var(--text-secondary)",lineHeight:1.65,marginBottom:10}}>{item.description}</div>
+                  <div style={{display:"flex",gap:8}}>
+                    <span onClick={()=>{addToTalentStack(item);setTalentStackProposals(prev=>({...prev,handled:{...prev.handled,[i]:"added"}}));}} style={{fontSize:11,padding:"5px 13px",borderRadius:6,background:"var(--accent)",color:"var(--bg-deepest)",cursor:"pointer",fontFamily:"'DM Sans',sans-serif"}}>Add to my stack</span>
+                    <span onClick={()=>setTalentStackProposals(prev=>({...prev,handled:{...prev.handled,[i]:"skipped"}}))} style={{fontSize:11,padding:"5px 13px",borderRadius:6,border:"1px solid var(--border)",color:"var(--text-dim)",cursor:"pointer",fontFamily:"'DM Sans',sans-serif"}}>Not this one</span>
+                  </div>
+                </div>;
+              })}
+              {(project?.talentStack||[]).length===0&&!talentStackProposals&&<div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:13,color:"var(--text-dim)",fontStyle:"italic",marginBottom:10}}>Nothing here yet.</div>}
+              {talentStackProposals?.loading&&<div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:13,color:"var(--text-dim)",fontStyle:"italic",marginBottom:10}}>Agnes is reading for what's working...</div>}
+              {talentStackProposals?.error&&<div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:13,color:"var(--text-dim)",fontStyle:"italic",marginBottom:10}}>That didn't come through. <span onClick={generateTalentStack} style={{color:"var(--agnes,#7A6A8A)",cursor:"pointer",textDecoration:"underline"}}>Try again</span></div>}
+              <span onClick={talentStackProposals?.loading?undefined:generateTalentStack} style={{fontSize:11,color:"var(--accent)",textDecoration:"underline",cursor:talentStackProposals?.loading?"default":"pointer"}}>Ask Agnes for another read</span>
+            </>}
           </div>
 
           {allDrifts.length>0&&<div>
