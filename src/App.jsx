@@ -404,6 +404,58 @@ Profile adaptation: a spark-stage writer needs help finding the thread that conn
 Tone: clear, organized, warm. Like a trusted collaborator who read all the notes and made sense of them. End every session with a clear bridge. Under 350 words.`) }
 ];
 
+// TOUR: content lives as data, one renderer draws every step. Colors are the app's own theme
+// tokens throughout (var(--accent), var(--ember), var(--agnes,#7A6A8A)), so the tour automatically
+// matches whichever theme the writer has selected and inherits any future palette fix for free.
+const TOUR_FULL = [
+  { eyebrow:"Your home base", tag:"Every session starts here", name:"The Home Screen",
+    desc:"This is the launching pad, not a single feature. Finn's Read, The Pulse, and the Dopamine Map live directly on this screen and are covered next. Your Story Bible, The Forge, The Ledger, and Rekindle also have their own card right here, even though each gets a deeper stop of its own later in this tour.",
+    note:"Everything below is one tap away from here. When we get to Story Bible, The Forge, or The Ledger later, I'll remind you it's sitting on Home too, so nothing feels like it appeared out of nowhere." },
+  { eyebrow:"Home screen feature 1", tag:"Top of the home screen", name:"Finn's Read",
+    desc:"Every time you open the app, Finn looks at your Story Bible and recent sessions and makes a specific suggestion.",
+    note:"If my suggestion doesn't fit, tap \"I need something different today\" and tell me what's going on. I'll route you to the right place.",
+    list:[["Let's go","opens the mode Finn is pointing at"],["I need something different","a one-line triage so Finn can redirect"]] },
+  { eyebrow:"Home screen feature 2", tag:"Right sidebar", name:"The Pulse",
+    desc:"Shows the last thing you were writing, the actual sentence live when you last left. Tap it to return to exactly where you were.",
+    note:"The Pulse looks backward. It's the thread back to where you were." },
+  { eyebrow:"Home screen feature 3", tag:"Your evidence locker", name:"The Dopamine Map", ember:true,
+    desc:"Tap \"This excites me\", wherever it appears in the app, when something lands. Those moments get saved here, proof from when you could see clearly.",
+    note:"When your work doesn't feel as great as it once did, the Dopamine Map is proof of what you saw before. You're leaving notes for your future self." },
+  { eyebrow:"Space one", tag:"Agnes keeps this", name:"The Story Bible", homeTag:true,
+    desc:"Everything Finn knows about your story. Five tabs, plus Research and The Card Catalog. The more you give, the more specific his coaching becomes.",
+    list:[["Sort with Agnes","paste in a pile of messy notes and she'll show you where each piece belongs"]] },
+  { eyebrow:"Space two, four modes inside", name:"The Forge", homeTag:true,
+    desc:"Your writing space. Four modes, switchable from the left sidebar.",
+    list:[["Manuscript","chapters and scenes. Write here. Finn is in the sidebar if you need him"],["Idea Lab","no structure required. Dump everything, sort it later"],["Inferno","hyperfocus mode. Six tools for different moments within it"],["Embers","scenes without a home yet. Covered next"],["Capture to Bible","paste a finished chapter and Agnes extracts what's new for your review"]] },
+  { eyebrow:"Inside The Inferno", name:"The Six Inferno Tools", ember:true,
+    desc:"Pick the tool that matches where you are right now. Not a sequence, jump to whichever fits.",
+    list:[["Capture the Flood","dump everything, one line each"],["Channel the Heat","sort what moves the story now vs later"],["Ride the Wave","pick a scene. A small clock is set for 25 minutes, tap it to begin"],["Flag Everything","flag what's alive for your Dopamine Map"],["Body Check","water, food, standing. 90 seconds"],["Wind Down","capture tomorrow's entry point, then close the document"]] },
+  { eyebrow:"Inside The Forge, fourth mode", tag:"A home for scenes without one yet", name:"Embers", agnes:true,
+    desc:"Scenes that emerged without a place in your manuscript. Agnes reads each one and proposes where it might belong, who's present, and the tension underneath it. Nothing moves until you say so.",
+    note:"I read every ember before you ask. Placement, characters, the tension underneath it. You decide what happens next. I just tell you what I see.",
+    list:[["Let Agnes read it","a placement hypothesis, character tags, and a tension note, right beside the fragment"],["Place in manuscript","drop it into an existing chapter, or start a new one"],["The Drawer","for when it's not even a scene yet, just a line. File lines under your own slots, and bloom one into a full ember the moment it's ready to grow"]] },
+  { eyebrow:"Coaching modes, craft", name:"Six craft modes",
+    desc:"Each is designed for a specific moment. Finn's Read will usually point you there.",
+    modeRows:[["Diagnose My Block","Something is stopping you. Let's find out what"],["Craft Challenge","A targeted exercise, with a clock built in"],["Scene Surgery","Feedback on a specific scene"],["Character Deep Dive","Unlock a character who's giving you trouble"],["Plot Compass","Find the shape of a tangled story"],["Voice & Style","Find what makes your voice distinctly yours"]] },
+  { eyebrow:"Coaching modes, support & other", name:"Eight more modes",
+    desc:"Neurodivergent support, intuition, rest, memory, and synthesis.",
+    modeRows:[["Micro-Mode","Frozen. One tiny step. That's all"],["Perfectionism Bypass","A timed freewrite, clock included"],["Through the Smoke","When your work doesn't feel as great as it once did"],["Instinct Check","Skip the logic. Hear what your gut knows"],["Simmer Mode","Brain cooked. Load one question, step away"],["Rekindle","Been away awhile. Agnes reconstructs where you are",true],["Contain the Flames","Reads across every session and mode, then shows you the shape of what you've built and the one next step"]] },
+  { eyebrow:"Space three", tag:"The whole shape of your story", name:"The Ledger", agnes:true, homeTag:true,
+    desc:"Agnes's read of your manuscript right now: word counts, where each character has and hasn't appeared, your active threads, and any drift she's flagged. Higher-tier sections add Finn's craft-over-time observations and honest feedback, on request.",
+    note:"Ask me to read your story anytime. I'll tell you plainly what I see." },
+  { eyebrow:"Working behind the scenes", tag:"You won't chat with her, except when you ask", name:"Agnes", agnes:true,
+    desc:"The record keeper. She reads your chapters, updates your Story Bible, catches when your story drifts from what you recorded, and reads every Ember and pile of loose notes on request.",
+    list:[["Capture to Bible","extracts what's new, surfaced for your review before anything saves"],["Story Bible Drift","flags it and asks what's true now, never calls it an error"],["Sort with Agnes","files a pile of loose material into the right fields"]] }
+];
+const TOUR_ESSENTIALS = [
+  ["Finn's Read","accent","Finn's suggestion for right now. Tap \"Let's go\" to follow it. Ignore it if it doesn't fit."],
+  ["The Pulse","accent","The last thing you were writing. Tap it to go back to exactly where you left off."],
+  ["Dopamine Map","ember","Tap \"This excites me\" to save a moment. When your work doesn't feel as great as it once did, the Map is proof of what you saw before."],
+  ["Capture to Bible","accent","After finishing a chapter draft, tap this. Agnes extracts what's new into your Story Bible for review."],
+  ["Embers","agnes","Scenes without a home yet, in their own tab in The Forge. Agnes reads each one and suggests where it fits."]
+];
+function TourColor(kind){ return kind==="ember"?"var(--ember,#B06848)":kind==="agnes"?"var(--agnes,#7A6A8A)":"var(--accent)"; }
+
 const CATS = { craft:{l:"Coaching",c:"var(--accent)"}, neuro:{l:"Neurodivergent",c:"#5A7A5C"}, intuition:{l:"Intuition",c:"#7A6EA0"}, rest:{l:"Rest",c:"#907860"}, forge:{l:"Execution",c:"var(--accent)"}, inferno:{l:"Hyperfocus",c:"#B06848"}, contain:{l:"Synthesis",c:"#908050"}, jarvis:{l:"Memory",c:"#5A7A8A"} };
 
 const TORCHES = [
@@ -1002,6 +1054,9 @@ export default function App() {
   // Not user-scoped (no session exists yet when this matters), so it reads straight from localStorage.
   const [hasSeenLanding, setHasSeenLanding] = useState(()=>!!loadStored("tt-hasseenlanding"));
   const [profileOpen, setProfileOpen] = useState(false);
+  const [tourOpen, setTourOpen] = useState(false);
+  const [tourPath, setTourPath] = useState(null); // null (path selector) | "full" | "essentials"
+  const [tourStep, setTourStep] = useState(0); // index into TOUR_FULL; TOUR_FULL.length = end screen
   const [profileEditMode, setProfileEditMode] = useState(false);
   const [profileEditAnswers, setProfileEditAnswers] = useState(null);
   const [profileEditName, setProfileEditName] = useState("");
@@ -3266,6 +3321,10 @@ If there are no concrete sensory details actually present in the conversation (f
     if(prevMsgs.length>=2&&prevMode){generateSidebarContext(prevMsgs,prevMode.label,activeScn?.text||"",prevMode.id,activeScnTag)}
     else if(prevContainerMsgs.length>=2){generateSidebarContext(prevContainerMsgs,"The Forge",activeScn?.text||"","forge",activeScnTag)}
   };
+  const finishTour=()=>{
+    setTourOpen(false);setTourPath(null);setTourStep(0);
+    if(!onboardingDone)routeToDestination(); // mid-onboarding: tour was standing in for the normal route-out
+  };
   const clearStuck=()=>{
     const updated={...project,stuck:""};
     setProject(updated);
@@ -4463,7 +4522,7 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
                   </div>
                 ))}
               </div>
-              <div onClick={()=>{saveAgnesInvolvement(involvementEditChoice);routeToDestination();}} style={{background:"#5A6B3A",borderRadius:7,padding:"11px",textAlign:"center",cursor:"pointer"}}><span style={{fontSize:13,fontWeight:500,color:"#F0EAE0",fontFamily:"'DM Sans',sans-serif"}}>Continue</span></div>
+              <div onClick={()=>{saveAgnesInvolvement(involvementEditChoice);setTourOpen(true);setTourPath(null);setTourStep(0);}} style={{background:"#5A6B3A",borderRadius:7,padding:"11px",textAlign:"center",cursor:"pointer"}}><span style={{fontSize:13,fontWeight:500,color:"#F0EAE0",fontFamily:"'DM Sans',sans-serif"}}>Continue</span></div>
             </div>}
 
             <div style={{textAlign:"center",marginTop:16,paddingTop:16,borderTop:"1px solid #D8CEB0"}}>
@@ -4764,6 +4823,10 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
         </div>
       </div>{/* end content */}
       </div>}{/* end home flex */}
+
+      {!bibleOrganize&&screen==="home"&&<div onClick={()=>{setTourOpen(true);setTourPath(null);setTourStep(0);}} title="Tour & help" style={{position:"fixed",bottom:20,right:20,width:38,height:38,borderRadius:"50%",background:"var(--bg-card-alt)",border:"1px solid var(--border)",display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer",zIndex:60,boxShadow:"0 2px 12px rgba(0,0,0,0.18)"}}>
+        <span style={{fontFamily:"'Cormorant Garamond',serif",fontSize:16,color:"var(--accent)"}}>?</span>
+      </div>}
 
       {/* DESKTOP RIGHT SIDEBAR - SKELETON (no project yet) */}
       {!bibleOrganize&&screen==="home"&&!project&&<div className="right-sb" style={{position:"fixed",right:0,top:0,bottom:0,width:260,background:"var(--bg-dark)",borderLeft:"1px solid var(--border)",padding:"22px 18px",flexDirection:"column",overflowY:"auto"}}>
@@ -7991,12 +8054,102 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
               </div>;
             })}
           </div>
+          <div onClick={()=>{setProfileOpen(false);setTourOpen(true);setTourPath(null);setTourStep(0);}} style={{margin:"0 24px 14px",padding:"10px 14px",border:"1px solid var(--border)",borderRadius:8,cursor:"pointer",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+            <span style={{fontSize:13,fontFamily:"'DM Sans',sans-serif",color:"var(--text-primary)"}}>Revisit the tour</span>
+            <span style={{fontSize:12,color:"var(--text-dim)"}}>{"\u2192"}</span>
+          </div>
           <div style={{padding:"14px 24px",borderTop:"1px solid var(--border)",display:"flex",gap:8,position:"sticky",bottom:0,background:"var(--bg-base)",borderRadius:"0 0 12px 12px"}}>
             {profileEditMode?<>
               <div onClick={()=>setProfileEditMode(false)} style={{background:"none",border:"1px solid var(--border)",borderRadius:7,padding:"10px 16px",cursor:"pointer"}}><span style={{fontSize:13,color:"var(--text-dim)",fontFamily:"'DM Sans',sans-serif"}}>Cancel</span></div>
               <div onClick={()=>{const newName=profileEditName.trim()||userName;setUserName(newName);saveStored("tt-username",newName);cloudSave("tt-username",newName);const updated={...userProfile,...profileEditAnswers,updatedAt:new Date().toISOString()};setUserProfile(updated);saveStored("tt-userprofile",updated);cloudSave("tt-userprofile",updated);saveAgnesInvolvement(involvementEditChoice);setProfileEditMode(false);}} style={{flex:1,background:"var(--accent)",border:"none",borderRadius:7,padding:"10px",textAlign:"center",cursor:"pointer"}}><span style={{fontSize:13,fontWeight:500,color:"var(--bg-deepest)",fontFamily:"'DM Sans',sans-serif"}}>Save changes</span></div>
             </>:<div onClick={()=>{setProfileEditAnswers(userProfile?{q1:{...userProfile.q1},q2:{...userProfile.q2},q3:{...userProfile.q3},q4:{...userProfile.q4},q5:{...userProfile.q5||{selected:[],text:""}},q6:{...userProfile.q6||{selected:[],text:""}}}:{q1:{selected:[],text:""},q2:{selected:[],text:""},q3:{selected:[],text:""},q4:{selected:[],text:""},q5:{selected:[],text:""},q6:{selected:[],text:""}});setProfileEditName(userName||"");setInvolvementEditChoice(agnesInvolvement);setProfileEditMode(true);}} style={{flex:1,background:"var(--accent)",border:"none",borderRadius:7,padding:"10px",textAlign:"center",cursor:"pointer"}}><span style={{fontSize:13,fontWeight:500,color:"var(--bg-deepest)",fontFamily:"'DM Sans',sans-serif"}}>Edit Profile</span></div>}
           </div>
+        </div>
+      </div>}
+
+      {tourOpen&&<div style={{position:"fixed",top:0,left:0,right:0,bottom:0,background:"var(--bg-base)",zIndex:400,overflowY:"auto",display:"flex",flexDirection:"column",animation:"fu .3s ease-out"}}>
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"16px 24px",borderBottom:"1px solid var(--border)"}}>
+          <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:18,fontWeight:500,color:"var(--accent)"}}>Forged Pen</div>
+          <span onClick={finishTour} style={{fontSize:12,color:"var(--text-dim)",cursor:"pointer"}}>Skip {"\u2192"}</span>
+        </div>
+        <div style={{flex:1,maxWidth:480,margin:"0 auto",padding:"28px 24px",width:"100%"}}>
+
+          {tourPath===null&&<>
+            <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:17,color:"var(--text-primary)",lineHeight:1.7,marginBottom:20}}>Forged Pen has much to offer. I want to make sure you know where everything lives, but I also know some people learn by doing, and by exploring. Which one are you?</div>
+            {[["full","Walk me through it","Full tour, every feature, every space, at your pace"],["essentials","Just the essentials","The five things most likely to confuse you, fast"],["skip","I'll explore on my own","Go straight in. The ? button is always here when you need it"]].map(([id,label,sub])=>(
+              <div key={id} onClick={()=>{if(id==="skip"){finishTour();}else{setTourPath(id);setTourStep(0);}}} style={{background:"var(--bg-card)",border:"1px solid var(--border)",borderRadius:8,padding:"14px 16px",marginBottom:9,cursor:"pointer"}}>
+                <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:15,fontWeight:600,color:"var(--text-primary)",marginBottom:3}}>{label}</div>
+                <div style={{fontSize:11,color:"var(--text-dim)",fontFamily:"'DM Sans',sans-serif"}}>{sub}</div>
+              </div>
+            ))}
+          </>}
+
+          {tourPath==="full"&&tourStep<TOUR_FULL.length&&(()=>{
+            const s=TOUR_FULL[tourStep];
+            const themeColor=s.ember?"var(--ember,#B06848)":s.agnes?"var(--agnes,#7A6A8A)":"var(--accent)";
+            return <>
+              <div style={{display:"flex",gap:4,marginBottom:20}}>
+                {TOUR_FULL.map((_,i)=><div key={i} style={{height:2,borderRadius:2,flex:1,background:i<tourStep?"var(--accent)":i===tourStep?themeColor:"var(--border-mid)"}}/>)}
+              </div>
+              <div style={{fontSize:9,textTransform:"uppercase",letterSpacing:"0.18em",color:"var(--text-dim)",fontFamily:"'DM Sans',sans-serif",marginBottom:12}}>{s.eyebrow}</div>
+              <div style={{background:"var(--bg-card)",border:"1px solid "+themeColor,borderRadius:9,padding:"16px 18px",marginBottom:12}}>
+                {s.tag&&<div style={{fontSize:9,letterSpacing:"0.1em",textTransform:"uppercase",color:"var(--text-dim)",fontFamily:"'DM Sans',sans-serif",marginBottom:6}}>{s.tag}</div>}
+                <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:17,fontWeight:600,color:themeColor,marginBottom:8,display:"flex",alignItems:"center",gap:8,flexWrap:"wrap"}}>
+                  {s.name}
+                  {s.homeTag&&<span style={{fontSize:9,fontFamily:"'DM Sans',sans-serif",fontWeight:500,border:"1px solid var(--accent)",color:"var(--accent)",borderRadius:10,padding:"1px 8px"}}>Also on Home</span>}
+                </div>
+                <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:14,color:"var(--text-muted)",lineHeight:1.65}}>{s.desc}</div>
+              </div>
+              {s.note&&<div style={{background:"var(--bg-card-alt)",borderLeft:"3px solid "+(s.agnes?"var(--agnes,#7A6A8A)":"var(--accent)"),borderRadius:"0 8px 8px 0",padding:"11px 14px",marginBottom:12}}>
+                <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:13,color:"var(--text-primary)",lineHeight:1.6,fontStyle:"italic"}}>{s.note}</div>
+              </div>}
+              {s.list&&<div style={{marginBottom:12}}>
+                {s.list.map((item,i)=>(
+                  <div key={i} style={{display:"flex",gap:8,padding:"7px 0",borderBottom:i<s.list.length-1?"1px solid var(--border)":"none"}}>
+                    <span style={{fontSize:13,fontFamily:"'Cormorant Garamond',serif",fontWeight:600,color:themeColor,flexShrink:0}}>{item[0]}:</span>
+                    <span style={{fontSize:13,fontFamily:"'Cormorant Garamond',serif",color:"var(--text-secondary)",lineHeight:1.55}}>{item[1]}</span>
+                  </div>
+                ))}
+              </div>}
+              {s.modeRows&&<div style={{marginBottom:12}}>
+                {s.modeRows.map((row,i)=>(
+                  <div key={i} style={{display:"flex",justifyContent:"space-between",alignItems:"baseline",gap:10,padding:"7px 0",borderBottom:i<s.modeRows.length-1?"1px solid var(--border)":"none"}}>
+                    <span style={{fontSize:13,fontFamily:"'Cormorant Garamond',serif",fontWeight:500,color:"var(--text-primary)",display:"flex",alignItems:"center",gap:6}}>
+                      {row[0]}
+                      {row[2]&&<span style={{fontSize:8,fontFamily:"'DM Sans',sans-serif",fontWeight:500,border:"1px solid var(--accent)",color:"var(--accent)",borderRadius:9,padding:"0 6px"}}>Also on Home</span>}
+                    </span>
+                    <span style={{fontSize:11,color:"var(--text-dim)",fontFamily:"'DM Sans',sans-serif",textAlign:"right",maxWidth:160}}>{row[1]}</span>
+                  </div>
+                ))}
+              </div>}
+              <div style={{display:"flex",gap:8,marginTop:8}}>
+                {tourStep>0&&<div onClick={()=>setTourStep(st=>st-1)} style={{border:"1px solid var(--border)",borderRadius:7,padding:"10px 16px",cursor:"pointer"}}><span style={{fontSize:12,color:"var(--text-dim)"}}>{"\u2190"}</span></div>}
+                <div onClick={()=>setTourStep(st=>st+1)} style={{flex:1,background:"var(--accent)",borderRadius:7,padding:"10px",textAlign:"center",cursor:"pointer"}}><span style={{fontSize:13,fontWeight:500,color:"var(--bg-deepest)",fontFamily:"'DM Sans',sans-serif"}}>{tourStep===TOUR_FULL.length-1?"Finish":"Next \u2192"}</span></div>
+              </div>
+            </>;
+          })()}
+
+          {tourPath==="essentials"&&<>
+            <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:16,fontWeight:500,color:"var(--text-primary)",marginBottom:18,lineHeight:1.4}}>Five things that might look confusing at first.</div>
+            {TOUR_ESSENTIALS.map(([name,kind,text],i)=>(
+              <div key={i} style={{marginBottom:16,paddingBottom:16,borderBottom:i<TOUR_ESSENTIALS.length-1?"1px solid var(--border)":"none"}}>
+                <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:15,fontWeight:600,color:TourColor(kind),marginBottom:4}}>{name}</div>
+                <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:13,color:"var(--text-muted)",lineHeight:1.6}}>{text}</div>
+              </div>
+            ))}
+            <div onClick={finishTour} style={{background:"var(--accent)",borderRadius:7,padding:"11px",textAlign:"center",cursor:"pointer",marginTop:6}}><span style={{fontSize:13,fontWeight:500,color:"var(--bg-deepest)",fontFamily:"'DM Sans',sans-serif"}}>That's enough. Let's go {"\u2192"}</span></div>
+          </>}
+
+          {tourPath==="full"&&tourStep>=TOUR_FULL.length&&<>
+            <div style={{width:44,height:44,borderRadius:"50%",background:"var(--bg-card)",border:"1px solid var(--border)",display:"flex",alignItems:"center",justifyContent:"center",marginBottom:16}}>
+              <span style={{fontFamily:"'Cormorant Garamond',serif",fontSize:18,color:"var(--accent)"}}>F</span>
+            </div>
+            <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:22,fontWeight:600,color:"var(--text-primary)",marginBottom:10}}>You're in.</div>
+            <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:14,color:"var(--text-muted)",lineHeight:1.7,marginBottom:20}}>Four spaces. Agnes keeps the record. Finn coaches. Every word on the page is yours. The ? button is always there when you need it.</div>
+            <div onClick={finishTour} style={{background:"var(--accent)",borderRadius:7,padding:"11px",textAlign:"center",cursor:"pointer",marginBottom:10}}><span style={{fontSize:13,fontWeight:500,color:"var(--bg-deepest)",fontFamily:"'DM Sans',sans-serif"}}>Let's begin {"\u2192"}</span></div>
+            <div onClick={()=>setTourStep(TOUR_FULL.length-1)} style={{textAlign:"center"}}><span style={{fontSize:11,color:"var(--text-dim)",cursor:"pointer"}}>{"\u2190"} Back</span></div>
+          </>}
+
         </div>
       </div>}
 
