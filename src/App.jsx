@@ -1143,6 +1143,17 @@ export default function App() {
   const [endSessionCommitting, setEndSessionCommitting] = useState(false);
   const [sessionSummaries, setSessionSummaries] = useState([]);
   const [historyScreen, setHistoryScreen] = useState(false);
+  // FULL READ: post-upload offer through the whole read cycle. Lives entirely in this one state
+  // object plus project.fullRead (the persisted result), same pattern as noteSort/bibleOrganize.
+  const [fullReadPrompt, setFullReadPrompt] = useState(null); // null | {step:"offer"} | {step:"categories"}
+  const FULL_READ_CATEGORIES=[
+    {id:"plot",label:"Plot & Pacing",mode:"plot"},
+    {id:"character",label:"Character",mode:"character"},
+    {id:"voice",label:"Voice",mode:"voice"},
+    {id:"scene",label:"Scene Craft",mode:"scene"}
+  ];
+  const [fullReadContextOpen,setFullReadContextOpen]=useState(null); // index of item whose "this was intentional" note field is open
+  const [fullReadContextText,setFullReadContextText]=useState("");
   const [sceneNotesOpen, setSceneNotesOpen] = useState(false);
   const [extracting, setExtracting] = useState(false);
   const [extractResult, setExtractResult] = useState(null);
@@ -2389,6 +2400,119 @@ Respond with ONLY this JSON:
     setExtracting(false);
   };
 
+  // FULL READ, PHASE 1: a lean bulk pass, chapter summaries and core Bible fields only. Deliberately
+  // does NOT propose new characters or threads and does NOT run drift detection, both of those stay
+  // exactly as manual and reviewed as they already are everywhere else in the app. This just gets
+  // enough into the Bible for Phase 2's holistic read to have real chapter summaries to work from.
+  const runFullReadPhase1=async(chaptersToCapture,onProgress)=>{
+    let liveProject=project;
+    for(const ch of chaptersToCapture){
+      onProgress(ch.num);
+      try{
+        const existingBible=`Title: ${liveProject?.title||"untitled"}\nSynopsis: ${liveProject?.synopsis||"none"}\nProtagonist: ${liveProject?.protagonist||"none"}\nSupporting: ${liveProject?.supporting||"none"}\nAntagonist: ${liveProject?.antagonist||"none"}\nWorld: ${liveProject?.worldSetting||"none"}\nThemes: ${liveProject?.themes||"none"}\nMain plot: ${liveProject?.mainPlot||"none"}`;
+        const r=await fetch("/api/chat",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({
+          max_tokens:2000,
+          system:"You are Agnes, a meticulous literary archivist doing a fast first pass across a writer's whole manuscript. Extract only a chapter summary and any genuinely new core Bible material. Do not propose new characters, do not propose threads, do not check for drift, none of that here, this is deliberately a lighter pass. Never use em dashes. Respond ONLY with a JSON object.",
+          messages:[{role:"user",content:`EXISTING BIBLE:\n${existingBible}\n\nCHAPTER ${ch.num}:\n${ch.text.substring(0,20000)}\n\nRespond with ONLY this JSON:\n{"chapterSummary":"2-3 sentences, what happens and what changes","protagonistReveal":"new protagonist detail, empty string if none","worldReveal":"new world/setting detail, empty string if none","supportingReveal":"new supporting character detail, empty string if none","antagonistReveal":"new antagonist detail, empty string if none","themeReveal":"empty string if none","mainPlotUpdate":"empty string if none"}`}]
+        })});
+        const d=await r.json();
+        if(d.error)continue;
+        const raw=finnClean(d.content?.filter(b=>b.type==="text").map(b=>b.text).join(""))||"";
+        const parsed=JSON.parse(raw.replace(/```json\s*/g,"").replace(/```\s*/g,"").trim());
+        const existingChapters=Array.isArray(liveProject?.chapters)?[...liveProject.chapters]:[];
+        const idx=existingChapters.findIndex(c=>c.num===ch.num);
+        if(idx>=0)existingChapters[idx]={...existingChapters[idx],summary:parsed.chapterSummary||existingChapters[idx].summary};
+        else existingChapters.push({num:ch.num,summary:parsed.chapterSummary||""});
+        existingChapters.sort((a,b)=>a.num-b.num);
+        const appendField=(obj,key,val)=>{if(val&&val.trim())obj[key]=(obj[key]?obj[key]+"\n\n":"")+val;};
+        const updated={...liveProject,chapters:existingChapters};
+        appendField(updated,"protagonist",parsed.protagonistReveal);
+        appendField(updated,"worldSetting",parsed.worldReveal);
+        appendField(updated,"supporting",parsed.supportingReveal);
+        appendField(updated,"antagonist",parsed.antagonistReveal);
+        appendField(updated,"themes",parsed.themeReveal);
+        appendField(updated,"mainPlot",parsed.mainPlotUpdate);
+        updated.updated=Date.now();
+        liveProject=updated;
+        setProject(updated);setPForm(prev=>({...prev,...updated}));
+        saveStored("tt-project",updated);cloudSave("tt-project",updated);
+      }catch(e){console.log("Full Read phase 1 error, chapter "+ch.num+":",e);}
+    }
+    return liveProject;
+  };
+  // FULL READ, PHASE 2: Finn reads the whole assembled manuscript in one pass, organized by the
+  // categories the writer picked. Every item has to cite real chapters and close with a specific
+  // question or action, never a vague gesture at reflection, that rule is written into the prompt
+  // itself. Previously-dismissed-as-intentional findings are passed in explicitly so they don't
+  // resurface as if never addressed.
+  const runFullReadPhase2=async(builtProject,categories,priorIntentional)=>{
+    const fullText=[...scenes].sort((a,b)=>a.chapter-b.chapter).map(s=>`Chapter ${s.chapter}:\n${s.text||""}`).join("\n\n").substring(0,150000);
+    const bibleCtx=`Title: ${builtProject?.title||"untitled"}\nSynopsis: ${builtProject?.synopsis||"none"}\nProtagonist: ${builtProject?.protagonist||"none"}\nSupporting: ${builtProject?.supporting||"none"}\nAntagonist: ${builtProject?.antagonist||"none"}\nWorld: ${builtProject?.worldSetting||"none"}\nThemes: ${builtProject?.themes||"none"}\nMain plot: ${builtProject?.mainPlot||"none"}`;
+    const catLabels=categories.map(c=>FULL_READ_CATEGORIES.find(f=>f.id===c)?.label||c).join(", ");
+    const alreadyAddressed=(priorIntentional||[]).map(n=>`- ${n}`).join("\n")||"none yet";
+    const r=await fetch("/api/chat",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({
+      max_tokens:4000,
+      system:`You are Finn, reading a writer's whole manuscript at once, the kind of judgment only visible at that scale, not chapter by chapter. Categories to look at: ${catLabels}. Rules, all mandatory: every item must cite specific chapter numbers and the actual moment, never a trait floating free of evidence. Every item must close with either a specific question rooted in the real manuscript or a concrete next action, never a vague phrase like "worth sitting with" that just gestures at reflection. Lead each item with what's genuinely working before naming what's worth a closer look, same rule Finn always follows. Order items foundational-to-surface, structural things first, surface polish last. Never raise anything the writer has already marked intentional: ${alreadyAddressed}. Never use em dashes. Respond ONLY with a JSON object.`,
+      messages:[{role:"user",content:`STORY BIBLE:\n${bibleCtx}\n\nFULL MANUSCRIPT:\n${fullText}\n\nRespond with ONLY this JSON:\n{"items":[{"category":"one of: plot, character, voice, scene","title":"short title","strength":"what's genuinely working, cited to a chapter","observation":"the specific finding, cited to chapters, closing with a real question or concrete action","chapters":[1,2]}]}`}]
+    })});
+    const d=await r.json();
+    if(d.error)throw new Error(d.error);
+    const raw=finnClean(d.content?.filter(b=>b.type==="text").map(b=>b.text).join(""))||"";
+    const parsed=JSON.parse(raw.replace(/```json\s*/g,"").replace(/```\s*/g,"").trim());
+    return Array.isArray(parsed.items)?parsed.items.filter(it=>it&&it.title&&it.observation):[];
+  };
+  const runFullRead=async(categories)=>{
+    const captured=new Set((project?.chapters||[]).filter(c=>c.summary).map(c=>c.num));
+    const allChapterNums=[...new Set(scenes.map(s=>s.chapter))].sort((a,b)=>a-b);
+    const toCapture=allChapterNums.filter(n=>!captured.has(n)).map(n=>({num:n,text:scenes.filter(s=>s.chapter===n).map(s=>s.text||"").join("\n\n")})).filter(c=>c.text.trim().length>50);
+    setFullReadPrompt(null);
+    const startState={status:"running",phase:"agnes",progressChapter:null,totalChapters:allChapterNums.length,categories,generatedAt:Date.now()};
+    const withRun={...project,fullRead:startState,updated:Date.now()};
+    setProject(withRun);saveStored("tt-project",withRun);cloudSave("tt-project",withRun);
+    let builtProject=project;
+    if(toCapture.length>0){
+      builtProject=await runFullReadPhase1(toCapture,(chNum)=>{
+        setProject(prev=>{const u={...prev,fullRead:{...prev.fullRead,progressChapter:chNum}};saveStored("tt-project",u);return u;});
+      });
+    }
+    setProject(prev=>{const u={...prev,fullRead:{...prev.fullRead,phase:"finn"}};saveStored("tt-project",u);return u;});
+    try{
+      const priorIntentional=Object.entries(project?.fullRead?.intentionalNotes||{}).map(([idx,note])=>{
+        const item=(project?.fullRead?.items||[])[idx];
+        return item?`${item.title}: ${note}`:note;
+      });
+      const items=await runFullReadPhase2(builtProject,categories,priorIntentional);
+      const finalState={status:"done",categories,items,resolutions:{},intentionalNotes:{},generatedAt:Date.now()};
+      const updated={...builtProject,fullRead:finalState,updated:Date.now()};
+      setProject(updated);setPForm(prev=>({...prev,fullRead:finalState}));
+      saveStored("tt-project",updated);cloudSave("tt-project",updated);
+    }catch(e){
+      console.log("Full Read phase 2 error:",e);
+      const updated={...builtProject,fullRead:{status:"error"},updated:Date.now()};
+      setProject(updated);saveStored("tt-project",updated);cloudSave("tt-project",updated);
+    }
+  };
+  // Three-way resolution, same shape as Drift: work on it now, mark it done, or mark it intentional
+  // with context. Intentional context is remembered on the project itself, so future Full Reads are
+  // told never to raise it again, that's the whole point of giving the writer the right to dismiss.
+  const resolveFullReadItem=(idx,resolution,contextText)=>{
+    const fr={...(project.fullRead||{})};
+    fr.resolutions={...(fr.resolutions||{}),[idx]:resolution};
+    if(resolution==="intentional"&&contextText&&contextText.trim()){
+      fr.intentionalNotes={...(fr.intentionalNotes||{}),[idx]:contextText.trim()};
+    }
+    const updated={...project,fullRead:fr,updated:Date.now()};
+    setProject(updated);saveStored("tt-project",updated);cloudSave("tt-project",updated);
+  };
+  // "Work on this with Finn": opens the coaching mode matching the item's category, seeded with the
+  // specific finding as the opening message, so the writer lands mid-thought instead of a blank chat.
+  const routeFullReadItem=(item)=>{
+    const cat=FULL_READ_CATEGORIES.find(c=>c.id===item.category);
+    const targetMode=MODES.find(m=>m.id===(cat?.mode||"plot"));
+    if(!targetMode)return;
+    pick(targetMode);
+    setTimeout(()=>setMsgs(prev=>[...prev,{role:"user",content:`Full Read flagged this: ${item.observation}`}]),300);
+  };
   const [manualDriftScanning,setManualDriftScanning]=useState(false);
   // For Off mode, where the automatic check never runs during Capture to Bible. This asks Agnes to
   // compare an already-captured chapter against the current Bible on demand, without redoing the full
@@ -6373,6 +6497,47 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
             </>}
           </div>
 
+          {project?.fullRead&&<div style={{marginBottom:26}}>
+            <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:4}}>
+              <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:17,color:"var(--text-primary)",fontWeight:600}}>Full Read</div>
+            </div>
+            {project.fullRead.status==="running"&&<div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:13,color:"var(--text-dim)",fontStyle:"italic"}}>
+              {project.fullRead.phase==="agnes"?`Agnes is reading${project.fullRead.progressChapter?` chapter ${project.fullRead.progressChapter} of ${project.fullRead.totalChapters}`:""}...`:"Finn is reading the whole manuscript at once..."}
+            </div>}
+            {project.fullRead.status==="error"&&<div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:13,color:"var(--text-dim)",fontStyle:"italic"}}>That didn't come through. <span onClick={()=>runFullRead(project.fullRead.categories)} style={{color:"var(--accent)",cursor:"pointer",textDecoration:"underline"}}>Try again</span></div>}
+            {project.fullRead.status==="done"&&(()=>{
+              const items=project.fullRead.items||[];
+              const resolutions=project.fullRead.resolutions||{};
+              const activeIdx=items.findIndex((it,i)=>!resolutions[i]);
+              if(activeIdx===-1)return <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:13,color:"var(--text-dim)",fontStyle:"italic"}}>You've worked through this Full Read. <span onClick={()=>setFullReadPrompt({step:"categories",selected:["plot","character","voice","scene"]})} style={{color:"var(--accent)",cursor:"pointer",textDecoration:"underline"}}>Run a new one</span></div>;
+              const item=items[activeIdx];
+              const catLabel=FULL_READ_CATEGORIES.find(c=>c.id===item.category)?.label||item.category;
+              return <>
+                <div style={{fontSize:9,textTransform:"uppercase",letterSpacing:"0.1em",color:"var(--text-dim)",fontFamily:"'DM Sans',sans-serif",marginBottom:8}}>Working through, in the order Finn suggested &middot; {activeIdx+1} of {items.length}</div>
+                <div style={{display:"flex",gap:4,marginBottom:14}}>
+                  {items.map((_,i)=><div key={i} style={{flex:1,height:3,borderRadius:2,background:resolutions[i]?"var(--accent)":i===activeIdx?"var(--ember,#B06848)":"var(--border-mid)"}}/>)}
+                </div>
+                <div style={{background:"var(--bg-card)",borderLeft:"3px solid var(--ember,#B06848)",borderRadius:"0 9px 9px 0",padding:"15px 17px"}}>
+                  <span style={{fontSize:9,textTransform:"uppercase",letterSpacing:"0.1em",color:"var(--ember,#B06848)",fontWeight:600}}>Finn &middot; {catLabel}</span>
+                  <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:14,fontStyle:"italic",color:"var(--text-muted)",lineHeight:1.65,margin:"8px 0 6px"}}>{item.strength}</div>
+                  <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:14,color:"var(--text-primary)",lineHeight:1.65,marginBottom:12}}>{item.observation}</div>
+                  {fullReadContextOpen===activeIdx?<>
+                    <textarea value={fullReadContextText} onChange={e=>setFullReadContextText(e.target.value)} placeholder="Tell Finn why, so it's not raised again the same way" rows={2} style={{width:"100%",background:"var(--bg-card-alt)",border:"1px dashed var(--border-mid)",borderRadius:7,padding:"8px 10px",fontFamily:"'Cormorant Garamond',serif",fontSize:13,color:"var(--text-primary)",outline:"none",resize:"vertical",marginBottom:8}}/>
+                    <div style={{display:"flex",gap:8}}>
+                      <span onClick={()=>{resolveFullReadItem(activeIdx,"intentional",fullReadContextText);setFullReadContextOpen(null);setFullReadContextText("");}} style={{fontSize:11,padding:"5px 13px",borderRadius:6,background:"var(--ember,#B06848)",color:"#fff",cursor:"pointer",fontFamily:"'DM Sans',sans-serif"}}>Save</span>
+                      <span onClick={()=>{setFullReadContextOpen(null);setFullReadContextText("");}} style={{fontSize:11,padding:"5px 13px",borderRadius:6,border:"1px solid var(--border)",color:"var(--text-dim)",cursor:"pointer",fontFamily:"'DM Sans',sans-serif"}}>Cancel</span>
+                    </div>
+                  </>:<div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
+                    <span onClick={()=>routeFullReadItem(item)} style={{fontSize:11,padding:"5px 13px",borderRadius:6,background:"var(--accent)",color:"var(--bg-deepest)",cursor:"pointer",fontFamily:"'DM Sans',sans-serif"}}>Work on this with Finn</span>
+                    <span onClick={()=>resolveFullReadItem(activeIdx,"done")} style={{fontSize:11,padding:"5px 13px",borderRadius:6,border:"1px solid var(--border)",color:"var(--text-dim)",cursor:"pointer",fontFamily:"'DM Sans',sans-serif"}}>Mark as done</span>
+                    <span onClick={()=>{setFullReadContextOpen(activeIdx);setFullReadContextText("");}} style={{fontSize:11,padding:"5px 13px",borderRadius:6,border:"1px solid var(--ember,#B06848)",color:"var(--ember,#B06848)",cursor:"pointer",fontFamily:"'DM Sans',sans-serif"}}>This was intentional</span>
+                  </div>}
+                </div>
+                {items.length-activeIdx-1>0&&<div style={{fontSize:11,color:"var(--text-dim)",fontStyle:"italic",fontFamily:"'Cormorant Garamond',serif",marginTop:10}}>{items.length-activeIdx-1} more waiting quietly, one at a time.</div>}
+              </>;
+            })()}
+          </div>}
+
           {allDrifts.length>0&&<div>
             <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:17,color:"var(--text-primary)",fontWeight:600,marginBottom:12}}>What Agnes has noticed</div>
             {allDrifts.map((d,di)=>(
@@ -6506,6 +6671,9 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
                       }));
                       saveScenes(newScenes);setScenes(newScenes);
                       setActiveScene(newScenes[0].id);saveStored("tt-activescene",newScenes[0].id);
+                      // A genuine bulk upload, several chapters landing at once, is exactly the moment
+                      // Full Read exists for. A single-chapter paste doesn't trigger this.
+                      if(chunks.length>1)setTimeout(()=>setFullReadPrompt({step:"offer"}),400);
                     };
                     reader.readAsText(file);
                     e.target.value="";
@@ -8218,6 +8386,44 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
             <div onClick={()=>setTourStep(TOUR_FULL.length-1)} style={{textAlign:"center"}}><span style={{fontSize:11,color:"var(--text-dim)",cursor:"pointer"}}>{"\u2190"} Back</span></div>
           </>}
 
+        </div>
+      </div>}
+
+
+      {fullReadPrompt&&<div style={{position:"fixed",top:0,left:0,right:0,bottom:0,background:"rgba(0,0,0,0.7)",zIndex:400,display:"flex",alignItems:"center",justifyContent:"center",padding:20}}>
+        <div style={{background:"var(--bg-card)",border:"1px solid var(--border)",borderRadius:12,padding:"22px 24px",maxWidth:400,width:"100%"}}>
+          {fullReadPrompt.step==="offer"&&<>
+            <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:10}}>
+              <span style={{width:26,height:26,borderRadius:"50%",background:"var(--agnes-15,rgba(122,106,138,0.15))",color:"var(--agnes,#7A6A8A)",fontFamily:"'Cormorant Garamond',serif",fontSize:13,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>A</span>
+              <span style={{fontFamily:"'Cormorant Garamond',serif",fontSize:15,color:"var(--text-primary)"}}>Agnes has read all {[...new Set(scenes.map(s=>s.chapter))].length} chapters.</span>
+            </div>
+            <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:13,color:"var(--text-muted)",lineHeight:1.6,marginBottom:16}}>{project?.title||"Your manuscript"} is in your Story Bible now. Want Finn's full read while it's fresh, or would you rather work through things as they come up?</div>
+            <div onClick={()=>setFullReadPrompt({step:"categories",selected:["plot","character","voice","scene"]})} style={{border:"1px solid var(--accent)",borderRadius:8,padding:"11px 13px",marginBottom:8,cursor:"pointer"}}>
+              <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+                <span style={{fontFamily:"'Cormorant Garamond',serif",fontSize:14,fontWeight:600,color:"var(--accent)"}}>Give me the full read</span>
+                <span style={{fontSize:9,padding:"2px 8px",borderRadius:9,background:"var(--accent-15)",color:"var(--accent)",fontFamily:"'DM Sans',sans-serif"}}>$14.99, one time</span>
+              </div>
+              <div style={{fontSize:11,color:"var(--text-dim)",marginTop:3,fontFamily:"'DM Sans',sans-serif"}}>Finn reads the whole manuscript at once, organized and ready in The Ledger</div>
+            </div>
+            <div onClick={()=>setFullReadPrompt(null)} style={{border:"1px solid var(--border)",borderRadius:8,padding:"11px 13px",cursor:"pointer"}}>
+              <span style={{fontFamily:"'Cormorant Garamond',serif",fontSize:14,color:"var(--text-primary)"}}>I'll work through it as I go</span>
+              <div style={{fontSize:11,color:"var(--text-dim)",marginTop:3,fontFamily:"'DM Sans',sans-serif"}}>No charge. Coach as you write, chapter by chapter, same as always</div>
+            </div>
+          </>}
+          {fullReadPrompt.step==="categories"&&<>
+            <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:15,fontStyle:"italic",color:"var(--text-primary)",marginBottom:12}}>What do you want Finn looking for?</div>
+            <div style={{display:"flex",flexWrap:"wrap",gap:6,marginBottom:16}}>
+              <span onClick={()=>setFullReadPrompt(prev=>({...prev,selected:["plot","character","voice","scene"]}))} style={{fontSize:11,padding:"5px 12px",borderRadius:14,cursor:"pointer",fontFamily:"'DM Sans',sans-serif",background:FULL_READ_CATEGORIES.every(c=>fullReadPrompt.selected.includes(c.id))?"var(--accent)":"var(--bg-card-alt)",color:FULL_READ_CATEGORIES.every(c=>fullReadPrompt.selected.includes(c.id))?"var(--bg-deepest)":"var(--text-muted)",border:"1px solid var(--border)"}}>Everything</span>
+              {FULL_READ_CATEGORIES.map(cat=>{
+                const on=fullReadPrompt.selected.includes(cat.id);
+                return <span key={cat.id} onClick={()=>setFullReadPrompt(prev=>({...prev,selected:on?prev.selected.filter(x=>x!==cat.id):[...prev.selected,cat.id]}))} style={{fontSize:11,padding:"5px 12px",borderRadius:14,cursor:"pointer",fontFamily:"'DM Sans',sans-serif",background:on?"var(--accent)":"transparent",color:on?"var(--bg-deepest)":"var(--text-dim)",border:"1px solid "+(on?"var(--accent)":"var(--border)")}}>{cat.label}</span>;
+              })}
+            </div>
+            <div style={{display:"flex",gap:8}}>
+              <span onClick={()=>{if(fullReadPrompt.selected.length>0)runFullRead(fullReadPrompt.selected);}} style={{flex:1,textAlign:"center",fontSize:12,fontWeight:500,padding:"10px",borderRadius:7,cursor:fullReadPrompt.selected.length>0?"pointer":"default",background:fullReadPrompt.selected.length>0?"var(--accent)":"var(--bg-card-alt)",color:fullReadPrompt.selected.length>0?"var(--bg-deepest)":"var(--text-dim)",fontFamily:"'DM Sans',sans-serif"}}>Start the full read</span>
+              <span onClick={()=>setFullReadPrompt(null)} style={{fontSize:12,padding:"10px 14px",borderRadius:7,border:"1px solid var(--border)",color:"var(--text-dim)",cursor:"pointer",fontFamily:"'DM Sans',sans-serif"}}>Cancel</span>
+            </div>
+          </>}
         </div>
       </div>}
 
