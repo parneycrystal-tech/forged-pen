@@ -1056,6 +1056,7 @@ export default function App() {
   const [hasSeenLanding, setHasSeenLanding] = useState(()=>!!loadStored("tt-hasseenlanding"));
   const [profileOpen, setProfileOpen] = useState(false);
   const [tourOpen, setTourOpen] = useState(false);
+  const [tourReturnTo, setTourReturnTo] = useState(null); // set when the tour opens mid-onboarding (after writer-type), so finishTour knows to continue onboarding instead of routing out
   const [tourPath, setTourPath] = useState(null); // null (path selector) | "full" | "essentials"
   const [tourStep, setTourStep] = useState(0); // index into TOUR_FULL; TOUR_FULL.length = end screen
   const [profileEditMode, setProfileEditMode] = useState(false);
@@ -3448,7 +3449,8 @@ If there are no concrete sensory details actually present in the conversation (f
   };
   const finishTour=()=>{
     setTourOpen(false);setTourPath(null);setTourStep(0);
-    if(!onboardingDone)routeToDestination(); // mid-onboarding: tour was standing in for the normal route-out
+    if(tourReturnTo){const next=tourReturnTo;setTourReturnTo(null);setWelcomeStep(next);}
+    else if(!onboardingDone)routeToDestination(); // end of onboarding: tour was standing in for the normal route-out
   };
   const clearStuck=()=>{
     const updated={...project,stuck:""};
@@ -3463,6 +3465,7 @@ If there are no concrete sensory details actually present in the conversation (f
     else if(welcomeRoute==="idealab"){setForgeMode("idealab");initScenes();}
     else if(welcomeRoute==="storybible"){saveSession(null);setScreen("setup");}
     else if(welcomeRoute==="manuscript"||welcomeRoute==="forge"){initScenes();}
+    else if(welcomeRoute==="buildfresh"){saveSession(null);setScreen("setup");}
     else{saveSession(null);setScreen("home");}
   };
 
@@ -4489,7 +4492,7 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
                   {id:"discovery",label:"Discovery writer",sub:"I find my story through writing it."},
                   {id:"hybrid",label:"Hybrid",sub:"Some of it is mapped. Some of it finds me."}
                 ].map(opt=>(
-                  <div key={opt.id} onClick={()=>{setWriterType(opt.id);if(opt.id==="discovery"){setWelcomeStep("discovery-reminder");}else{setWelcomeStep("material-check");}}} style={{background:writerType===opt.id?"#F5EEE4":"#F0EAE0",border:"1px solid "+(writerType===opt.id?"#A8884A":"#C8BC9A"),borderRadius:8,padding:"14px 16px",cursor:"pointer",transition:"all .2s"}}>
+                  <div key={opt.id} onClick={()=>{setWriterType(opt.id);setTourReturnTo(opt.id==="discovery"?"discovery-reminder":"material-check");setTourOpen(true);setTourPath(null);setTourStep(0);}} style={{background:writerType===opt.id?"#F5EEE4":"#F0EAE0",border:"1px solid "+(writerType===opt.id?"#A8884A":"#C8BC9A"),borderRadius:8,padding:"14px 16px",cursor:"pointer",transition:"all .2s"}}>
                     <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:16,color:"#1E1C14",marginBottom:4}}>{opt.label}</div>
                     <div style={{fontSize:11,color:"#7A6E60",fontFamily:"'DM Sans',sans-serif"}}>{opt.sub}</div>
                   </div>
@@ -4510,28 +4513,41 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
                 <p style={{fontFamily:"'Cormorant Garamond',serif",fontSize:16,fontWeight:300,color:"#3A3428",lineHeight:1.85}}>You can turn her checks down, off, or leave them as they are, any time, on your Profile page. If you want her to look back over everything you have written, not just what happens after you change her level, that option lives there too. Nothing you write without her gets left behind.</p>
               </div>
               <div onClick={()=>{setWelcomeRoute("idealab");setWelcomeStep("response");}} style={{background:"#5A6B3A",borderRadius:7,padding:"11px",textAlign:"center",cursor:"pointer"}}><span style={{fontSize:13,fontWeight:500,color:"#F0EAE0",fontFamily:"'DM Sans',sans-serif"}}>Continue</span></div>
-              <div style={{textAlign:"center",marginTop:12}}><span onClick={()=>setWelcomeStep("writer-type")} style={{fontSize:11,color:"#908878",cursor:"pointer",fontFamily:"'DM Sans',sans-serif"}}>That's not quite right</span></div>
+              <div style={{textAlign:"center",marginTop:12}}><span onClick={()=>setWelcomeStep("writer-type")} style={{fontSize:11,color:"#908878",cursor:"pointer",fontFamily:"'DM Sans',sans-serif"}}>{"\u2190"} Back</span></div>
             </>}
 
             {welcomeStep==="material-check"&&<>
               <div style={{borderTop:"1px solid #D8CEB0",paddingTop:24,marginBottom:20}}>
-                <p style={{fontFamily:"'Cormorant Garamond',serif",fontSize:16,fontStyle:"italic",color:"#5A5040"}}>Do you already have notes, characters, an outline, or chapters, or are we building fresh, right here?</p>
+                <p style={{fontFamily:"'Cormorant Garamond',serif",fontSize:16,fontStyle:"italic",color:"#5A5040"}}>Do you already have something, or are we building fresh?</p>
               </div>
               <div style={{display:"flex",flexDirection:"column",gap:10}}>
-                <div onClick={()=>{setWelcomeRoute("storybible");setWelcomeStep("response");}} style={{background:"#F0EAE0",border:"1px solid #C8BC9A",borderRadius:8,padding:"14px 16px",cursor:"pointer"}}>
-                  <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:16,color:"#1E1C14",marginBottom:4}}>Paste in what I have</div>
-                  <div style={{fontSize:11,color:"#7A6E60",fontFamily:"'DM Sans',sans-serif"}}>Agnes reads through it and helps you organize your Story Bible.</div>
+                <div onClick={()=>setWelcomeStep("material-subchoice")} style={{background:"#F0EAE0",border:"1px solid #C8BC9A",borderRadius:8,padding:"14px 16px",cursor:"pointer"}}>
+                  <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:16,color:"#1E1C14",marginBottom:4}}>I already have something</div>
+                  <div style={{fontSize:11,color:"#7A6E60",fontFamily:"'DM Sans',sans-serif"}}>Notes, an outline, or chapters already written.</div>
                 </div>
-                <div onClick={()=>{setWelcomeRoute("manuscript");setWelcomeStep("response");}} style={{background:"#F0EAE0",border:"1px solid #C8BC9A",borderRadius:8,padding:"14px 16px",cursor:"pointer"}}>
-                  <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:16,color:"#1E1C14",marginBottom:4}}>I have chapters already drafted</div>
-                  <div style={{fontSize:11,color:"#7A6E60",fontFamily:"'DM Sans',sans-serif"}}>Bring your manuscript in, and Agnes will help you go deeper.</div>
-                </div>
-                <div onClick={()=>{setWelcomeRoute("buildfresh");setWelcomeStep("response");}} style={{background:"#F0EAE0",border:"1px solid #C8BC9A",borderRadius:8,padding:"14px 16px",cursor:"pointer"}}>
+                <div onClick={()=>{setWelcomeRoute("buildfresh");routeToDestination();}} style={{background:"#F0EAE0",border:"1px solid #C8BC9A",borderRadius:8,padding:"14px 16px",cursor:"pointer"}}>
                   <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:16,color:"#1E1C14",marginBottom:4}}>Build it fresh here</div>
                   <div style={{fontSize:11,color:"#7A6E60",fontFamily:"'DM Sans',sans-serif"}}>Open Story Bible, no guided prompts, just you and the fields.</div>
                 </div>
               </div>
-              <div style={{textAlign:"center",marginTop:12}}><span onClick={()=>setWelcomeStep("writer-type")} style={{fontSize:11,color:"#908878",cursor:"pointer",fontFamily:"'DM Sans',sans-serif"}}>That's not quite right</span></div>
+              <div style={{textAlign:"center",marginTop:12}}><span onClick={()=>setWelcomeStep("writer-type")} style={{fontSize:11,color:"#908878",cursor:"pointer",fontFamily:"'DM Sans',sans-serif"}}>{"\u2190"} Back</span></div>
+            </>}
+
+            {welcomeStep==="material-subchoice"&&<>
+              <div style={{borderTop:"1px solid #D8CEB0",paddingTop:24,marginBottom:20}}>
+                <p style={{fontFamily:"'Cormorant Garamond',serif",fontSize:16,fontStyle:"italic",color:"#5A5040"}}>Paste it in, or upload a file?</p>
+              </div>
+              <div style={{display:"flex",flexDirection:"column",gap:10}}>
+                <div onClick={()=>setBibleOrganize({step:"paste"})} style={{background:"#F0EAE0",border:"1px solid #C8BC9A",borderRadius:8,padding:"14px 16px",cursor:"pointer"}}>
+                  <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:16,color:"#1E1C14",marginBottom:4}}>Paste it in</div>
+                  <div style={{fontSize:11,color:"#7A6E60",fontFamily:"'DM Sans',sans-serif"}}>Agnes reads through it and helps you organize your Story Bible.</div>
+                </div>
+                <div onClick={()=>{setWelcomeRoute("manuscript");routeToDestination();}} style={{background:"#F0EAE0",border:"1px solid #C8BC9A",borderRadius:8,padding:"14px 16px",cursor:"pointer"}}>
+                  <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:16,color:"#1E1C14",marginBottom:4}}>Upload a file</div>
+                  <div style={{fontSize:11,color:"#7A6E60",fontFamily:"'DM Sans',sans-serif"}}>Splits into real chapters automatically, right in The Forge.</div>
+                </div>
+              </div>
+              <div style={{textAlign:"center",marginTop:12}}><span onClick={()=>setWelcomeStep("material-check")} style={{fontSize:11,color:"#908878",cursor:"pointer",fontFamily:"'DM Sans',sans-serif"}}>{"\u2190"} Back</span></div>
             </>}
 
             {welcomeStep==="response"&&welcomeRoute&&<>
@@ -4565,8 +4581,8 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
                   <p style={{fontFamily:"'Cormorant Garamond',serif",fontSize:16,fontWeight:300,color:"#3A3428",lineHeight:1.85,marginBottom:14}}>You know your story. You know what needs to be written. The only thing standing between you and the page is getting there.</p>
                   <p style={{fontFamily:"'Cormorant Garamond',serif",fontSize:16,fontWeight:300,color:"#3A3428",lineHeight:1.85}}>The Forge is yours, {userName}. No detours, no setup, just you and your story. I'll be here when you need me and out of your way when you don't.</p>
                 </>}
-                {welcomeRoute!=="storybible"&&welcomeRoute!=="manuscript"&&<div onClick={()=>{setTourOpen(true);setTourPath(null);setTourStep(0);}} style={{background:"#5A6B3A",borderRadius:7,padding:"11px",textAlign:"center",cursor:"pointer",marginTop:20}}><span style={{fontSize:13,fontWeight:500,color:"#F0EAE0",fontFamily:"'DM Sans',sans-serif"}}>Continue</span></div>}
-                <div style={{textAlign:"center",marginTop:12}}><span onClick={()=>setWelcomeStep(welcomeRoute==="idealab"?"writer-type":"material-check")} style={{fontSize:11,color:"#908878",cursor:"pointer",fontFamily:"'DM Sans',sans-serif"}}>That's not quite right</span></div>
+                {welcomeRoute!=="storybible"&&welcomeRoute!=="manuscript"&&<div onClick={()=>routeToDestination()} style={{background:"#5A6B3A",borderRadius:7,padding:"11px",textAlign:"center",cursor:"pointer",marginTop:20}}><span style={{fontSize:13,fontWeight:500,color:"#F0EAE0",fontFamily:"'DM Sans',sans-serif"}}>Continue</span></div>}
+                <div style={{textAlign:"center",marginTop:12}}><span onClick={()=>setWelcomeStep(welcomeRoute==="idealab"?"discovery-reminder":"material-check")} style={{fontSize:11,color:"#908878",cursor:"pointer",fontFamily:"'DM Sans',sans-serif"}}>{"\u2190"} Back</span></div>
               </div>
             </>}
 
