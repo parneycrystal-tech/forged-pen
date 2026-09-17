@@ -4445,8 +4445,8 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
               </div>
               <div style={{borderTop:"1px solid #D8CEB0",paddingTop:24}}>
                 <p style={{fontFamily:"'Cormorant Garamond',serif",fontSize:16,fontStyle:"italic",color:"#5A5040",marginBottom:14}}>What should I call you?</p>
-                <input autoFocus value={welcomeInput} onChange={e=>setWelcomeInput(e.target.value)} onKeyDown={e=>{if(e.key==="Enter"&&welcomeInput.trim()){const n=welcomeInput.trim();setUserName(n);saveStored("tt-username",n);cloudSave("tt-username",n);setWelcomeStep("writer-type");setWelcomeInput("");}}} placeholder="Your first name, or whatever you'd like" style={{width:"100%",background:"transparent",border:"none",borderBottom:"1px solid #C8BC9A",padding:"8px 0",fontFamily:"'Cormorant Garamond',serif",fontSize:17,color:"#1E1C14",outline:"none",letterSpacing:"0.01em"}}/>
-                {welcomeInput.trim()&&<div onClick={()=>{const n=welcomeInput.trim();setUserName(n);saveStored("tt-username",n);cloudSave("tt-username",n);setWelcomeStep("writer-type");setWelcomeInput("");}} style={{background:"#5A6B3A",borderRadius:7,padding:"11px",textAlign:"center",cursor:"pointer",marginTop:18}}>
+                <input autoFocus value={welcomeInput} onChange={e=>setWelcomeInput(e.target.value)} onKeyDown={e=>{if(e.key==="Enter"&&welcomeInput.trim()){const n=welcomeInput.trim();setUserName(n);saveStored("tt-username",n);cloudSave("tt-username",n);setWelcomeStep("profile-prompt");setWelcomeInput("");}}} placeholder="Your first name, or whatever you'd like" style={{width:"100%",background:"transparent",border:"none",borderBottom:"1px solid #C8BC9A",padding:"8px 0",fontFamily:"'Cormorant Garamond',serif",fontSize:17,color:"#1E1C14",outline:"none",letterSpacing:"0.01em"}}/>
+                {welcomeInput.trim()&&<div onClick={()=>{const n=welcomeInput.trim();setUserName(n);saveStored("tt-username",n);cloudSave("tt-username",n);setWelcomeStep("profile-prompt");setWelcomeInput("");}} style={{background:"#5A6B3A",borderRadius:7,padding:"11px",textAlign:"center",cursor:"pointer",marginTop:18}}>
                   <span style={{fontSize:13,fontWeight:500,color:"#F0EAE0",fontFamily:"'DM Sans',sans-serif"}}>Continue</span>
                 </div>}
               </div>
@@ -4501,6 +4501,7 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
                 <p style={{fontFamily:"'Cormorant Garamond',serif",fontSize:13,lineHeight:1.7,color:"#3A3428",marginBottom:8}}><b>Discovery writer (or pantser):</b> you find the story by writing it, a spark, maybe a character, and the rest reveals itself on the page.</p>
                 <p style={{fontFamily:"'Cormorant Garamond',serif",fontSize:13,lineHeight:1.7,color:"#3A3428"}}><b>Hybrid:</b> a real, recognized mix of both. Most writers land somewhere here, especially if your process runs hot then crashes then rebuilds. If that's you, there's already a word for it.</p>
               </div>}
+              <div style={{textAlign:"center",marginTop:14}}><span onClick={()=>setWelcomeStep("involvement")} style={{fontSize:11,color:"#908878",cursor:"pointer",fontFamily:"'DM Sans',sans-serif"}}>{"\u2190"} Back</span></div>
             </>}
 
             {welcomeStep==="discovery-reminder"&&<>
@@ -4548,23 +4549,23 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
                   <p style={{fontFamily:"'Cormorant Garamond',serif",fontSize:16,fontWeight:300,color:"#3A3428",lineHeight:1.85,marginBottom:14}}>You know your story. You just haven't put it on the page yet.</p>
                   <p style={{fontFamily:"'Cormorant Garamond',serif",fontSize:16,fontWeight:300,color:"#3A3428",lineHeight:1.85,marginBottom:14}}>Bring it into Forged Pen. Paste in whatever you've got, notes, an outline, character sketches, however messy. I'll read through it and show you what I found before anything gets built. Or, if you'd rather build it yourself field by field, that's here too, no pressure either way.</p>
                   <div style={{display:"flex",gap:10,marginTop:16}}>
-                    <div onClick={()=>{setWelcomeStep("profile-prompt");setBibleOrganize({step:"paste"});}} style={{background:"var(--agnes,#7A6A8A)",borderRadius:7,padding:"11px 16px",textAlign:"center",cursor:"pointer",flex:1}}><span style={{fontSize:12,fontWeight:500,color:"#F0EAE0",fontFamily:"'DM Sans',sans-serif"}}>Paste in what I have</span></div>
-                    <div onClick={()=>setWelcomeStep("profile-prompt")} style={{background:"transparent",border:"1px solid #C8BC9A",borderRadius:7,padding:"11px 16px",textAlign:"center",cursor:"pointer",flex:1}}><span style={{fontSize:12,fontWeight:500,color:"#5A5040",fontFamily:"'DM Sans',sans-serif"}}>I'll build it myself</span></div>
+                    <div onClick={()=>setBibleOrganize({step:"paste"})} style={{background:"var(--agnes,#7A6A8A)",borderRadius:7,padding:"11px 16px",textAlign:"center",cursor:"pointer",flex:1}}><span style={{fontSize:12,fontWeight:500,color:"#F0EAE0",fontFamily:"'DM Sans',sans-serif"}}>Paste in what I have</span></div>
+                    <div onClick={()=>{setTourOpen(true);setTourPath(null);setTourStep(0);}} style={{background:"transparent",border:"1px solid #C8BC9A",borderRadius:7,padding:"11px 16px",textAlign:"center",cursor:"pointer",flex:1}}><span style={{fontSize:12,fontWeight:500,color:"#5A5040",fontFamily:"'DM Sans',sans-serif"}}>I'll build it myself</span></div>
                   </div>
                 </>}
                 {welcomeRoute==="manuscript"&&<>
                   <p style={{fontFamily:"'Cormorant Garamond',serif",fontSize:16,fontWeight:300,color:"#3A3428",lineHeight:1.85,marginBottom:14}}>You arrive with chapters. That's real work, already done. From here my job is simple: help you build on what you've made, not around it, and make sure none of it gets lost along the way.</p>
                   <p style={{fontFamily:"'Cormorant Garamond',serif",fontSize:16,fontWeight:300,color:"#3A3428",lineHeight:1.85,marginBottom:14}}>Bring it all in. A manuscript in a file can be uploaded inside The Forge, where it splits into chapters automatically. Notes, outlines, and loose pieces can be pasted right here, and I'll read what you bring and show you what I found before anything gets built.</p>
                   <div style={{display:"flex",gap:10,marginTop:16}}>
-                    <div onClick={()=>{setWelcomeStep("profile-prompt");setBibleOrganize({step:"paste"});}} style={{background:"var(--agnes,#7A6A8A)",borderRadius:7,padding:"11px 16px",textAlign:"center",cursor:"pointer",flex:1}}><span style={{fontSize:12,fontWeight:500,color:"#F0EAE0",fontFamily:"'DM Sans',sans-serif"}}>Paste in what I have</span></div>
-                    <div onClick={()=>setWelcomeStep("profile-prompt")} style={{background:"transparent",border:"1px solid #C8BC9A",borderRadius:7,padding:"11px 16px",textAlign:"center",cursor:"pointer",flex:1}}><span style={{fontSize:12,fontWeight:500,color:"#5A5040",fontFamily:"'DM Sans',sans-serif"}}>I'll build it myself</span></div>
+                    <div onClick={()=>setBibleOrganize({step:"paste"})} style={{background:"var(--agnes,#7A6A8A)",borderRadius:7,padding:"11px 16px",textAlign:"center",cursor:"pointer",flex:1}}><span style={{fontSize:12,fontWeight:500,color:"#F0EAE0",fontFamily:"'DM Sans',sans-serif"}}>Paste in what I have</span></div>
+                    <div onClick={()=>{setTourOpen(true);setTourPath(null);setTourStep(0);}} style={{background:"transparent",border:"1px solid #C8BC9A",borderRadius:7,padding:"11px 16px",textAlign:"center",cursor:"pointer",flex:1}}><span style={{fontSize:12,fontWeight:500,color:"#5A5040",fontFamily:"'DM Sans',sans-serif"}}>I'll build it myself</span></div>
                   </div>
                 </>}
                 {welcomeRoute==="forge"&&<>
                   <p style={{fontFamily:"'Cormorant Garamond',serif",fontSize:16,fontWeight:300,color:"#3A3428",lineHeight:1.85,marginBottom:14}}>You know your story. You know what needs to be written. The only thing standing between you and the page is getting there.</p>
                   <p style={{fontFamily:"'Cormorant Garamond',serif",fontSize:16,fontWeight:300,color:"#3A3428",lineHeight:1.85}}>The Forge is yours, {userName}. No detours, no setup, just you and your story. I'll be here when you need me and out of your way when you don't.</p>
                 </>}
-                {welcomeRoute!=="storybible"&&welcomeRoute!=="manuscript"&&<div onClick={()=>setWelcomeStep("profile-prompt")} style={{background:"#5A6B3A",borderRadius:7,padding:"11px",textAlign:"center",cursor:"pointer",marginTop:20}}><span style={{fontSize:13,fontWeight:500,color:"#F0EAE0",fontFamily:"'DM Sans',sans-serif"}}>Continue</span></div>}
+                {welcomeRoute!=="storybible"&&welcomeRoute!=="manuscript"&&<div onClick={()=>{setTourOpen(true);setTourPath(null);setTourStep(0);}} style={{background:"#5A6B3A",borderRadius:7,padding:"11px",textAlign:"center",cursor:"pointer",marginTop:20}}><span style={{fontSize:13,fontWeight:500,color:"#F0EAE0",fontFamily:"'DM Sans',sans-serif"}}>Continue</span></div>}
                 <div style={{textAlign:"center",marginTop:12}}><span onClick={()=>setWelcomeStep(welcomeRoute==="idealab"?"writer-type":"material-check")} style={{fontSize:11,color:"#908878",cursor:"pointer",fontFamily:"'DM Sans',sans-serif"}}>That's not quite right</span></div>
               </div>
             </>}
@@ -4578,6 +4579,7 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
                   <div onClick={()=>{setWelcomeStep("profile");setProfileStep(1);}} style={{background:"#5A6B3A",borderRadius:7,padding:"11px",textAlign:"center",cursor:"pointer"}}><span style={{fontSize:13,fontWeight:500,color:"#F0EAE0",fontFamily:"'DM Sans',sans-serif"}}>Let's do it now</span></div>
                   <div onClick={()=>{setWelcomeStep("involvement");}} style={{background:"none",border:"1px solid #C8BC9A",borderRadius:7,padding:"11px",textAlign:"center",cursor:"pointer"}}><span style={{fontSize:13,color:"#5A5040",fontFamily:"'DM Sans',sans-serif"}}>As we go</span></div>
                 </div>
+                <div style={{textAlign:"center",marginTop:14}}><span onClick={()=>{setWelcomeInput(userName);setWelcomeStep("intro");}} style={{fontSize:11,color:"#908878",cursor:"pointer",fontFamily:"'DM Sans',sans-serif"}}>{"\u2190"} Back</span></div>
               </div>
             </>}
 
@@ -4609,9 +4611,9 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
                   <textarea value={ans.text} onChange={e=>setProfileAnswers(prev=>({...prev,[q.id]:{...prev[q.id],text:e.target.value}}))} placeholder="Optional..." rows={2} style={{width:"100%",background:"transparent",border:"none",borderBottom:"1px solid #C8BC9A",padding:"6px 0",fontFamily:"'Cormorant Garamond',serif",fontSize:14,color:"#1E1C14",outline:"none",resize:"none",lineHeight:1.6}}/>
                 </div>
                 <div style={{display:"flex",gap:8}}>
-                  {profileStep>1&&<div onClick={()=>setProfileStep(s=>s-1)} style={{background:"none",border:"1px solid #C8BC9A",borderRadius:7,padding:"10px 14px",cursor:"pointer"}}>
+                  <div onClick={()=>profileStep>1?setProfileStep(s=>s-1):setWelcomeStep("profile-prompt")} style={{background:"none",border:"1px solid #C8BC9A",borderRadius:7,padding:"10px 14px",cursor:"pointer"}}>
                     <span style={{fontSize:12,color:"#908878",fontFamily:"'DM Sans',sans-serif"}}>← Back</span>
-                  </div>}
+                  </div>
                   <div onClick={()=>{
                     if(isLast){saveProfile(profileAnswers);setWelcomeStep("involvement");}
                     else setProfileStep(s=>s+1);
@@ -4647,7 +4649,8 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
                   </div>
                 ))}
               </div>
-              <div onClick={()=>{saveAgnesInvolvement(involvementEditChoice);setTourOpen(true);setTourPath(null);setTourStep(0);}} style={{background:"#5A6B3A",borderRadius:7,padding:"11px",textAlign:"center",cursor:"pointer"}}><span style={{fontSize:13,fontWeight:500,color:"#F0EAE0",fontFamily:"'DM Sans',sans-serif"}}>Continue</span></div>
+              <div onClick={()=>{saveAgnesInvolvement(involvementEditChoice);setWelcomeStep("writer-type");}} style={{background:"#5A6B3A",borderRadius:7,padding:"11px",textAlign:"center",cursor:"pointer"}}><span style={{fontSize:13,fontWeight:500,color:"#F0EAE0",fontFamily:"'DM Sans',sans-serif"}}>Continue</span></div>
+              <div style={{textAlign:"center",marginTop:14}}><span onClick={()=>setWelcomeStep("profile-prompt")} style={{fontSize:11,color:"#908878",cursor:"pointer",fontFamily:"'DM Sans',sans-serif"}}>{"\u2190"} Back</span></div>
             </div>}
 
             <div style={{textAlign:"center",marginTop:16,paddingTop:16,borderTop:"1px solid #D8CEB0"}}>
