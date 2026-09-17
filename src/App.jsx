@@ -1131,7 +1131,7 @@ export default function App() {
   const [sidebarCtx, setSidebarCtx] = useState(null);
   const [agnesBrief, setAgnesBrief] = useState(null);
   const [agnesBriefLoading, setAgnesBriefLoading] = useState(false);
-  const [theme, setTheme] = useState("dark");
+  const [theme, setTheme] = useState("light");
   const [finnPanelSize, setFinnPanelSize] = useState("medium");
   const [triageActive, setTriageActive] = useState(false);
   const [triageInput, setTriageInput] = useState("");
@@ -8400,7 +8400,7 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
               <span style={{fontFamily:"'Cormorant Garamond',serif",fontSize:18,color:"var(--accent)"}}>F</span>
             </div>
             <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:22,fontWeight:600,color:"var(--text-primary)",marginBottom:10}}>You're in.</div>
-            <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:14,color:"var(--text-muted)",lineHeight:1.7,marginBottom:20}}>Four spaces. Agnes keeps the record. Finn coaches. Every word on the page is yours. The ? button is always there when you need it.</div>
+            <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:14,color:"var(--text-muted)",lineHeight:1.7,marginBottom:20}}>Four spaces. Agnes keeps the record. Finn coaches. Every word on the page is yours. The ? button is always there when you need it. There's a light and dark theme too, whichever's easier on your eyes, the toggle's always nearby.</div>
             <div onClick={finishTour} style={{background:"var(--accent)",borderRadius:7,padding:"11px",textAlign:"center",cursor:"pointer",marginBottom:10}}><span style={{fontSize:13,fontWeight:500,color:"var(--bg-deepest)",fontFamily:"'DM Sans',sans-serif"}}>Let's begin {"\u2192"}</span></div>
             <div onClick={()=>setTourStep(TOUR_FULL.length-1)} style={{textAlign:"center"}}><span style={{fontSize:11,color:"var(--text-dim)",cursor:"pointer"}}>{"\u2190"} Back</span></div>
           </>}
