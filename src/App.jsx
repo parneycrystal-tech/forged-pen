@@ -1147,6 +1147,14 @@ export default function App() {
   // FULL READ: post-upload offer through the whole read cycle. Lives entirely in this one state
   // object plus project.fullRead (the persisted result), same pattern as noteSort/bibleOrganize.
   const [fullReadPrompt, setFullReadPrompt] = useState(null); // null | {step:"offer"} | {step:"categories"}
+  const uploadInputRef = useRef(null);
+  const [autoTriggerUpload, setAutoTriggerUpload] = useState(false); // set true when onboarding's "Upload a file" promises the file picker, so it actually opens once The Forge mounts
+  useEffect(()=>{
+    if(autoTriggerUpload&&screen==="container"){
+      const t=setTimeout(()=>{uploadInputRef.current?.click();setAutoTriggerUpload(false);},350);
+      return ()=>clearTimeout(t);
+    }
+  },[autoTriggerUpload,screen]);
   const FULL_READ_CATEGORIES=[
     {id:"plot",label:"Plot & Pacing",mode:"plot"},
     {id:"character",label:"Character",mode:"character"},
@@ -3458,14 +3466,18 @@ If there are no concrete sensory details actually present in the conversation (f
     saveStored("tt-project",updated);
   };
 
-  const routeToDestination=()=>{
+  const routeToDestination=(routeOverride)=>{
+    // routeOverride exists because setWelcomeRoute() does not take effect until the next render,
+    // so a handler that sets the route and calls this in the same click would otherwise read the
+    // stale, pre-update value. Pass the route explicitly whenever both happen together.
+    const route=routeOverride||welcomeRoute;
     setOnboardingDone(true);
     saveStored("tt-onboarding-done", true);
-    if(welcomeRoute==="idealab"&&ideaSubChoice==="plan"){saveSession(null);setScreen("setup");}
-    else if(welcomeRoute==="idealab"){setForgeMode("idealab");initScenes();}
-    else if(welcomeRoute==="storybible"){saveSession(null);setScreen("setup");}
-    else if(welcomeRoute==="manuscript"||welcomeRoute==="forge"){initScenes();}
-    else if(welcomeRoute==="buildfresh"){saveSession(null);setScreen("setup");}
+    if(route==="idealab"&&ideaSubChoice==="plan"){saveSession(null);setScreen("setup");}
+    else if(route==="idealab"){setForgeMode("idealab");initScenes();}
+    else if(route==="storybible"){saveSession(null);setScreen("setup");}
+    else if(route==="manuscript"||route==="forge"){initScenes();}
+    else if(route==="buildfresh"){saveSession(null);setScreen("setup");}
     else{saveSession(null);setScreen("home");}
   };
 
@@ -4525,7 +4537,7 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
                   <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:16,color:"#1E1C14",marginBottom:4}}>I already have something</div>
                   <div style={{fontSize:11,color:"#7A6E60",fontFamily:"'DM Sans',sans-serif"}}>Notes, an outline, or chapters already written.</div>
                 </div>
-                <div onClick={()=>{setWelcomeRoute("buildfresh");routeToDestination();}} style={{background:"#F0EAE0",border:"1px solid #C8BC9A",borderRadius:8,padding:"14px 16px",cursor:"pointer"}}>
+                <div onClick={()=>{setWelcomeRoute("buildfresh");routeToDestination("buildfresh");}} style={{background:"#F0EAE0",border:"1px solid #C8BC9A",borderRadius:8,padding:"14px 16px",cursor:"pointer"}}>
                   <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:16,color:"#1E1C14",marginBottom:4}}>Build it fresh here</div>
                   <div style={{fontSize:11,color:"#7A6E60",fontFamily:"'DM Sans',sans-serif"}}>Open Story Bible, no guided prompts, just you and the fields.</div>
                 </div>
@@ -4542,7 +4554,7 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
                   <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:16,color:"#1E1C14",marginBottom:4}}>Paste it in</div>
                   <div style={{fontSize:11,color:"#7A6E60",fontFamily:"'DM Sans',sans-serif"}}>Agnes reads through it and helps you organize your Story Bible.</div>
                 </div>
-                <div onClick={()=>{setWelcomeRoute("manuscript");routeToDestination();}} style={{background:"#F0EAE0",border:"1px solid #C8BC9A",borderRadius:8,padding:"14px 16px",cursor:"pointer"}}>
+                <div onClick={()=>{setAutoTriggerUpload(true);setWelcomeRoute("manuscript");routeToDestination("manuscript");}} style={{background:"#F0EAE0",border:"1px solid #C8BC9A",borderRadius:8,padding:"14px 16px",cursor:"pointer"}}>
                   <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:16,color:"#1E1C14",marginBottom:4}}>Upload a file</div>
                   <div style={{fontSize:11,color:"#7A6E60",fontFamily:"'DM Sans',sans-serif"}}>Splits into real chapters automatically, right in The Forge.</div>
                 </div>
@@ -6653,7 +6665,7 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
                 <div style={{fontSize:9,color:window.__fpLocalSaveFailed?"#B06848":"var(--text-dim)",marginTop:3}}>{window.__fpLocalSaveFailed?"Saving to cloud only (device storage full)":"Auto-saving"}</div>
                 <label style={{fontSize:11,color:"var(--accent)",cursor:"pointer",marginTop:10,display:"block",background:"var(--bg-card-alt)",border:"1px solid var(--border)",borderRadius:6,padding:"6px 10px",textAlign:"center"}}>
                   Upload .txt
-                  <input type="file" accept=".txt" style={{display:"none"}} onChange={e=>{
+                  <input type="file" accept=".txt" ref={uploadInputRef} style={{display:"none"}} onChange={e=>{
                     const file=e.target.files?.[0];
                     if(!file)return;
                     // GUARD: uploading replaces everything in The Forge. Never let that happen silently.
