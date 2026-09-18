@@ -868,6 +868,7 @@ function LandingScreen({onSignIn,onSubmitEmail}){
           ?<>
             <p style={{fontFamily:serif,fontSize:17,color:ink,marginBottom:6}}>You're on the list.</p>
             <p style={{fontSize:12,color:muted,fontFamily:sans}}>No spam. No pressure. Just a door when it opens.</p>
+    <p style={{fontSize:11,color:muted,fontFamily:sans,marginTop:8}}>The welcome email may land in your spam or promotions folder. Check there if you don't see it in your regular inbox.</p>
           </>
           :<>
             <p style={{fontFamily:serif,fontSize:17,color:ink,marginBottom:16}}>Request early access</p>
