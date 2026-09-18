@@ -25,17 +25,17 @@ export default async function handler(req, res) {
         "Content-Type": "application/json"
       },
       body: JSON.stringify({
-           from: "Forged Pen <noreply@mail.forgedpen.com>",
+        from: "Forged Pen <noreply@mail.forgedpen.com>",
         to: email,
-        subject: "You're on the list",
+        subject: "Welcome to the Forged Pen Beta Waitlist",
         html: `
           <div style="font-family: Georgia, serif; font-size: 16px; line-height: 1.7; color: #3A3228; max-width: 480px; margin: 0 auto; padding: 20px;">
             <p>Hi,</p>
-            <p>Thank you so much for joining the waitlist for Forged Pen.</p>
-            <p>We're building our first group of beta writers now, writers whose brains work differently, planners, discovery writers, and everyone in between. You'll hear from us soon.</p>
-            <p>In the meantime, please fill out this short survey, it's how we'll be putting that first group together:<br>
+            <p>Thank you so much for joining the Forged Pen Beta waitlist!</p>
+            <p>We're building our first group of beta writers now, whose brains work differently: planners, discovery writers, and everyone in between. Space is limited and this doesn't guarantee a spot, but we're targeting October 1, 2026 to start letting people in. Watch for a second email from us directly if a spot opens up for you.</p>
+            <p>While you wait, take two minutes to fill out this short survey, it's how we're putting that first group together:<br>
             <a href="${applicationFormUrl}" style="color: #A8884A;">${applicationFormUrl}</a></p>
-            <p>Thank you,<br>Forged Pen</p>
+            <p>The Forged Pen Team</p>
           </div>
         `
       })
