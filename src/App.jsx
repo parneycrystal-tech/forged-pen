@@ -822,6 +822,58 @@ const WHAT_WE_BELIEVE=[
   {title:"Human creativity is irreplaceable.",body:"AI's proper role is to support it, not supplant it. The voice, the instinct, the lived experience that makes writing matter: that's yours. Always."}
 ];
 
+const BETA_AGREEMENT_VERSION = "1.0"; // bump this any time the wording meaningfully changes —
+// it re-triggers the modal for everyone, since it's checked against what they've already accepted.
+
+function BetaAgreementModal({onAccept,submitting,error}){
+  const [scrolledToBottom,setScrolledToBottom]=useState(false);
+  const [agreeChecked,setAgreeChecked]=useState(false);
+  const bodyRef=useRef(null);
+  const ink="#1E1C14",parchment="#EDE6DA",brass="#A8884A",olive="#5A6B3A",border="#C8BC9A",muted="#7A6E60";
+  const serif="'Cormorant Garamond',serif",sans="'DM Sans',sans-serif";
+  const handleScroll=()=>{
+    const el=bodyRef.current;
+    if(!el)return;
+    if(el.scrollTop+el.clientHeight>=el.scrollHeight-8)setScrolledToBottom(true);
+  };
+  const canAccept=scrolledToBottom&&agreeChecked&&!submitting;
+  return <div style={{position:"fixed",top:0,left:0,right:0,bottom:0,background:"rgba(20,18,16,0.55)",zIndex:400,display:"flex",alignItems:"center",justifyContent:"center",padding:20}}>
+    <div style={{background:parchment,border:"1px solid "+border,borderRadius:14,width:"100%",maxWidth:480,maxHeight:"86vh",display:"flex",flexDirection:"column",boxShadow:"0 20px 60px rgba(0,0,0,0.35)"}}>
+      <div style={{padding:"24px 28px 16px",borderBottom:"1px solid "+border}}>
+        <div style={{fontFamily:serif,fontWeight:500,fontSize:22,margin:"0 0 6px",color:ink}}>Before you begin</div>
+        <div style={{fontFamily:sans,fontSize:12,color:muted}}>Please read and confirm the Forged Pen Beta Agreement</div>
+      </div>
+      <div ref={bodyRef} onScroll={handleScroll} style={{padding:"18px 28px",overflowY:"auto",flex:1,fontFamily:sans,fontSize:13.5,lineHeight:1.7,color:ink}}>
+        <div style={{fontFamily:serif,fontWeight:500,fontSize:16,color:ink,margin:"0 0 6px"}}>What beta means</div>
+        <p style={{margin:"0 0 10px"}}>Forged Pen is a working app, not a finished one. Things may need fixing along the way, and the app may be unavailable sometimes while that happens. If we ever remove or meaningfully change a feature, we'll let you know first, not change it out from under you.</p>
+        <div style={{fontFamily:serif,fontWeight:500,fontSize:16,color:ink,margin:"20px 0 6px"}}>Your writing stays yours</div>
+        <p style={{margin:"0 0 10px"}}>Anything you upload or write in Forged Pen remains your property, fully and only yours. Forged Pen (Aveta House, LLC) claims no ownership over it.</p>
+        <p style={{margin:"0 0 10px"}}>Your manuscript is never used to train any AI model. It is not shared, sold, or shown to anyone else. It exists in the app only to give you feedback.</p>
+        <div style={{fontFamily:serif,fontWeight:500,fontSize:16,color:ink,margin:"20px 0 6px"}}>Feedback you give us</div>
+        <p style={{margin:"0 0 10px"}}>If you send feedback, bug reports, or suggestions about Forged Pen, you're giving Aveta House, LLC permission to use that feedback to improve the app, without owing you payment or credit for it.</p>
+        <div style={{fontFamily:serif,fontWeight:500,fontSize:16,color:ink,margin:"20px 0 6px"}}>No guarantees</div>
+        <p style={{margin:"0 0 10px"}}>Forged Pen and Aveta House, LLC aren't liable for lost work, lost time, or other damages related to using this beta software, to the extent the law allows. Back up anything important to you outside the app as good practice.</p>
+        <div style={{fontFamily:serif,fontWeight:500,fontSize:16,color:ink,margin:"20px 0 6px"}}>Looking ahead</div>
+        <p style={{margin:"0 0 10px"}}>Beta access is temporary, and Forged Pen won't stay free forever, for anyone. When that changes, you'll hear about it from us directly.</p>
+        <div style={{fontFamily:serif,fontWeight:500,fontSize:16,color:ink,margin:"20px 0 6px"}}>You can stop anytime</div>
+        <p style={{margin:"0 0 10px"}}>You can stop using Forged Pen and delete your account whenever you want. We would never end or remove your beta access without notifying you first.</p>
+        <div style={{fontFamily:serif,fontWeight:500,fontSize:16,color:ink,margin:"20px 0 6px"}}>Questions</div>
+        <p style={{margin:"0 0 10px"}}>This agreement is intentionally plain, not formal legal language. If anything here is unclear, ask before you agree to it.</p>
+      </div>
+      {!scrolledToBottom&&<div style={{textAlign:"center",fontSize:11,color:brass,fontFamily:sans,padding:"6px 0 0",opacity:0.9}}>{"\u2193"} Scroll to read the full agreement {"\u2193"}</div>}
+      <div style={{padding:"16px 28px 22px",borderTop:"1px solid "+border}}>
+        <div style={{display:"flex",alignItems:"flex-start",gap:10,marginBottom:14}}>
+          <input type="checkbox" id="betaAgreeCheck" checked={agreeChecked} disabled={!scrolledToBottom} onChange={e=>setAgreeChecked(e.target.checked)} style={{marginTop:3}}/>
+          <label htmlFor="betaAgreeCheck" style={{fontFamily:sans,fontSize:12,color:muted,lineHeight:1.5}}>I have read and understand this agreement.</label>
+        </div>
+        {error&&<div style={{fontSize:12,color:"#B06848",marginBottom:10,fontFamily:sans}}>{error}</div>}
+        <button onClick={()=>{if(canAccept)onAccept();}} disabled={!canAccept} style={{width:"100%",padding:13,borderRadius:8,border:"none",cursor:canAccept?"pointer":"not-allowed",fontFamily:sans,fontWeight:600,fontSize:13,background:canAccept?olive:border,color:"#FFFFFF",opacity:canAccept?1:0.7}}>{submitting?"Saving...":"I have read and understand, I agree"}</button>
+        <div style={{textAlign:"center",fontSize:11,color:muted,marginTop:10,fontFamily:sans}}>{scrolledToBottom?"Ready when you are":"Scroll to the bottom to enable this button"}</div>
+      </div>
+    </div>
+  </div>;
+}
+
 function LandingScreen({onSignIn,onSubmitEmail}){
   const [email,setEmail]=useState("");
   const [submitState,setSubmitState]=useState("idle"); // idle | submitting | done | invalid | failed
@@ -1008,6 +1060,9 @@ const PROFILE_QUESTIONS=[
 
 export default function App() {
   const [user, setUser] = useState(null);
+  const [agreementAccepted, setAgreementAccepted] = useState(false);
+  const [agreementSubmitting, setAgreementSubmitting] = useState(false);
+  const [agreementError, setAgreementError] = useState("");
   const [authLoading, setAuthLoading] = useState(true);
   const [authScreen, setAuthScreen] = useState("login");
   const [authEmail, setAuthEmail] = useState("");
@@ -1312,6 +1367,8 @@ export default function App() {
         clearLocalUserData();
         cloudLoadAll().then(()=>{
           loadAllData();
+          return checkBetaAgreement(session.user.id);
+        }).then(()=>{
           setAuthLoading(false);
         });
       } else { setAuthLoading(false); }
@@ -1320,12 +1377,37 @@ export default function App() {
       if(event==="SIGNED_IN"&&session?.user){
         setUser(session.user);
         clearLocalUserData();
-        cloudLoadAll().then(()=>{loadAllData();setAuthLoading(false)});
+        cloudLoadAll().then(()=>{loadAllData();return checkBetaAgreement(session.user.id);}).then(()=>{setAuthLoading(false)});
       }
-      if(event==="SIGNED_OUT"){setUser(null);clearLocalUserData();setScreen("welcome");setAuthLoading(false)}
+      if(event==="SIGNED_OUT"){setUser(null);clearLocalUserData();setScreen("welcome");setAgreementAccepted(false);setAuthLoading(false)}
     });
     return ()=>subscription.unsubscribe();
   },[]);
+
+  // BETA AGREEMENT: has this user already accepted the CURRENT version? Insert-only table —
+  // every acceptance is its own row, nothing is ever overwritten, so history is preserved.
+  const checkBetaAgreement=async(userId)=>{
+    try{
+      const {data,error}=await supabase.from("beta_agreements").select("id").eq("user_id",userId).eq("agreement_version",BETA_AGREEMENT_VERSION).limit(1);
+      setAgreementAccepted(!error&&Array.isArray(data)&&data.length>0);
+    }catch(e){
+      console.log("Beta agreement check error:",e);
+      setAgreementAccepted(false); // fail safe: show it rather than silently skip it
+    }
+  };
+  const acceptBetaAgreement=async()=>{
+    if(!user)return;
+    setAgreementSubmitting(true);setAgreementError("");
+    try{
+      const {error}=await supabase.from("beta_agreements").insert({user_id:user.id,agreement_version:BETA_AGREEMENT_VERSION});
+      if(error){console.log("Beta agreement insert error:",error);setAgreementError("That didn't save. Please try again.");}
+      else{setAgreementAccepted(true);}
+    }catch(e){
+      console.log("Beta agreement insert error:",e);
+      setAgreementError("That didn't save. Please try again.");
+    }
+    setAgreementSubmitting(false);
+  };
 
   const loadAllData=()=>{
     const p = loadStored("tt-project");
@@ -4441,6 +4523,9 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
           <div style={{marginTop:32,fontSize:10,color:"var(--text-faint)",lineHeight:1.6}}>Your writing syncs across all your devices.<br/>Your content is never used to train AI.</div>
         </div>
       </div>}
+
+      {/* BETA AGREEMENT — sits on top of everything else until accepted for the current version */}
+      {!authLoading&&user&&!agreementAccepted&&<BetaAgreementModal onAccept={acceptBetaAgreement} submitting={agreementSubmitting} error={agreementError}/>}
 
       {/* WELCOME */}
       {user&&screen==="welcome"&&<div style={{position:"fixed",top:0,left:0,right:0,bottom:0,background:"var(--bg-deepest)",zIndex:200,display:"flex",alignItems:"center",justifyContent:"center",padding:24,overflowY:"auto"}}>
