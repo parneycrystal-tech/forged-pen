@@ -1220,6 +1220,8 @@ export default function App() {
   const [fullReadContextOpen,setFullReadContextOpen]=useState(null); // index of item whose "this was intentional" note field is open
   const [fullReadContextText,setFullReadContextText]=useState("");
   const [sceneNotesOpen, setSceneNotesOpen] = useState(false);
+  const [fullReadViewMode,setFullReadViewMode]=useState("sequential"); // "sequential" | "browse" — browse lets a writer look at any flagged item in any order
+  const [fullReadBrowseIdx,setFullReadBrowseIdx]=useState(null); // which item is open while browsing; null = showing the grid of all items
   const [extracting, setExtracting] = useState(false);
   const [extractResult, setExtractResult] = useState(null);
   const [handledProposedThreads, setHandledProposedThreads] = useState({}); // index -> "approved" | "dismissed", reset per extraction
@@ -5162,6 +5164,20 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
           </div>
         </div>}
 
+        {/* Full Read finished — nothing else in the app announces this on its own, since runFullRead
+            never changes screens or shows a toast; this closes that gap by pointing back to the Ledger. */}
+        {project?.fullRead?.status==="done"&&!project.fullRead.notified&&<div style={{borderRadius:9,padding:"12px 14px",marginBottom:10,background:"var(--ember-15,rgba(176,104,72,0.12))",borderLeft:"2px solid var(--ember,#B06848)"}}>
+          <div style={{display:"flex",alignItems:"center",gap:6,marginBottom:8}}>
+            <svg width="14" height="14" viewBox="0 0 20 20" style={{flexShrink:0}}><path d="M10 2 L12 8 L18 10 L12 12 L10 18 L8 12 L2 10 L8 8 Z" fill="var(--ember,#B06848)"/></svg>
+            <span style={{fontFamily:"'DM Sans',sans-serif",fontSize:9,textTransform:"uppercase",letterSpacing:"0.1em",fontWeight:600,color:"var(--ember,#B06848)"}}>Finn's Full Read</span>
+          </div>
+          <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:13,color:"var(--text-muted)",fontStyle:"italic",lineHeight:1.6,marginBottom:8}}>{(project.fullRead.items||[]).length>0?`Finished — ${(project.fullRead.items||[]).length} thing${(project.fullRead.items||[]).length===1?"":"s"} worth a look, waiting in the Ledger.`:"Finished — nothing much flagged this pass."}</div>
+          <div style={{display:"flex",gap:10}}>
+            <span onClick={()=>{setScreen("ledger");setLedgerAgnesRead(null);setLedgerCraftRead(null);setLedgerFeedback(null);const updated={...project,fullRead:{...project.fullRead,notified:true}};setProject(updated);saveStored("tt-project",updated);cloudSave("tt-project",updated);}} style={{fontSize:10,color:"var(--ember,#B06848)",cursor:"pointer",fontFamily:"'DM Sans',sans-serif",textDecoration:"underline"}}>See what he found</span>
+            <span onClick={()=>{const updated={...project,fullRead:{...project.fullRead,notified:true}};setProject(updated);saveStored("tt-project",updated);cloudSave("tt-project",updated);}} style={{fontSize:10,color:"var(--text-dim)",cursor:"pointer",fontFamily:"'DM Sans',sans-serif"}}>Not right now</span>
+          </div>
+        </div>}
+
         {/* Agnes notices the revision loop — same quiet aside pattern as File new material,
             purple to mark Agnes's voice, Full involvement only. */}
         {revisionLoopSignal&&<div style={{borderRadius:9,padding:"12px 14px",marginBottom:10,background:"var(--agnes-15,rgba(122,106,138,0.1))",borderLeft:"2px solid var(--agnes,#7A6A8A)"}}>
@@ -6626,31 +6642,57 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
               const items=project.fullRead.items||[];
               const resolutions=project.fullRead.resolutions||{};
               const activeIdx=items.findIndex((it,i)=>!resolutions[i]);
-              if(activeIdx===-1)return <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:13,color:"var(--text-dim)",fontStyle:"italic"}}>You've worked through this Full Read. <span onClick={()=>setFullReadPrompt({step:"categories",selected:["plot","character","voice","scene"]})} style={{color:"var(--accent)",cursor:"pointer",textDecoration:"underline"}}>Run a new one</span></div>;
-              const item=items[activeIdx];
-              const catLabel=FULL_READ_CATEGORIES.find(c=>c.id===item.category)?.label||item.category;
-              return <>
-                <div style={{fontSize:9,textTransform:"uppercase",letterSpacing:"0.1em",color:"var(--text-dim)",fontFamily:"'DM Sans',sans-serif",marginBottom:8}}>Working through, in the order Finn suggested &middot; {activeIdx+1} of {items.length}</div>
-                <div style={{display:"flex",gap:4,marginBottom:14}}>
-                  {items.map((_,i)=><div key={i} style={{flex:1,height:3,borderRadius:2,background:resolutions[i]?"var(--accent)":i===activeIdx?"var(--ember,#B06848)":"var(--border-mid)"}}/>)}
-                </div>
-                <div style={{background:"var(--bg-card)",borderLeft:"3px solid var(--ember,#B06848)",borderRadius:"0 9px 9px 0",padding:"15px 17px"}}>
-                  <span style={{fontSize:9,textTransform:"uppercase",letterSpacing:"0.1em",color:"var(--ember,#B06848)",fontWeight:600}}>Finn &middot; {catLabel}</span>
+              if(items.length===0)return <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:13,color:"var(--text-dim)",fontStyle:"italic"}}>Nothing flagged this pass. <span onClick={()=>setFullReadPrompt({step:"categories",selected:["plot","character","voice","scene"]})} style={{color:"var(--accent)",cursor:"pointer",textDecoration:"underline"}}>Run a new one</span></div>;
+              const doneCount=items.filter((it,i)=>resolutions[i]).length;
+              const catLabelFor=(it)=>FULL_READ_CATEGORIES.find(c=>c.id===it.category)?.label||it.category;
+              // Shared card for one item's finding plus its three resolution actions — used by both the
+              // sequential queue and the free-browse detail view, so resolving behaves identically either way.
+              const itemCard=(idx)=>{
+                const item=items[idx];
+                return <div style={{background:"var(--bg-card)",borderLeft:"3px solid var(--ember,#B06848)",borderRadius:"0 9px 9px 0",padding:"15px 17px"}}>
+                  <span style={{fontSize:9,textTransform:"uppercase",letterSpacing:"0.1em",color:"var(--ember,#B06848)",fontWeight:600}}>Finn &middot; {catLabelFor(item)}</span>
                   <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:14,fontStyle:"italic",color:"var(--text-muted)",lineHeight:1.65,margin:"8px 0 6px"}}>{item.strength}</div>
                   <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:14,color:"var(--text-primary)",lineHeight:1.65,marginBottom:12}}>{item.observation}</div>
-                  {fullReadContextOpen===activeIdx?<>
+                  {resolutions[idx]&&<div style={{fontSize:11,color:"var(--text-dim)",fontStyle:"italic",marginBottom:10}}>Marked {resolutions[idx]==="intentional"?"intentional":"done"}.</div>}
+                  {fullReadContextOpen===idx?<>
                     <textarea value={fullReadContextText} onChange={e=>setFullReadContextText(e.target.value)} placeholder="Tell Finn why, so it's not raised again the same way" rows={2} style={{width:"100%",background:"var(--bg-card-alt)",border:"1px dashed var(--border-mid)",borderRadius:7,padding:"8px 10px",fontFamily:"'Cormorant Garamond',serif",fontSize:13,color:"var(--text-primary)",outline:"none",resize:"vertical",marginBottom:8}}/>
                     <div style={{display:"flex",gap:8}}>
-                      <span onClick={()=>{resolveFullReadItem(activeIdx,"intentional",fullReadContextText);setFullReadContextOpen(null);setFullReadContextText("");}} style={{fontSize:11,padding:"5px 13px",borderRadius:6,background:"var(--ember,#B06848)",color:"#fff",cursor:"pointer",fontFamily:"'DM Sans',sans-serif"}}>Save</span>
+                      <span onClick={()=>{resolveFullReadItem(idx,"intentional",fullReadContextText);setFullReadContextOpen(null);setFullReadContextText("");if(fullReadViewMode==="browse")setFullReadBrowseIdx(null);}} style={{fontSize:11,padding:"5px 13px",borderRadius:6,background:"var(--ember,#B06848)",color:"#fff",cursor:"pointer",fontFamily:"'DM Sans',sans-serif"}}>Save</span>
                       <span onClick={()=>{setFullReadContextOpen(null);setFullReadContextText("");}} style={{fontSize:11,padding:"5px 13px",borderRadius:6,border:"1px solid var(--border)",color:"var(--text-dim)",cursor:"pointer",fontFamily:"'DM Sans',sans-serif"}}>Cancel</span>
                     </div>
                   </>:<div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
                     <span onClick={()=>routeFullReadItem(item)} style={{fontSize:11,padding:"5px 13px",borderRadius:6,background:"var(--accent)",color:"var(--bg-deepest)",cursor:"pointer",fontFamily:"'DM Sans',sans-serif"}}>Work on this with Finn</span>
-                    <span onClick={()=>resolveFullReadItem(activeIdx,"done")} style={{fontSize:11,padding:"5px 13px",borderRadius:6,border:"1px solid var(--border)",color:"var(--text-dim)",cursor:"pointer",fontFamily:"'DM Sans',sans-serif"}}>Mark as done</span>
-                    <span onClick={()=>{setFullReadContextOpen(activeIdx);setFullReadContextText("");}} style={{fontSize:11,padding:"5px 13px",borderRadius:6,border:"1px solid var(--ember,#B06848)",color:"var(--ember,#B06848)",cursor:"pointer",fontFamily:"'DM Sans',sans-serif"}}>This was intentional</span>
+                    <span onClick={()=>{resolveFullReadItem(idx,"done");if(fullReadViewMode==="browse")setFullReadBrowseIdx(null);}} style={{fontSize:11,padding:"5px 13px",borderRadius:6,border:"1px solid var(--border)",color:"var(--text-dim)",cursor:"pointer",fontFamily:"'DM Sans',sans-serif"}}>Mark as done</span>
+                    <span onClick={()=>{setFullReadContextOpen(idx);setFullReadContextText("");}} style={{fontSize:11,padding:"5px 13px",borderRadius:6,border:"1px solid var(--ember,#B06848)",color:"var(--ember,#B06848)",cursor:"pointer",fontFamily:"'DM Sans',sans-serif"}}>This was intentional</span>
                   </div>}
+                </div>;
+              };
+              return <>
+                <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}>
+                  <div style={{fontSize:9,textTransform:"uppercase",letterSpacing:"0.1em",color:"var(--text-dim)",fontFamily:"'DM Sans',sans-serif"}}>{doneCount} of {items.length} worked through</div>
+                  <span onClick={()=>{setFullReadViewMode(fullReadViewMode==="browse"?"sequential":"browse");setFullReadBrowseIdx(null);}} style={{fontSize:10,color:"var(--accent)",cursor:"pointer",fontFamily:"'DM Sans',sans-serif",textDecoration:"underline"}}>{fullReadViewMode==="browse"?"Back to Finn's order":"See everything"}</span>
                 </div>
-                {items.length-activeIdx-1>0&&<div style={{fontSize:11,color:"var(--text-dim)",fontStyle:"italic",fontFamily:"'Cormorant Garamond',serif",marginTop:10}}>{items.length-activeIdx-1} more waiting quietly, one at a time.</div>}
+                {fullReadViewMode==="sequential"?(activeIdx===-1?
+                  <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:13,color:"var(--text-dim)",fontStyle:"italic"}}>You've worked through this Full Read. <span onClick={()=>setFullReadPrompt({step:"categories",selected:["plot","character","voice","scene"]})} style={{color:"var(--accent)",cursor:"pointer",textDecoration:"underline"}}>Run a new one</span></div>
+                  :<>
+                    <div style={{display:"flex",gap:4,marginBottom:14}}>
+                      {items.map((_,i)=><div key={i} style={{flex:1,height:3,borderRadius:2,background:resolutions[i]?"var(--accent)":i===activeIdx?"var(--ember,#B06848)":"var(--border-mid)"}}/>)}
+                    </div>
+                    {itemCard(activeIdx)}
+                    {items.length-activeIdx-1>0&&<div style={{fontSize:11,color:"var(--text-dim)",fontStyle:"italic",fontFamily:"'Cormorant Garamond',serif",marginTop:10}}>{items.length-activeIdx-1} more waiting quietly, one at a time &mdash; or <span onClick={()=>{setFullReadViewMode("browse");setFullReadBrowseIdx(null);}} style={{color:"var(--accent)",cursor:"pointer",textDecoration:"underline"}}>see everything</span> instead.</div>}
+                  </>
+                ):(fullReadBrowseIdx===null?
+                  <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
+                    {items.map((it,i)=><div key={i} onClick={()=>setFullReadBrowseIdx(i)} style={{cursor:"pointer",border:"1px solid "+(resolutions[i]?"var(--border)":"var(--ember,#B06848)"),borderRadius:8,padding:"10px 11px",opacity:resolutions[i]?0.55:1,background:"var(--bg-card)"}}>
+                      <div style={{fontSize:8,textTransform:"uppercase",letterSpacing:"0.08em",color:"var(--ember,#B06848)",fontWeight:600,marginBottom:4}}>{catLabelFor(it)}{resolutions[i]?" \u00B7 done":""}</div>
+                      <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:13,fontWeight:600,color:"var(--text-primary)",lineHeight:1.4}}>{it.title}</div>
+                    </div>)}
+                  </div>
+                  :<>
+                    <span onClick={()=>setFullReadBrowseIdx(null)} style={{fontSize:11,color:"var(--text-dim)",cursor:"pointer",fontFamily:"'DM Sans',sans-serif",display:"inline-block",marginBottom:10}}>&#8592; back to all</span>
+                    {itemCard(fullReadBrowseIdx)}
+                  </>
+                )}
               </>;
             })()}
           </div>}
