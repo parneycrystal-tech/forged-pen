@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from "react";
+import { Component, useState, useRef, useEffect } from "react";
 import { createClient } from "@supabase/supabase-js";
 import darkAcademiaPanel from './Dark Academia Left Side Panel.png';
 import lightAcademiaPanel from './Light Academia Left Side Panel.png';
@@ -548,26 +548,188 @@ function finnClean(text) {
 // the confirmed cause of the Title/Genre/Synopsis/Excites fields going blank during a fast recapture
 // session. Contained entirely in this function; no caller anywhere else needs to change.
 const _cloudSaveQueues = {};
+// ===== SAFETY NET (Chunk 53) =====
+// Every save is confirmed. Failed saves retry, the writer is told if they keep failing,
+// unsynced work is never overwritten by an older cloud copy, and errors are logged without writer text.
+
+// Keys whose newest value has not been confirmed in the cloud yet. Persisted so a reload
+// or a lost connection never lets an older cloud copy overwrite newer local work.
+const UNSYNCED_KEY = "tt-unsynced-keys";
+function readUnsynced(){ try { const v = JSON.parse(localStorage.getItem(UNSYNCED_KEY) || "[]"); return Array.isArray(v) ? v : []; } catch { return []; } }
+function writeUnsynced(list){ try { localStorage.setItem(UNSYNCED_KEY, JSON.stringify(list)); } catch {} }
+function markUnsynced(key){ if (key === UNSYNCED_KEY) return; const l = readUnsynced(); if (!l.includes(key)) { l.push(key); writeUnsynced(l); } }
+function markSynced(key){ const l = readUnsynced(); if (l.includes(key)) writeUnsynced(l.filter(k => k !== key)); }
+
+const _latestSaveVal = {};
+const _failedSaves = new Set();
+const _saveStatusListeners = new Set();
+let _saveGeneration = 0;
+function notifySaveStatus(){ const n = _failedSaves.size; _saveStatusListeners.forEach(fn => { try { fn(n); } catch {} }); }
+function subscribeSaveStatus(fn){ _saveStatusListeners.add(fn); fn(_failedSaves.size); return () => { _saveStatusListeners.delete(fn); }; }
+function hasUnsavedCloudChanges(){ return _failedSaves.size > 0; }
+// Called on sign-out: failures from the old session no longer apply.
+function clearSaveFailures(){ _saveGeneration++; _failedSaves.clear(); Object.keys(_latestSaveVal).forEach(k => delete _latestSaveVal[k]); notifySaveStatus(); }
+
+const SAVE_RETRY_DELAYS = [0, 1500, 4000, 10000];
+async function cloudSaveAttempt(key, val){
+  const { data: { session } } = await supabase.auth.getSession();
+  const user = session?.user;
+  if (!user) throw new Error("No active session");
+  const { error } = await supabase.from("user_store").upsert({ user_id: user.id, key, value: val, updated_at: new Date().toISOString() }, { onConflict: "user_id,key" });
+  if (error) throw new Error(error.message || "Save rejected");
+}
 async function cloudSave(key, val) {
+  _latestSaveVal[key] = val;
+  markUnsynced(key);
+  const generation = _saveGeneration;
   const prior = _cloudSaveQueues[key] || Promise.resolve();
   const thisSave = prior.then(async () => {
-    try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
-      await supabase.from("user_store").upsert({ user_id: user.id, key, value: val, updated_at: new Date().toISOString() }, { onConflict: "user_id,key" });
-    } catch {}
+    let lastErr = null;
+    for (const delay of SAVE_RETRY_DELAYS) {
+      if (delay) await new Promise(r => setTimeout(r, delay));
+      if (generation !== _saveGeneration) return false; // signed out meanwhile
+      if (_latestSaveVal[key] !== val) return true; // a newer save for this key will carry the latest value
+      try {
+        await cloudSaveAttempt(key, val);
+        if (_latestSaveVal[key] === val) { markSynced(key); if (_failedSaves.delete(key)) notifySaveStatus(); }
+        return true;
+      } catch (e) { lastErr = e; }
+    }
+    if (generation !== _saveGeneration) return false;
+    _failedSaves.add(key);
+    notifySaveStatus();
+    logClientError("cloud-save", lastErr, { key });
+    return false;
   });
   _cloudSaveQueues[key] = thisSave;
   return thisSave;
+}
+function retryFailedSaves(){
+  [..._failedSaves].forEach(key => {
+    const val = key in _latestSaveVal ? _latestSaveVal[key] : loadStored(key);
+    if (val !== null && val !== undefined) cloudSave(key, val);
+  });
+}
+// Push anything left unsynced from an earlier visit (closed tab, lost connection, expired session).
+function resyncPendingSaves(){
+  readUnsynced().forEach(key => { const v = loadStored(key); if (v !== null) cloudSave(key, v); else markSynced(key); });
 }
 async function cloudLoadAll() {
   try {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return false;
-    const { data } = await supabase.from("user_store").select("key, value").eq("user_id", user.id);
-    if (data && data.length > 0) { data.forEach(row => { try { localStorage.setItem(row.key, JSON.stringify(row.value)); } catch {} }); }
+    const { data, error } = await supabase.from("user_store").select("key, value").eq("user_id", user.id);
+    if (error) { logClientError("cloud-load", error); return false; }
+    // Never let the cloud copy overwrite a key whose newer local value has not synced yet.
+    const pending = new Set(readUnsynced());
+    if (data && data.length > 0) { data.forEach(row => { if (pending.has(row.key)) return; try { localStorage.setItem(row.key, JSON.stringify(row.value)); } catch {} }); }
+    resyncPendingSaves();
     return true;
-  } catch { return false; }
+  } catch (e) { logClientError("cloud-load", e); return false; }
+}
+// Local data belongs to one account. Wipe it only when a DIFFERENT account signs in on this
+// device (prevents cross-account bleed). Reloads by the same writer keep their unsynced work.
+const LOCAL_OWNER_KEY = "fp-local-owner";
+function prepareLocalDataFor(uid){
+  let owner = null;
+  try { owner = localStorage.getItem(LOCAL_OWNER_KEY); } catch {}
+  if (owner !== uid) {
+    clearLocalUserData();
+    try { localStorage.setItem(LOCAL_OWNER_KEY, uid); } catch {}
+  }
+}
+
+// Error log: message, stack, screen and time only. Quoted text is scrubbed so writer content never leaves the device this way.
+let _errorLogCount = 0;
+function scrubErrorText(s, max = 500){
+  return String(s || "").replace(/"[^"]*"/g, '"[text removed]"').replace(/'[^']{12,}'/g, "'[text removed]'").slice(0, max);
+}
+function logClientError(scope, err, extra){
+  try {
+    console.warn("[Forged Pen]", scope, err);
+    if (_errorLogCount >= 20) return;
+    _errorLogCount++;
+    const row = {
+      scope: String(scope || "unknown").slice(0, 60),
+      message: scrubErrorText(err?.message || err),
+      stack: scrubErrorText(err?.stack, 2000) || null,
+      context: extra ? scrubErrorText(JSON.stringify(extra), 1500) : null,
+      path: (typeof location !== "undefined" ? location.pathname : "").slice(0, 200),
+      user_agent: (typeof navigator !== "undefined" ? navigator.userAgent : "").slice(0, 300),
+    };
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      const uid = session?.user?.id;
+      if (!uid) return;
+      return supabase.from("error_log").insert({ ...row, user_id: uid });
+    }).catch(() => {});
+  } catch {}
+}
+
+if (typeof window !== "undefined" && !window.__fpSafetyNetInstalled) {
+  window.__fpSafetyNetInstalled = true;
+  window.addEventListener("online", retryFailedSaves);
+  document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible") retryFailedSaves(); });
+  setInterval(() => { if (_failedSaves.size > 0) retryFailedSaves(); }, 30000);
+  window.addEventListener("beforeunload", e => { if (_failedSaves.size > 0) { e.preventDefault(); e.returnValue = ""; } });
+  window.addEventListener("error", e => logClientError("window-error", e.error || e.message));
+  window.addEventListener("unhandledrejection", e => logClientError("unhandled-promise", e.reason));
+}
+
+// First Session capture: Finn's CAPTURE block is model output, so its shape is never trusted.
+// Only known fields are kept, and every value becomes plain text (the Story Bible stores text).
+const FIRST_SESSION_FIELDS = ["protagonist","protagonistGoal","protagonistDream","protagonistFear","protagonistWound","protagonistBackstory","protagonistMisbelief","supporting","antagonist","worldSetting","worldTone","synopsis","themes","excites"];
+function captureValueToText(v){
+  if (v === null || v === undefined) return "";
+  if (typeof v === "string") return v.trim();
+  if (typeof v === "number" || typeof v === "boolean") return String(v);
+  if (Array.isArray(v)) return v.map(captureValueToText).filter(Boolean).join(", ");
+  if (typeof v === "object") return Object.values(v).map(captureValueToText).filter(Boolean).join(", ");
+  return "";
+}
+function normalizeCapture(obj){
+  const out = {};
+  if (!obj || typeof obj !== "object" || Array.isArray(obj)) return out;
+  FIRST_SESSION_FIELDS.forEach(k => { const t = captureValueToText(obj[k]); if (t) out[k] = t.slice(0, 4000); });
+  return out;
+}
+function themeChips(themes){
+  return captureValueToText(themes).split(/[,;\n]+/).map(s => s.trim()).filter(Boolean).slice(0, 12);
+}
+// Typed-but-unsent drafts live on this device only (tt- keys, so sign-out clears them).
+function loadDraft(key){ try { return localStorage.getItem(key) || ""; } catch { return ""; } }
+function saveDraft(key, val){ try { if (val) localStorage.setItem(key, val); else localStorage.removeItem(key); } catch {} }
+
+const crashBtn = { display:"inline-block", padding:"10px 22px", background:"#A8884A", color:"#1E1C14", border:"none", borderRadius:6, fontFamily:"'DM Sans',sans-serif", fontSize:13, fontWeight:500, cursor:"pointer" };
+class ErrorBoundary extends Component {
+  constructor(props){ super(props); this.state = { error: null }; this.reset = this.reset.bind(this); }
+  static getDerivedStateFromError(error){ return { error }; }
+  componentDidCatch(error, info){ logClientError(this.props.scope || "app", error, { componentStack: String(info?.componentStack || "").slice(0, 1500) }); }
+  reset(){ this.setState({ error: null }); if (this.props.onReset) this.props.onReset(); }
+  render(){
+    if (!this.state.error) return this.props.children;
+    if (this.props.fallback) return this.props.fallback(this.reset);
+    return <div role="alert" style={{position:"fixed",inset:0,background:"#1E1C14",display:"flex",alignItems:"center",justifyContent:"center",padding:24,zIndex:9999}}>
+      <div style={{maxWidth:420,textAlign:"center"}}>
+        <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:24,color:"#A8884A",marginBottom:12}}>Something went wrong on our end.</div>
+        <p style={{fontFamily:"'DM Sans',sans-serif",fontSize:14,lineHeight:1.6,color:"#C8BC9A",margin:"0 0 20px"}}>Forged Pen hit an error and had to stop. Everything that was already saved is safe. Reload to pick up where you left off. If this keeps happening, let us know what you were doing when it did.</p>
+        <button onClick={() => window.location.reload()} style={crashBtn}>Reload Forged Pen</button>
+      </div>
+    </div>;
+  }
+}
+function SaveStatusBanner(){
+  const [failed, setFailed] = useState(0);
+  useEffect(() => subscribeSaveStatus(setFailed), []);
+  if (failed === 0) return null;
+  const localFull = typeof window !== "undefined" && window.__fpLocalSaveFailed;
+  return <div role="status" style={{position:"fixed",left:"50%",bottom:16,transform:"translateX(-50%)",zIndex:9000,maxWidth:520,width:"calc(100% - 32px)",background:"var(--bg-card,#2A261C)",border:"1px solid #C07848",borderRadius:10,padding:"12px 16px",display:"flex",gap:12,alignItems:"center",boxShadow:"0 6px 24px rgba(0,0,0,.35)"}}>
+    <div style={{flex:1,fontFamily:"'DM Sans',sans-serif",fontSize:12.5,lineHeight:1.5,color:"var(--text-primary,#EDE6DA)"}}>
+      {localFull
+        ? "Some recent changes haven't reached the cloud yet, and this device's storage is full. Forged Pen keeps retrying. Copy anything important somewhere safe until this message goes away."
+        : "Some recent changes haven't reached the cloud yet. They're kept on this device, and Forged Pen keeps retrying. Please don't clear your browser or switch devices until this message goes away."}
+    </div>
+    <button onClick={retryFailedSaves} style={{...crashBtn,padding:"7px 14px",fontSize:12,flexShrink:0}}>Try again</button>
+  </div>;
 }
 function charactersCtx(project){
   const chars=project?.characters;
@@ -1058,7 +1220,8 @@ const PROFILE_QUESTIONS=[
   {id:"q6",q:"What's your relationship with finishing?",opts:["I finish regularly","I start a lot but rarely finish","I've never finished a long project","I've finished before but lost the thread on this one","It depends on the project"],multi:false,addl:"Anything else about your history with finishing?"}
 ];
 
-export default function App() {
+function AppMain() {
+  const activeUserIdRef = useRef(null);
   const [user, setUser] = useState(null);
   const [agreementAccepted, setAgreementAccepted] = useState(false);
   const [agreementSubmitting, setAgreementSubmitting] = useState(false);
@@ -1136,13 +1299,13 @@ export default function App() {
   // Persist first session conversation across refreshes
   useEffect(()=>{
     if(firstSessionMsgs.length>0){
-      try{localStorage.setItem("tt-first-session-msgs",JSON.stringify(firstSessionMsgs));}catch(e){}
+      saveStored("tt-first-session-msgs",firstSessionMsgs);
     }
   },[firstSessionMsgs]);
 
   useEffect(()=>{
     if(Object.keys(firstSessionCapture).length>0){
-      try{localStorage.setItem("tt-first-session-capture",JSON.stringify(firstSessionCapture));}catch(e){}
+      saveStored("tt-first-session-capture",firstSessionCapture);
     }
   },[firstSessionCapture]);
   const [lastSession, setLastSession] = useState(null);
@@ -1365,8 +1528,10 @@ export default function App() {
   useEffect(()=>{
     supabase.auth.getSession().then(({data:{session}})=>{
       if(session?.user){
+        if(activeUserIdRef.current===session.user.id) return; // already loaded by the SIGNED_IN listener
+        activeUserIdRef.current=session.user.id;
         setUser(session.user);
-        clearLocalUserData();
+        prepareLocalDataFor(session.user.id);
         cloudLoadAll().then(()=>{
           loadAllData();
           return checkBetaAgreement(session.user.id);
@@ -1377,11 +1542,15 @@ export default function App() {
     });
     const {data:{subscription}} = supabase.auth.onAuthStateChange((event,session)=>{
       if(event==="SIGNED_IN"&&session?.user){
+        // Supabase can fire SIGNED_IN again on tab refocus or session recovery. Reloading then would
+        // overwrite in-progress work with the cloud copy, so only load when the account actually changes.
+        if(activeUserIdRef.current===session.user.id) return;
+        activeUserIdRef.current=session.user.id;
         setUser(session.user);
-        clearLocalUserData();
+        prepareLocalDataFor(session.user.id);
         cloudLoadAll().then(()=>{loadAllData();return checkBetaAgreement(session.user.id);}).then(()=>{setAuthLoading(false)});
       }
-      if(event==="SIGNED_OUT"){setUser(null);clearLocalUserData();setScreen("welcome");setAgreementAccepted(false);setAuthLoading(false)}
+      if(event==="SIGNED_OUT"){activeUserIdRef.current=null;clearSaveFailures();setUser(null);clearLocalUserData();setScreen("welcome");setAgreementAccepted(false);setAuthLoading(false)}
     });
     return ()=>subscription.unsubscribe();
   },[]);
@@ -1480,8 +1649,10 @@ export default function App() {
     if (ss) setSessionSummaries(ss);
     if (fsd) setFirstSessionDone(true);
     if (fsdis) setFirstSessionDismissed(true);
-    if (fsmsgs && fsmsgs.length>0) setFirstSessionMsgs(fsmsgs);
-    if (fscap && Object.keys(fscap).length>0) setFirstSessionCapture(fscap);
+    const fsmsgsClean = Array.isArray(fsmsgs) ? fsmsgs.filter(m=>m&&typeof m.content==="string"&&(m.role==="user"||m.role==="assistant")).map(m=>({...m,choices:Array.isArray(m.choices)?m.choices.filter(c=>typeof c==="string"):undefined})) : [];
+    if (fsmsgsClean.length>0) setFirstSessionMsgs(fsmsgsClean);
+    const fscapClean = normalizeCapture(fscap);
+    if (Object.keys(fscapClean).length>0) setFirstSessionCapture(fscapClean);
     if (pdr) {
       // Support both old single-slot format and new array format
       const queue=Array.isArray(pdr)?pdr:[pdr];
@@ -1507,7 +1678,9 @@ export default function App() {
     }
   };
 
-  const handleLogout=async()=>{await supabase.auth.signOut();setUser(null);setScreen("welcome")};
+  const handleLogout=async()=>{
+    if(hasUnsavedCloudChanges()&&!window.confirm("Some of your recent changes haven't reached the cloud yet. Signing out now will lose them. Sign out anyway?"))return;
+    await supabase.auth.signOut();setUser(null);setScreen("welcome")};
 
   useEffect(()=>{endRef.current?.scrollIntoView({behavior:"smooth"})},[msgs]);
   useEffect(()=>{if(mode&&msgs.length>0)saveStored("tt-chat-"+mode.id,msgs)},[msgs]);
@@ -3703,9 +3876,9 @@ After every response, add a JSON capture block on its own line starting with CAP
         const captureMatch=raw.match(/CAPTURE:\s*(\{[\s\S]*?\})/);
         if(captureMatch){
           try{
-            const captured=JSON.parse(captureMatch[1]);
-            setFirstSessionCapture(prev=>({...prev,...captured}));
-          }catch(e){}
+            const captured=normalizeCapture(JSON.parse(captureMatch[1]));
+            if(Object.keys(captured).length>0) setFirstSessionCapture(prev=>({...prev,...captured}));
+          }catch(e){logClientError("first-session-capture",e);}
         }
 
         // Check if ready to save
@@ -7825,7 +7998,13 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
       </div>}
 
       {/* FIRST SESSION WITH FINN */}
-      {firstSessionOpen&&<div style={{position:"fixed",top:0,left:0,right:0,bottom:0,background:"var(--bg-base)",zIndex:300,display:"flex",flexDirection:"column",animation:"fu .3s ease-out"}}>
+      {firstSessionOpen&&<ErrorBoundary scope="first-session" onReset={()=>setFirstSessionOpen(false)} fallback={(reset)=><div role="alert" style={{position:"fixed",inset:0,background:"var(--bg-base,#1E1C14)",zIndex:300,display:"flex",alignItems:"center",justifyContent:"center",padding:24}}>
+        <div style={{maxWidth:420,textAlign:"center"}}>
+          <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:22,color:"var(--accent,#A8884A)",marginBottom:10}}>This conversation hit a snag.</div>
+          <p style={{fontFamily:"'DM Sans',sans-serif",fontSize:14,lineHeight:1.6,color:"var(--text-muted,#C8BC9A)",margin:"0 0 20px"}}>Everything up to your last message is saved. Close this and reopen First Session with Finn to keep going.</p>
+          <button onClick={reset} style={crashBtn}>Close</button>
+        </div>
+      </div>}><div style={{position:"fixed",top:0,left:0,right:0,bottom:0,background:"var(--bg-base)",zIndex:300,display:"flex",flexDirection:"column",animation:"fu .3s ease-out"}}>
 
         {/* Header */}
         <div style={{padding:"16px 24px",borderBottom:"1px solid var(--border)",display:"flex",justifyContent:"space-between",alignItems:"center",background:"var(--bg-dark)"}}>
@@ -7908,8 +8087,8 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
 
             {/* Input */}
             {!firstSessionMsgs.some(m=>m.readyToSave)&&<div style={{padding:"14px 24px",borderTop:"1px solid var(--border)",display:"flex",gap:10,alignItems:"center",background:"var(--bg-dark)"}}>
-              <textarea id="firstSessionInput" placeholder="Tell Finn about your story..." rows={2} onKeyDown={e=>{if(e.key==="Enter"&&!e.shiftKey&&e.target.value.trim()){e.preventDefault();sendFirstSession(e.target.value);e.target.value="";e.target.style.height="auto"}}} onInput={e=>{e.target.style.height="auto";e.target.style.height=Math.min(e.target.scrollHeight,160)+"px"}} style={{flex:1,fontFamily:"'DM Sans',sans-serif",fontSize:14,background:"var(--bg-card)",border:"1px solid var(--border)",borderRadius:8,padding:"10px 14px",color:"var(--text-primary)",resize:"none",minHeight:40,maxHeight:160,lineHeight:1.5}}/>
-              <div onClick={()=>{const inp=document.getElementById("firstSessionInput");if(inp?.value?.trim()){sendFirstSession(inp.value);inp.value="";inp.style.height="auto"}}} style={{padding:"10px 18px",background:"var(--accent)",borderRadius:8,fontSize:13,fontWeight:500,color:"#F0EAE0",cursor:"pointer",fontFamily:"'DM Sans',sans-serif",alignSelf:"flex-end"}}>Send</div>
+              <textarea id="firstSessionInput" placeholder="Tell Finn about your story..." rows={2} defaultValue={loadDraft("tt-first-session-draft")} onKeyDown={e=>{if(e.key==="Enter"&&!e.shiftKey&&e.target.value.trim()){e.preventDefault();sendFirstSession(e.target.value);e.target.value="";saveDraft("tt-first-session-draft","");e.target.style.height="auto"}}} onInput={e=>{saveDraft("tt-first-session-draft",e.target.value);e.target.style.height="auto";e.target.style.height=Math.min(e.target.scrollHeight,160)+"px"}} style={{flex:1,fontFamily:"'DM Sans',sans-serif",fontSize:14,background:"var(--bg-card)",border:"1px solid var(--border)",borderRadius:8,padding:"10px 14px",color:"var(--text-primary)",resize:"none",minHeight:40,maxHeight:160,lineHeight:1.5}}/>
+              <div onClick={()=>{const inp=document.getElementById("firstSessionInput");if(inp?.value?.trim()){sendFirstSession(inp.value);inp.value="";saveDraft("tt-first-session-draft","");inp.style.height="auto"}}} style={{padding:"10px 18px",background:"var(--accent)",borderRadius:8,fontSize:13,fontWeight:500,color:"#F0EAE0",cursor:"pointer",fontFamily:"'DM Sans',sans-serif",alignSelf:"flex-end"}}>Send</div>
             </div>}
           </div>
 
@@ -7951,10 +8130,10 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
               </div>
 
               {/* Themes */}
-              {firstSessionCapture.themes&&firstSessionCapture.themes.length>0&&<div>
+              {themeChips(firstSessionCapture.themes).length>0&&<div>
                 <div style={{fontSize:9,textTransform:"uppercase",letterSpacing:"0.12em",color:"var(--text-dim)",fontFamily:"'DM Sans',sans-serif",marginBottom:6}}>Themes sensing</div>
                 <div style={{display:"flex",flexWrap:"wrap",gap:4}}>
-                  {firstSessionCapture.themes.map((t,i)=><span key={i} style={{fontSize:11,padding:"3px 10px",borderRadius:20,background:"var(--bg-card)",border:"1px solid var(--border)",color:"var(--text-dim)",fontFamily:"'DM Sans',sans-serif"}}>{t}</span>)}
+                  {themeChips(firstSessionCapture.themes).map((t,i)=><span key={i} style={{fontSize:11,padding:"3px 10px",borderRadius:20,background:"var(--bg-card)",border:"1px solid var(--border)",color:"var(--text-dim)",fontFamily:"'DM Sans',sans-serif"}}>{t}</span>)}
                 </div>
               </div>}
 
@@ -7965,7 +8144,7 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
             </div>
           </div>
         </div>
-      </div>}
+      </div></ErrorBoundary>}
 
       {/* CAPTURE TO BIBLE OVERLAY */}
       {revisionLoopEvidenceOpen&&revisionLoopSignal&&<div style={{position:"fixed",top:0,left:0,right:0,bottom:0,background:"rgba(0,0,0,0.7)",zIndex:300,display:"flex",alignItems:"center",justifyContent:"center",padding:20}} onClick={()=>setRevisionLoopEvidenceOpen(false)}>
@@ -8588,4 +8767,8 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
 
     </div>
   );
+}
+
+export default function App() {
+  return <ErrorBoundary scope="app"><AppMain/><SaveStatusBanner/></ErrorBoundary>;
 }
