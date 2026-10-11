@@ -695,6 +695,77 @@ function normalizeCapture(obj){
 function themeChips(themes){
   return captureValueToText(themes).split(/[,;\n]+/).map(s => s.trim()).filter(Boolean).slice(0, 12);
 }
+// ===== CHUNK 54: reading limits and model-output cleanup =====
+// Chapters are read whole up to this size. Longer chapters are cut with a clear marker, so Agnes
+// never assumes a chapter ends where the read stopped.
+const CHAPTER_READ_LIMIT = 60000;
+function chapterForRead(text){
+  const t = String(text || "");
+  if (t.length <= CHAPTER_READ_LIMIT) return t;
+  return t.slice(0, CHAPTER_READ_LIMIT) + "\n\n[This chapter continues beyond this point. The rest was not included in this read.]";
+}
+// The Full Read sends the manuscript in one request. Up to this size it goes whole. A longer book
+// gets full text in order until the budget, then Agnes's chapter summaries for the rest, clearly
+// labeled, so Finn still sees the whole arc instead of the book silently stopping partway.
+const FULL_READ_CHAR_LIMIT = 150000;
+function buildFullReadText(scenes, project){
+  const byChapter = {};
+  [...(scenes || [])].sort((a, b) => a.chapter - b.chapter).forEach(s => {
+    (byChapter[s.chapter] = byChapter[s.chapter] || []).push(s.text || "");
+  });
+  const nums = Object.keys(byChapter).map(Number).sort((a, b) => a - b);
+  const full = nums.map(n => ({ n, text: `Chapter ${n}:\n${byChapter[n].join("\n\n")}` }));
+  const total = full.reduce((sum, c) => sum + c.text.length + 2, 0);
+  if (total <= FULL_READ_CHAR_LIMIT) return full.map(c => c.text).join("\n\n");
+  const summaries = {};
+  (Array.isArray(project?.chapters) ? project.chapters : []).forEach(c => { if (c && c.summary) summaries[c.num] = captureValueToText(c.summary); });
+  const summaryOnly = nums.map(n => `Chapter ${n} (summary only, full text not included): ${summaries[n] || "no summary captured yet"}`);
+  const parts = [];
+  let used = 500; // room for the note below
+  let i = 0;
+  for (; i < full.length; i++) {
+    const laterSummaries = summaryOnly.slice(i + 1).reduce((sum, t) => sum + t.length + 2, 0);
+    if (used + full[i].text.length + 2 + laterSummaries > FULL_READ_CHAR_LIMIT) break;
+    parts.push(full[i].text);
+    used += full[i].text.length + 2;
+  }
+  const rest = summaryOnly.slice(i);
+  const last = nums[nums.length - 1];
+  const note = i > 0
+    ? `NOTE: This manuscript is longer than one read allows. Chapters ${nums[0]} to ${nums[i - 1]} are full text. Chapters ${nums[i]} to ${last} are given as Agnes's summaries only: use them for the arc and big-picture findings, never for line-level detail.`
+    : `NOTE: This manuscript is longer than one read allows, so every chapter is given as Agnes's summary only: use them for the arc and big-picture findings, never for line-level detail.`;
+  return [note, ...parts, ...rest].join("\n\n");
+}
+// Finn's and Agnes's JSON is model output, so its shape is never trusted. Text stays text, numbers and
+// true/false stay as they are, and anything nested where a value is expected is flattened to text.
+// Listed array fields become arrays of flat objects; listed object fields become flat objects.
+function flatModelValue(v){
+  if (v === null || v === undefined) return v;
+  if (typeof v === "string" || typeof v === "number" || typeof v === "boolean") return v;
+  return captureValueToText(v);
+}
+function cleanModelResult(obj, arrayKeys = [], objectKeys = []){
+  if (!obj || typeof obj !== "object" || Array.isArray(obj)) return {};
+  const out = {};
+  Object.entries(obj).forEach(([k, v]) => {
+    if (arrayKeys.includes(k)) {
+      out[k] = Array.isArray(v) ? v.filter(it => it && typeof it === "object" && !Array.isArray(it)).map(it => cleanModelResult(it)) : [];
+    } else if (objectKeys.includes(k)) {
+      if (v && typeof v === "object" && !Array.isArray(v)) out[k] = cleanModelResult(v);
+    } else {
+      out[k] = flatModelValue(v);
+    }
+  });
+  return out;
+}
+const CAPTURE_ARRAY_KEYS = ["drifts", "beats", "threadUpdates", "proposedThreads", "proposedCharacters"];
+function cleanSidebarCtx(ctx){
+  if (!ctx || typeof ctx !== "object" || Array.isArray(ctx)) return null;
+  const anchors = Array.isArray(ctx.sensoryAnchors) ? ctx.sensoryAnchors.map(a => typeof a === "string" ? { detail: a, sense: "" } : a) : [];
+  const clean = cleanModelResult({ ...ctx, sensoryAnchors: anchors }, ["sensoryAnchors"]);
+  clean.sensoryAnchors = (clean.sensoryAnchors || []).filter(a => a.detail);
+  return clean;
+}
 // Typed-but-unsent drafts live on this device only (tt- keys, so sign-out clears them).
 function loadDraft(key){ try { return localStorage.getItem(key) || ""; } catch { return ""; } }
 function saveDraft(key, val){ try { if (val) localStorage.setItem(key, val); else localStorage.removeItem(key); } catch {} }
@@ -1605,7 +1676,7 @@ function AppMain() {
       if (isForge && pl.description && pl.description.length > 8 && /[a-zA-Z]{3,}/.test(pl.description)) setPulse(pl);
       else saveStored("tt-pulse",null); // clear the bad value so it doesn't persist
     }
-    if (sb) setSidebarCtx(sb);
+    if (sb) { const sbClean=cleanSidebarCtx(sb); if (sbClean) setSidebarCtx(sbClean); }
     if (th) setTheme(th);
     if (nb) setAgnesBrief(nb);
     // Idea Lab session migration: the first time this loads after the update, any existing single-blob
@@ -1663,7 +1734,7 @@ function AppMain() {
         setDriftQueue(queue);
       }
     }
-    if (pex) { setExtractResult(pex); setExtractOpen(true); }
+    if (pex && typeof pex==="object" && !Array.isArray(pex)) { setExtractResult(cleanModelResult(pex,CAPTURE_ARRAY_KEYS,["pacingCheck"])); setExtractOpen(true); }
   };
 
   const handleAuth=async(isSignUp)=>{
@@ -2578,7 +2649,7 @@ CHARACTERS ALREADY GIVEN THEIR OWN CARD: ${existingCharacterNames}${povAwareNote
 CHAPTER DRAFT STATUS: ${draftNote}
 
 CHAPTER ${chapterNum||"??"} TEXT:
-${sceneText.substring(0,20000)}
+${chapterForRead(sceneText)}
 
 Extract what this chapter actually establishes. Only include fields where you found something meaningful that isn't already well-captured in the existing Bible. Leave fields as empty string if nothing new or significant was found. Paraphrase what you find in your own words rather than quoting dialogue directly, since direct quotes containing quotation marks can break the JSON format.
 
@@ -2632,7 +2703,7 @@ Respond with ONLY this JSON:
         const raw=finnClean(d.content?.filter(b=>b.type==="text").map(b=>b.text).join(""))||"";
         const cleaned=raw.replace(/```json\s*/g,"").replace(/```\s*/g,"").trim();
         try{
-          const result=JSON.parse(cleaned);
+          const result=cleanModelResult(JSON.parse(cleaned),CAPTURE_ARRAY_KEYS,["pacingCheck"]);
           result.chapterNum=chapterNum;
           if(!Array.isArray(result.drifts))result.drifts=[];
           if(!Array.isArray(result.beats))result.beats=[];
@@ -2680,12 +2751,12 @@ Respond with ONLY this JSON:
         const r=await fetch("/api/chat",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({
           max_tokens:2000,
           system:"You are Agnes, a meticulous literary archivist doing a fast first pass across a writer's whole manuscript. Extract only a chapter summary and any genuinely new core Bible material. Do not propose new characters, do not propose threads, do not check for drift, none of that here, this is deliberately a lighter pass. Never use em dashes. Respond ONLY with a JSON object.",
-          messages:[{role:"user",content:`EXISTING BIBLE:\n${existingBible}\n\nCHAPTER ${ch.num}:\n${ch.text.substring(0,20000)}\n\nRespond with ONLY this JSON:\n{"chapterSummary":"2-3 sentences, what happens and what changes","protagonistReveal":"new protagonist detail, empty string if none","worldReveal":"new world/setting detail, empty string if none","supportingReveal":"new supporting character detail, empty string if none","antagonistReveal":"new antagonist detail, empty string if none","themeReveal":"empty string if none","mainPlotUpdate":"empty string if none"}`}]
+          messages:[{role:"user",content:`EXISTING BIBLE:\n${existingBible}\n\nCHAPTER ${ch.num}:\n${chapterForRead(ch.text)}\n\nRespond with ONLY this JSON:\n{"chapterSummary":"2-3 sentences, what happens and what changes","protagonistReveal":"new protagonist detail, empty string if none","worldReveal":"new world/setting detail, empty string if none","supportingReveal":"new supporting character detail, empty string if none","antagonistReveal":"new antagonist detail, empty string if none","themeReveal":"empty string if none","mainPlotUpdate":"empty string if none"}`}]
         })});
         const d=await r.json();
         if(d.error)continue;
         const raw=finnClean(d.content?.filter(b=>b.type==="text").map(b=>b.text).join(""))||"";
-        const parsed=JSON.parse(raw.replace(/```json\s*/g,"").replace(/```\s*/g,"").trim());
+        const parsed=cleanModelResult(JSON.parse(raw.replace(/```json\s*/g,"").replace(/```\s*/g,"").trim()));
         const existingChapters=Array.isArray(liveProject?.chapters)?[...liveProject.chapters]:[];
         const idx=existingChapters.findIndex(c=>c.num===ch.num);
         if(idx>=0)existingChapters[idx]={...existingChapters[idx],summary:parsed.chapterSummary||existingChapters[idx].summary};
@@ -2713,7 +2784,7 @@ Respond with ONLY this JSON:
   // itself. Previously-dismissed-as-intentional findings are passed in explicitly so they don't
   // resurface as if never addressed.
   const runFullReadPhase2=async(builtProject,categories,priorIntentional)=>{
-    const fullText=[...scenes].sort((a,b)=>a.chapter-b.chapter).map(s=>`Chapter ${s.chapter}:\n${s.text||""}`).join("\n\n").substring(0,150000);
+    const fullText=buildFullReadText(scenes,builtProject);
     const bibleCtx=`Title: ${builtProject?.title||"untitled"}\nSynopsis: ${builtProject?.synopsis||"none"}\nProtagonist: ${builtProject?.protagonist||"none"}\nSupporting: ${builtProject?.supporting||"none"}\nAntagonist: ${builtProject?.antagonist||"none"}\nWorld: ${builtProject?.worldSetting||"none"}\nThemes: ${builtProject?.themes||"none"}\nMain plot: ${builtProject?.mainPlot||"none"}`;
     const catLabels=categories.map(c=>FULL_READ_CATEGORIES.find(f=>f.id===c)?.label||c).join(", ");
     const alreadyAddressed=(priorIntentional||[]).map(n=>`- ${n}`).join("\n")||"none yet";
@@ -2819,14 +2890,14 @@ Main plot: ${project?.mainPlot||"none"}`;
       const r=await fetch("/api/chat",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({
         max_tokens:2000,
         system:`You are Agnes, the meticulous record keeper. Compare this chapter against the EXISTING STORY BIBLE, field by field.${manualDriftPOVScope} Only flag a field as drift if the existing entry is a real, substantial entry (not "none") AND this chapter appears to move in a meaningfully different direction from it, not just add consistent detail. Your voice is direct, selective, specific, and slightly pointed. Never use the words "inconsistency", "error", "problem", or "contradiction". Say "evolving", "different direction", "moving toward something new". Not alarmed. Precise. Never use em dashes. Respond ONLY with a JSON object.`,
-        messages:[{role:"user",content:`EXISTING STORY BIBLE:\n${existingBible}\n\nCHAPTER ${chapterNum} TEXT:\n${sceneText.substring(0,20000)}\n\nRespond with ONLY this JSON:\n{"drifts":[{"field":"the field key exactly as given (protagonist, protagonistGoal, protagonistDream, protagonistFear, protagonistWound, protagonistBackstory, protagonistMisbelief, supporting, antagonist, worldSetting, worldRules, worldMythology, worldBeliefs, worldDanger, worldTone, themes, mainPlot)","fieldLabel":"human readable label. For protagonistMisbelief specifically, always use \\"The lie they believe\\", never \\"misbelief\\".","existing":"the existing Bible entry, quoted briefly","incoming":"the new chapter evidence, quoted briefly","observation":"one-sentence neutral observation of the difference","question":"one specific question for the writer, is this intentional evolution or something to revisit"}]}\n\nIf there is no genuine drift, return "drifts": [].`}]
+        messages:[{role:"user",content:`EXISTING STORY BIBLE:\n${existingBible}\n\nCHAPTER ${chapterNum} TEXT:\n${chapterForRead(sceneText)}\n\nRespond with ONLY this JSON:\n{"drifts":[{"field":"the field key exactly as given (protagonist, protagonistGoal, protagonistDream, protagonistFear, protagonistWound, protagonistBackstory, protagonistMisbelief, supporting, antagonist, worldSetting, worldRules, worldMythology, worldBeliefs, worldDanger, worldTone, themes, mainPlot)","fieldLabel":"human readable label. For protagonistMisbelief specifically, always use \\"The lie they believe\\", never \\"misbelief\\".","existing":"the existing Bible entry, quoted briefly","incoming":"the new chapter evidence, quoted briefly","observation":"one-sentence neutral observation of the difference","question":"one specific question for the writer, is this intentional evolution or something to revisit"}]}\n\nIf there is no genuine drift, return "drifts": [].`}]
       })});
       const d=await r.json();
       if(!d.error){
         const raw=finnClean(d.content?.filter(b=>b.type==="text").map(b=>b.text).join(""))||"";
         const cleaned=raw.replace(/```json\s*/g,"").replace(/```\s*/g,"").trim();
         try{
-          const result=JSON.parse(cleaned);
+          const result=cleanModelResult(JSON.parse(cleaned),["drifts"]);
           if(Array.isArray(result.drifts)&&result.drifts.length>0){
             processDrifts({drifts:result.drifts,chapterNum},project);
             setDriftOpen(true); // a manual ask is always shown immediately, regardless of involvement level
@@ -3284,13 +3355,13 @@ Keep responses focused and useful, not exhaustive. This is a thinking partner, n
           const r=await fetch("/api/chat",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({
             max_tokens:2000,
             system:`You are Agnes, the meticulous record keeper. Compare this chapter against the EXISTING STORY BIBLE, field by field.${retroDriftPOVScope} Only flag a field as drift if the existing entry is a real, substantial entry (not "none") AND this chapter appears to move in a meaningfully different direction from it, not just add consistent detail. Your voice is direct, selective, specific, and slightly pointed. Never use the words "inconsistency", "error", "problem", or "contradiction". Say "evolving", "different direction", "moving toward something new". Not alarmed. Precise. Never use em dashes. Respond ONLY with a JSON object.`,
-            messages:[{role:"user",content:`EXISTING STORY BIBLE:\n${existingBible}\n\nCHAPTER ${ch} TEXT:\n${chapterText.substring(0,20000)}\n\nRespond with ONLY this JSON:\n{"drifts":[{"field":"the field key exactly as given (protagonist, protagonistGoal, protagonistDream, protagonistFear, protagonistWound, protagonistBackstory, protagonistMisbelief, supporting, antagonist, worldSetting, worldRules, worldMythology, worldBeliefs, worldDanger, worldTone, themes, mainPlot)","fieldLabel":"human readable label. For protagonistMisbelief specifically, always use \\"The lie they believe\\", never \\"misbelief\\".","existing":"the existing Bible entry, quoted briefly","incoming":"the new chapter evidence, quoted briefly","observation":"one-sentence neutral observation of the difference","question":"one specific question for the writer, is this intentional evolution or something to revisit"}]}\n\nIf there is no genuine drift, return "drifts": [].`}]
+            messages:[{role:"user",content:`EXISTING STORY BIBLE:\n${existingBible}\n\nCHAPTER ${ch} TEXT:\n${chapterForRead(chapterText)}\n\nRespond with ONLY this JSON:\n{"drifts":[{"field":"the field key exactly as given (protagonist, protagonistGoal, protagonistDream, protagonistFear, protagonistWound, protagonistBackstory, protagonistMisbelief, supporting, antagonist, worldSetting, worldRules, worldMythology, worldBeliefs, worldDanger, worldTone, themes, mainPlot)","fieldLabel":"human readable label. For protagonistMisbelief specifically, always use \\"The lie they believe\\", never \\"misbelief\\".","existing":"the existing Bible entry, quoted briefly","incoming":"the new chapter evidence, quoted briefly","observation":"one-sentence neutral observation of the difference","question":"one specific question for the writer, is this intentional evolution or something to revisit"}]}\n\nIf there is no genuine drift, return "drifts": [].`}]
           })});
           const d=await r.json();
           if(!d.error){
             const raw=finnClean(d.content?.filter(b=>b.type==="text").map(b=>b.text).join(""))||"";
             const cleaned=raw.replace(/```json\s*/g,"").replace(/```\s*/g,"").trim();
-            const result=JSON.parse(cleaned);
+            const result=cleanModelResult(JSON.parse(cleaned),["drifts"]);
             if(Array.isArray(result.drifts)&&result.drifts.length>0){
               processDrifts({drifts:result.drifts,chapterNum:ch},project);
               foundCount+=result.drifts.length;
@@ -3389,7 +3460,7 @@ If the fields above don't contain actual sensory description, return sensoryAnch
         const raw=finnClean(d.content?.filter(b=>b.type==="text").map(b=>b.text).join(""))||"";
         const cleaned=raw.replace(/```json\s*/g,"").replace(/```\s*/g,"").trim();
         try{
-          const ctx=JSON.parse(cleaned);
+          const ctx=cleanSidebarCtx(JSON.parse(cleaned))||{};
           ctx.mode="Story Bible";ctx.time=Date.now();
           setSidebarCtx(ctx);saveStored("tt-sidebarctx",ctx);
         }catch(e){console.log("Default sidebar parse error:",e,"Raw response:",raw);}
@@ -3462,7 +3533,7 @@ Respond ONLY with a JSON object. No markdown. No backticks.
         const raw=data.content?.filter(b=>b.type==="text").map(b=>b.text).join("")||"";
         const cleaned=raw.replace(/```json|```/g,"").trim();
         try{
-          const parsed=JSON.parse(cleaned);
+          const parsed=cleanModelResult(JSON.parse(cleaned));
           setEmberAnalysisError(null);
           setEmbers(prev=>{
             const updatedEmbers=prev.map(e=>e.id===ember.id?{
@@ -3694,7 +3765,7 @@ If there are no concrete sensory details actually present in the conversation (f
         const raw=finnClean(d.content?.filter(b=>b.type==="text").map(b=>b.text).join(""))||"";
         const cleaned=raw.replace(/```json\s*/g,"").replace(/```\s*/g,"").trim();
         try{
-          const ctx=JSON.parse(cleaned);
+          const ctx=cleanSidebarCtx(JSON.parse(cleaned))||{};
           ctx.mode=sessionMode||"The Forge";
           ctx.modeId=sessionModeId||"forge";
           ctx.time=Date.now();
