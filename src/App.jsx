@@ -1068,11 +1068,16 @@ function computeCharacterPresence(project,realChapters){
     ...(project?.characters||[]).map(c=>({name:c.name,role:c.role||"Character",aliases:c.aliases||""}))
   ].filter(Boolean);
   return roster.map(person=>{
-    const names=[person.name,...(person.aliases?person.aliases.split(",").map(a=>a.trim()):[])].filter(Boolean);
+    // Summaries usually use a first name ("Alyssa"), not the full name on the card ("Alyssa Kendrick"),
+    // so each word of a multi-word name also counts, skipping titles like "Dr." (Chunk 56).
+    const baseNames=[person.name,...(person.aliases?person.aliases.split(",").map(a=>a.trim()):[])].filter(Boolean);
+    const TITLE_WORDS=["dr","mr","mrs","ms","miss","mx","sir","lady","lord","the","of","de","von","van"];
+    const nameParts=baseNames.flatMap(n=>n.split(/\s+/).length>1?n.split(/\s+/):[]).map(w=>w.replace(/[^\p{L}'-]/gu,"")).filter(w=>w.length>=3&&!TITLE_WORDS.includes(w.toLowerCase()));
+    const names=[...new Set([...baseNames,...nameParts])];
     const presence=realChapters.map(ch=>{
       const chObj=(project?.chapters||[]).find(c=>c.num===ch);
       const text=(chObj?.summary||"").toLowerCase();
-      return names.some(n=>n&&text.includes(n.toLowerCase()));
+      return names.some(n=>n&&new RegExp("(^|[^\\p{L}])"+n.toLowerCase().replace(/[.*+?^${}()|[\]\\]/g,"\\$&")+"($|[^\\p{L}])","u").test(text));
     });
     const lastSeenIdx=presence.lastIndexOf(true);
     return {name:person.name,presence,lastSeenChapter:lastSeenIdx>=0?realChapters[lastSeenIdx]:null};
