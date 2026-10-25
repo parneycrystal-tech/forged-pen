@@ -766,6 +766,58 @@ function cleanSidebarCtx(ctx){
   clean.sensoryAnchors = (clean.sensoryAnchors || []).filter(a => a.detail);
   return clean;
 }
+// ===== CHUNK 55: long reads survive sleep and dropped connections =====
+// A long read (the Full Read) can take several minutes. If the computer sleeps or the connection
+// drops, the browser kills the request ("Failed to fetch"). These helpers wait for the connection
+// to come back and try again, instead of failing the whole read.
+let _fullReadActive = false;
+function isNetworkError(e){
+  const m = String(e?.message || e || "");
+  return e?.name === "TypeError" && /fetch|network|load failed/i.test(m);
+}
+function waitForNetwork(maxMs = 120000){
+  return new Promise(resolve => {
+    const ready = () => (typeof navigator === "undefined" || navigator.onLine) && (typeof document === "undefined" || document.visibilityState === "visible");
+    if (ready()) { setTimeout(resolve, 2000); return; }
+    const done = () => { cleanup(); setTimeout(resolve, 2000); };
+    const check = () => { if (ready()) done(); };
+    const timer = setTimeout(done, maxMs);
+    function cleanup(){ clearTimeout(timer); window.removeEventListener("online", check); document.removeEventListener("visibilitychange", check); }
+    window.addEventListener("online", check);
+    document.addEventListener("visibilitychange", check);
+  });
+}
+async function fetchWithNetworkRetry(url, opts, attempts = 3){
+  let lastErr = null;
+  for (let i = 0; i < attempts; i++) {
+    try { return await fetch(url, opts); }
+    catch (e) {
+      lastErr = e;
+      if (!isNetworkError(e) || i === attempts - 1) throw e;
+      await waitForNetwork();
+    }
+  }
+  throw lastErr;
+}
+// Finn's Full Read reply is a JSON list of findings. If the reply was cut off partway, keep every
+// finding that arrived complete instead of throwing all of them away. Returns null if nothing usable.
+function parseItemsLoose(raw){
+  const text = String(raw || "").replace(/```json\s*/g, "").replace(/```\s*/g, "").trim();
+  try { const p = JSON.parse(text); if (p && Array.isArray(p.items)) return p.items; } catch {}
+  const start = text.indexOf("[", text.indexOf('"items"'));
+  if (start < 0) return null;
+  const items = [];
+  let depth = 0, inStr = false, esc = false, objStart = -1;
+  for (let i = start + 1; i < text.length; i++) {
+    const ch = text[i];
+    if (inStr) { if (esc) esc = false; else if (ch === "\\") esc = true; else if (ch === '"') inStr = false; continue; }
+    if (ch === '"') { inStr = true; continue; }
+    if (ch === "{") { if (depth === 0) objStart = i; depth++; }
+    else if (ch === "}") { depth--; if (depth === 0 && objStart >= 0) { try { items.push(JSON.parse(text.slice(objStart, i + 1))); } catch {} objStart = -1; } }
+    else if (ch === "]" && depth === 0) break;
+  }
+  return items.length ? items : null;
+}
 // Typed-but-unsent drafts live on this device only (tt- keys, so sign-out clears them).
 function loadDraft(key){ try { return localStorage.getItem(key) || ""; } catch { return ""; } }
 function saveDraft(key, val){ try { if (val) localStorage.setItem(key, val); else localStorage.removeItem(key); } catch {} }
@@ -2748,7 +2800,7 @@ Respond with ONLY this JSON:
       onProgress(ch.num);
       try{
         const existingBible=`Title: ${liveProject?.title||"untitled"}\nSynopsis: ${liveProject?.synopsis||"none"}\nProtagonist: ${liveProject?.protagonist||"none"}\nSupporting: ${liveProject?.supporting||"none"}\nAntagonist: ${liveProject?.antagonist||"none"}\nWorld: ${liveProject?.worldSetting||"none"}\nThemes: ${liveProject?.themes||"none"}\nMain plot: ${liveProject?.mainPlot||"none"}`;
-        const r=await fetch("/api/chat",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({
+        const r=await fetchWithNetworkRetry("/api/chat",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({
           max_tokens:2000,
           system:"You are Agnes, a meticulous literary archivist doing a fast first pass across a writer's whole manuscript. Extract only a chapter summary and any genuinely new core Bible material. Do not propose new characters, do not propose threads, do not check for drift, none of that here, this is deliberately a lighter pass. Never use em dashes. Respond ONLY with a JSON object.",
           messages:[{role:"user",content:`EXISTING BIBLE:\n${existingBible}\n\nCHAPTER ${ch.num}:\n${chapterForRead(ch.text)}\n\nRespond with ONLY this JSON:\n{"chapterSummary":"2-3 sentences, what happens and what changes","protagonistReveal":"new protagonist detail, empty string if none","worldReveal":"new world/setting detail, empty string if none","supportingReveal":"new supporting character detail, empty string if none","antagonistReveal":"new antagonist detail, empty string if none","themeReveal":"empty string if none","mainPlotUpdate":"empty string if none"}`}]
@@ -2788,7 +2840,7 @@ Respond with ONLY this JSON:
     const bibleCtx=`Title: ${builtProject?.title||"untitled"}\nSynopsis: ${builtProject?.synopsis||"none"}\nProtagonist: ${builtProject?.protagonist||"none"}\nSupporting: ${builtProject?.supporting||"none"}\nAntagonist: ${builtProject?.antagonist||"none"}\nWorld: ${builtProject?.worldSetting||"none"}\nThemes: ${builtProject?.themes||"none"}\nMain plot: ${builtProject?.mainPlot||"none"}`;
     const catLabels=categories.map(c=>FULL_READ_CATEGORIES.find(f=>f.id===c)?.label||c).join(", ");
     const alreadyAddressed=(priorIntentional||[]).map(n=>`- ${n}`).join("\n")||"none yet";
-    const r=await fetch("/api/chat",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({
+    const r=await fetchWithNetworkRetry("/api/chat",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({
       max_tokens:4000,
       system:`You are Finn, reading a writer's whole manuscript at once, the kind of judgment only visible at that scale, not chapter by chapter. Categories to look at: ${catLabels}. Rules, all mandatory: every item must cite specific chapter numbers and the actual moment, never a trait floating free of evidence. Every item must close with either a specific question rooted in the real manuscript or a concrete next action, never a vague phrase like "worth sitting with" that just gestures at reflection. Lead each item with what's genuinely working before naming what's worth a closer look, same rule Finn always follows. Order items foundational-to-surface, structural things first, surface polish last. Never raise anything the writer has already marked intentional: ${alreadyAddressed}. Never use em dashes. Respond ONLY with a JSON object.`,
       messages:[{role:"user",content:`STORY BIBLE:\n${bibleCtx}\n\nFULL MANUSCRIPT:\n${fullText}\n\nRespond with ONLY this JSON:\n{"items":[{"category":"one of: plot, character, voice, scene","title":"short title","strength":"what's genuinely working, cited to a chapter","observation":"the specific finding, cited to chapters, closing with a real question or concrete action","chapters":[1,2]}]}`}]
@@ -2796,10 +2848,21 @@ Respond with ONLY this JSON:
     const d=await r.json();
     if(d.error)throw new Error(d.error);
     const raw=finnClean(d.content?.filter(b=>b.type==="text").map(b=>b.text).join(""))||"";
-    const parsed=JSON.parse(raw.replace(/```json\s*/g,"").replace(/```\s*/g,"").trim());
-    return Array.isArray(parsed.items)?parsed.items.filter(it=>it&&it.title&&it.observation):[];
+    const looseItems=parseItemsLoose(raw);
+    if(!looseItems)throw new Error("Finn's reply could not be read");
+    return looseItems.filter(it=>it&&typeof it==="object"&&it.title&&it.observation).map(it=>({...cleanModelResult(it),chapters:Array.isArray(it.chapters)?it.chapters.filter(n=>typeof n==="number"):[]}));
   };
   const runFullRead=async(categories)=>{
+    // Retrying must never lose the categories the writer picked; fall back to all four if missing.
+    const cats=(Array.isArray(categories)&&categories.length)?categories:FULL_READ_CATEGORIES.map(c=>c.id);
+    if(_fullReadActive)return;
+    _fullReadActive=true;
+    let wakeLock=null;
+    try{if(typeof navigator!=="undefined"&&navigator.wakeLock)wakeLock=await navigator.wakeLock.request("screen");}catch{}
+    try{await runFullReadInner(cats);}
+    finally{_fullReadActive=false;try{if(wakeLock)wakeLock.release();}catch{}}
+  };
+  const runFullReadInner=async(categories)=>{
     const captured=new Set((project?.chapters||[]).filter(c=>c.summary).map(c=>c.num));
     const allChapterNums=[...new Set(scenes.map(s=>s.chapter))].sort((a,b)=>a-b);
     const toCapture=allChapterNums.filter(n=>!captured.has(n)).map(n=>({num:n,text:scenes.filter(s=>s.chapter===n).map(s=>s.text||"").join("\n\n")})).filter(c=>c.text.trim().length>50);
@@ -2826,7 +2889,8 @@ Respond with ONLY this JSON:
       saveStored("tt-project",updated);cloudSave("tt-project",updated);
     }catch(e){
       console.log("Full Read phase 2 error:",e);
-      const updated={...builtProject,fullRead:{status:"error"},updated:Date.now()};
+      logClientError("full-read",e,{phase:2});
+      const updated={...builtProject,fullRead:{status:"error",categories,reason:isNetworkError(e)?"network":"other",generatedAt:Date.now()},updated:Date.now()};
       setProject(updated);saveStored("tt-project",updated);cloudSave("tt-project",updated);
     }
   };
@@ -6878,10 +6942,12 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
             <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:4}}>
               <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:17,color:"var(--text-primary)",fontWeight:600}}>Full Read</div>
             </div>
-            {project.fullRead.status==="running"&&<div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:13,color:"var(--text-dim)",fontStyle:"italic"}}>
+            {project.fullRead.status==="running"&&_fullReadActive&&<div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:13,color:"var(--text-dim)",fontStyle:"italic"}}>
               {project.fullRead.phase==="agnes"?`Agnes is reading${project.fullRead.progressChapter?` chapter ${project.fullRead.progressChapter} of ${project.fullRead.totalChapters}`:""}...`:"Finn is reading the whole manuscript at once..."}
+              <div style={{fontFamily:"'DM Sans',sans-serif",fontStyle:"normal",fontSize:11,marginTop:4}}>This takes a few minutes. Keep this tab open and your computer awake.</div>
             </div>}
-            {project.fullRead.status==="error"&&<div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:13,color:"var(--text-dim)",fontStyle:"italic"}}>That didn't come through. <span onClick={()=>runFullRead(project.fullRead.categories)} style={{color:"var(--accent)",cursor:"pointer",textDecoration:"underline"}}>Try again</span></div>}
+            {project.fullRead.status==="running"&&!_fullReadActive&&<div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:13,color:"var(--text-dim)",fontStyle:"italic"}}>This read was interrupted before it finished. Chapters Agnes already read are saved. <span onClick={()=>runFullRead(project.fullRead.categories)} style={{color:"var(--accent)",cursor:"pointer",textDecoration:"underline"}}>Try again</span></div>}
+            {project.fullRead.status==="error"&&<div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:13,color:"var(--text-dim)",fontStyle:"italic"}}>{project.fullRead.reason==="network"?"The connection dropped partway through, often because the computer went to sleep. Chapters Agnes already read are saved. ":"That didn't come through. "}<span onClick={()=>runFullRead(project.fullRead.categories)} style={{color:"var(--accent)",cursor:"pointer",textDecoration:"underline"}}>Try again</span></div>}
             {project.fullRead.status==="done"&&(()=>{
               const items=project.fullRead.items||[];
               const resolutions=project.fullRead.resolutions||{};
