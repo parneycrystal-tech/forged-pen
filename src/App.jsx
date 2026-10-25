@@ -869,6 +869,47 @@ function mergeFoundCharacters(perChapter, exclude){
     return { name: f.name, aliases: f.aliases.filter((a, i, arr) => a && arr.indexOf(a) === i && a !== f.name), chapters: f.chapters.sort((a, b) => a - b), role, description: f.description };
   }).sort((a, b) => b.chapters.length - a.chapters.length || a.chapters[0] - b.chapters[0]);
 }
+// ===== CHUNK 60: merges and notes in the character review list =====
+// The list is rebuilt from Agnes's raw per-chapter reads plus the writer's edits, so re-reading
+// missed chapters never throws away merges, notes or ticks.
+// edits = { merges: {fromName: toName}, notes: {name: text}, selected: {name: bool} }
+function applyFinderEdits(perChapter, exclude, edits){
+  const base = mergeFoundCharacters(perChapter, exclude).map(it => ({ ...it, mergedFrom: [] }));
+  const merges = (edits && edits.merges) || {};
+  const byName = n => base.find(it => it.name === n);
+  let changed = true, guard = 0;
+  while (changed && guard++ < 50) {
+    changed = false;
+    for (const from of Object.keys(merges)) {
+      let to = merges[from], hops = 0;
+      while (merges[to] && hops++ < 20) to = merges[to];
+      const a = byName(from), b = byName(to);
+      if (!a || !b || a === b) continue;
+      b.mergedFrom.push({ name: a.name, chapters: a.chapters }, ...a.mergedFrom);
+      [a.name, ...a.aliases].forEach(n => { if (n && n !== b.name && !b.aliases.includes(n)) b.aliases.push(n); });
+      a.chapters.forEach(c => { if (!b.chapters.includes(c)) b.chapters.push(c); });
+      b.chapters.sort((x, y) => x - y);
+      if (!b.description && a.description) b.description = a.description;
+      base.splice(base.indexOf(a), 1);
+      changed = true;
+    }
+  }
+  const notes = (edits && edits.notes) || {};
+  const selected = (edits && edits.selected) || {};
+  return base.map(it => {
+    const autoNote = it.mergedFrom.length
+      ? `Same character as ${it.mergedFrom.map(m => `${m.name} (Ch. ${m.chapters.join(", ")})`).join(" and ")}. Names to reconcile in revision.`
+      : "";
+    const note = Object.prototype.hasOwnProperty.call(notes, it.name) ? notes[it.name] : autoNote;
+    const isSelected = Object.prototype.hasOwnProperty.call(selected, it.name) ? !!selected[it.name] : (it.chapters.length >= 2 || it.mergedFrom.length > 0);
+    return { ...it, note, selected: isSelected };
+  });
+}
+function cardDescriptionWithNote(description, note){
+  const d = String(description || "").trim(), n = String(note || "").trim();
+  if (!n) return d;
+  return d ? `${d}\n\nWriter's note: ${n}` : `Writer's note: ${n}`;
+}
 // Typed-but-unsent drafts live on this device only (tt- keys, so sign-out clears them).
 function loadDraft(key){ try { return localStorage.getItem(key) || ""; } catch { return ""; } }
 function saveDraft(key, val){ try { if (val) localStorage.setItem(key, val); else localStorage.removeItem(key); } catch {} }
@@ -2850,29 +2891,29 @@ Respond with ONLY this JSON:
   // does NOT propose new characters or threads and does NOT run drift detection, both of those stay
   // exactly as manual and reviewed as they already are everywhere else in the app. This just gets
   // enough into the Bible for Phase 2's holistic read to have real chapter summaries to work from.
-  // ===== CHUNK 58: Find characters across my manuscript =====
-  // Agnes reads every chapter, lists the named characters she finds, and the writer ticks who
-  // gets a card. Nothing is added without approval. Works on manuscripts already uploaded, and
-  // runs on its own at the end of a Full Read.
-  const [charFinder,setCharFinder]=useState(()=>{const v=loadStored("tt-char-finder");return v&&v.status==="review"&&Array.isArray(v.items)?v:null;});
+  // ===== CHUNK 58/60: Find characters across my manuscript =====
+  // Agnes reads every chapter, one at a time, lists the named characters she finds, and the writer
+  // ticks who gets a card, merges people who are the same character under different names, and adds
+  // notes that are saved onto the card. Nothing is added without approval.
+  const [charFinder,setCharFinder]=useState(()=>{const v=loadStored("tt-char-finder");return v&&v.status==="review"?v:null;});
   const projectRef=useRef(project);projectRef.current=project;
   const scenesRef=useRef(scenes);scenesRef.current=scenes;
   const charFinderRunning=useRef(false);
+  const [finderNoteOpen,setFinderNoteOpen]=useState({});
   const saveCharFinder=(v)=>{setCharFinder(v);if(v&&v.status==="review")saveStored("tt-char-finder",v);else{try{localStorage.removeItem("tt-char-finder");}catch{}}};
-  const findCharactersAcrossManuscript=async(opts={})=>{
-    if(charFinderRunning.current)return;
-    const proj=projectRef.current;const sc=scenesRef.current||[];
+  const finderExclude=()=>{const p=projectRef.current;return [getProtagName(p),...(p?.characters||[]).flatMap(c=>allNamesOf(c))].filter(Boolean);};
+  const manuscriptChapters=()=>{
     const byChapter={};
-    [...sc].sort((a,b)=>a.chapter-b.chapter).forEach(s=>{(byChapter[s.chapter]=byChapter[s.chapter]||[]).push(s.text||"");});
-    const chapters=Object.keys(byChapter).map(Number).sort((a,b)=>a-b).map(n=>({num:n,text:byChapter[n].join("\n\n")})).filter(c=>c.text.trim().length>50);
-    if(chapters.length===0)return;
-    charFinderRunning.current=true;
-    const protag=getProtagName(proj);
-    const exclude=[protag,...(proj?.characters||[]).flatMap(c=>allNamesOf(c))].filter(Boolean);
-    let done=0;
-    saveCharFinder({status:"running",done:0,total:chapters.length,auto:!!opts.auto});
-    const perChapter=[];let failures=0;
-    const readOne=async(ch)=>{
+    [...(scenesRef.current||[])].sort((a,b)=>a.chapter-b.chapter).forEach(s=>{(byChapter[s.chapter]=byChapter[s.chapter]||[]).push(s.text||"");});
+    return Object.keys(byChapter).map(Number).sort((a,b)=>a-b).map(n=>({num:n,text:byChapter[n].join("\n\n")})).filter(c=>c.text.trim().length>50);
+  };
+  // One chapter at a time, with patient retries: sending several long chapters at once can hit the
+  // AI service's per-minute limit, which is what left chapters unread in the first version.
+  const readChapterForCharacters=async(ch,protag)=>{
+    const waits=[0,10000,25000];
+    let lastErr=null;
+    for(const w of waits){
+      if(w)await new Promise(r=>setTimeout(r,w));
       try{
         const r=await fetchWithNetworkRetry("/api/chat",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({
           max_tokens:1500,
@@ -2880,93 +2921,134 @@ Respond with ONLY this JSON:
           messages:[{role:"user",content:`CHAPTER ${ch.num}:\n${chapterForRead(ch.text)}\n\nRespond with ONLY this JSON:\n{"characters":[{"name":"the name as the text uses it most fully","aliases":"other names or nicknames the text uses for them, comma separated, or empty","role":"best guess: Antagonist / villain, Love interest, Mentor, Best friend / confidant, Foil, Family, or Secondary character","description":"one sentence on who they are, from this chapter only"}]}`}]
         })});
         const d=await r.json();
-        if(d.error)throw new Error(d.error);
+        if(d.error)throw new Error(typeof d.error==="string"?d.error:JSON.stringify(d.error));
         const raw=finnClean(d.content?.filter(b=>b.type==="text").map(b=>b.text).join(""))||"";
         const parsed=cleanModelResult(JSON.parse(raw.replace(/```json\s*/g,"").replace(/```\s*/g,"").trim()),["characters"]);
-        perChapter.push({chapter:ch.num,characters:(parsed.characters||[]).slice(0,25)});
-      }catch(e){failures++;logClientError("find-characters",e,{chapter:ch.num});}
-      done++;
-      setCharFinder(prev=>prev&&prev.status==="running"?{...prev,done}:prev);
-    };
+        return {chapter:ch.num,characters:(parsed.characters||[]).slice(0,25)};
+      }catch(e){lastErr=e;}
+    }
+    logClientError("find-characters",lastErr,{chapter:ch.num});
+    return null;
+  };
+  const findCharactersAcrossManuscript=async(opts={})=>{
+    if(charFinderRunning.current)return;
+    const all=manuscriptChapters();
+    const onlyNums=Array.isArray(opts.onlyChapters)?opts.onlyChapters:null;
+    const chapters=onlyNums?all.filter(c=>onlyNums.includes(c.num)):all;
+    if(chapters.length===0)return;
+    charFinderRunning.current=true;
+    const prior=onlyNums&&charFinder&&charFinder.status==="review"?charFinder:null;
+    const protag=getProtagName(projectRef.current);
+    setCharFinder({status:"running",done:0,total:chapters.length,auto:!!opts.auto,prior});
+    const perChapter=[];const failed=[];
     let wakeLock=null;
     try{if(navigator.wakeLock)wakeLock=await navigator.wakeLock.request("screen");}catch{}
     try{
-      const queue=[...chapters];
-      const workers=Array.from({length:Math.min(3,queue.length)},async()=>{while(queue.length){await readOne(queue.shift());}});
-      await Promise.all(workers);
+      for(let i=0;i<chapters.length;i++){
+        const res=await readChapterForCharacters(chapters[i],protag);
+        if(res)perChapter.push(res);else failed.push(chapters[i].num);
+        setCharFinder(prev=>prev&&prev.status==="running"?{...prev,done:i+1}:prev);
+      }
     }finally{
       charFinderRunning.current=false;
       try{if(wakeLock)wakeLock.release();}catch{}
     }
-    if(perChapter.length===0){saveCharFinder({status:"error"});return;}
-    perChapter.sort((a,b)=>a.chapter-b.chapter);
-    const latest=projectRef.current;
-    const excludeNow=[getProtagName(latest),...(latest?.characters||[]).flatMap(c=>allNamesOf(c))].filter(Boolean);
-    const items=mergeFoundCharacters(perChapter,excludeNow);
-    if(items.length===0){saveCharFinder({status:"empty",missed:failures});return;}
-    const selected={};items.forEach((it,i)=>{selected[i]=it.chapters.length>=2;});
-    saveCharFinder({status:"review",items,selected,missed:failures,generatedAt:Date.now()});
+    const mergedPer=prior?[...(prior.perChapter||[]).filter(p=>!perChapter.some(n=>n.chapter===p.chapter)),...perChapter]:perChapter;
+    mergedPer.sort((a,b)=>a.chapter-b.chapter);
+    const failedAll=prior?[...(prior.failedChapters||[]).filter(n=>!chapters.some(c=>c.num===n)),...failed].sort((a,b)=>a-b):failed;
+    if(mergedPer.length===0){saveCharFinder({status:"error"});return;}
+    const edits=prior?prior.edits:{merges:{},notes:{},selected:{}};
+    const items=applyFinderEdits(mergedPer,finderExclude(),edits);
+    if(items.length===0&&failedAll.length===0){saveCharFinder({status:"empty"});return;}
+    saveCharFinder({status:"review",perChapter:mergedPer,failedChapters:failedAll,edits,generatedAt:Date.now()});
   };
+  // Lists saved by the first version (before merges and notes) are rebuilt into the new shape.
+  const finderState=(()=>{
+    if(!charFinder||charFinder.status!=="review")return charFinder;
+    if(Array.isArray(charFinder.perChapter))return charFinder;
+    const per={};
+    (charFinder.items||[]).forEach(it=>(it.chapters||[]).forEach(ch=>{(per[ch]=per[ch]||[]).push({name:it.name,role:it.role,description:it.description,aliases:(it.aliases||[]).join(", ")});}));
+    return {status:"review",legacy:true,perChapter:Object.keys(per).map(Number).sort((a,b)=>a-b).map(ch=>({chapter:ch,characters:per[ch]})),failedChapters:[],edits:{merges:{},notes:{},selected:{}}};
+  })();
+  const updateFinderEdits=(fn)=>{if(!finderState||finderState.status!=="review")return;const e=finderState.edits||{merges:{},notes:{},selected:{}};saveCharFinder({...finderState,edits:fn({merges:{...e.merges},notes:{...e.notes},selected:{...e.selected}})});};
   const addFoundCharacters=()=>{
-    if(!charFinder||charFinder.status!=="review")return;
+    if(!finderState||finderState.status!=="review")return;
     const proj=projectRef.current;
     const existing=Array.isArray(proj?.characters)?[...proj.characters]:[];
-    const chosen=charFinder.items.filter((it,i)=>charFinder.selected[i]);
-    const now=Date.now();
+    const chosen=applyFinderEdits(finderState.perChapter,finderExclude(),finderState.edits).filter(it=>it.selected);
+    const now=Date.now();let added=0;
     chosen.forEach((it,i)=>{
       if(existing.some(c=>allNamesOf(c).some(n=>namesMatch(n,it.name))))return;
-      existing.push({id:"char_"+now+"_"+i,name:it.name,role:it.role||"Secondary character",relationship:"",description:it.description||"",aliases:(it.aliases||[]).join(", ")});
+      existing.push({id:"char_"+now+"_"+i,name:it.name,role:it.role||"Secondary character",relationship:"",description:cardDescriptionWithNote(it.description,it.note),aliases:(it.aliases||[]).join(", ")});
+      added++;
     });
     const updated={...proj,characters:existing,updated:Date.now()};
     setProject(updated);setPForm(prev=>({...prev,characters:existing}));
     saveStored("tt-project",updated);cloudSave("tt-project",updated);
-    saveCharFinder({status:"added",count:chosen.length});
+    saveCharFinder({status:"added",count:added});
   };
   const renderCharFinder=(compact)=>{
     const box={background:"var(--agnes-15,rgba(122,106,138,0.1))",borderLeft:"3px solid var(--agnes,#7A6A8A)",borderRadius:"0 9px 9px 0",padding:"14px 18px",marginBottom:20};
     const label={fontSize:9,textTransform:"uppercase",letterSpacing:"0.14em",color:"var(--agnes,#7A6A8A)",fontWeight:600,marginBottom:6,fontFamily:"'DM Sans',sans-serif"};
     const body={fontFamily:"'Cormorant Garamond',serif",fontSize:14,color:"var(--text-primary)",lineHeight:1.6};
     const link={fontSize:11,color:"var(--agnes,#7A6A8A)",cursor:"pointer",fontFamily:"'DM Sans',sans-serif",textDecoration:"underline"};
+    const small={fontSize:10,color:"var(--text-dim)",fontFamily:"'DM Sans',sans-serif"};
     const btn={fontSize:11,padding:"7px 16px",borderRadius:6,background:"var(--agnes,#7A6A8A)",color:"#F4EEDF",cursor:"pointer",fontFamily:"'DM Sans',sans-serif"};
     if(!scenes||scenes.length===0)return null;
-    if(!charFinder){
+    const st=finderState;
+    if(!st){
       if(compact)return <div style={{marginBottom:14}}><span onClick={()=>findCharactersAcrossManuscript()} style={link}>Find more characters across my manuscript</span></div>;
       return <div style={box}><div style={label}>Agnes</div><div style={{...body,marginBottom:10}}>I can read every chapter and list the characters I find. Nothing gets a card until you choose.</div><span onClick={()=>findCharactersAcrossManuscript()} style={btn}>Find characters across my manuscript</span></div>;
     }
-    if(charFinder.status==="running")return <div style={box}><div style={label}>Agnes</div><div style={{...body,fontStyle:"italic"}}>Reading for characters, {charFinder.done||0} of {charFinder.total} chapters...</div><div style={{fontSize:11,color:"var(--text-dim)",marginTop:4,fontFamily:"'DM Sans',sans-serif"}}>Keep this tab open. It takes a minute or two.</div></div>;
-    if(charFinder.status==="error")return <div style={box}><div style={label}>Agnes</div><div style={{...body,fontStyle:"italic",marginBottom:6}}>That didn't come through.</div><span onClick={()=>{saveCharFinder(null);findCharactersAcrossManuscript();}} style={link}>Try again</span></div>;
-    if(charFinder.status==="empty")return <div style={box}><div style={label}>Agnes</div><div style={{...body,marginBottom:6}}>I didn't find anyone new beyond the cards you already have.</div><span onClick={()=>saveCharFinder(null)} style={link}>Close</span></div>;
-    if(charFinder.status==="added")return <div style={box}><div style={label}>Agnes</div><div style={{...body,marginBottom:6}}>Added {charFinder.count} character{charFinder.count===1?"":"s"}. You can fill in their cards any time.</div><span onClick={()=>saveCharFinder(null)} style={link}>Close</span></div>;
-    if(charFinder.status==="review"){
-      const items=charFinder.items||[];const sel=charFinder.selected||{};
-      const count=items.filter((_,i)=>sel[i]).length;
-      const toggle=(i)=>saveCharFinder({...charFinder,selected:{...sel,[i]:!sel[i]}});
-      const setAll=(v)=>{const s={};items.forEach((_,i)=>{s[i]=v;});saveCharFinder({...charFinder,selected:s});};
-      return <div style={box}>
-        <div style={label}>Agnes found {items.length} character{items.length===1?"":"s"}</div>
-        <div style={{...body,marginBottom:10}}>Tick who should get a card. People in two or more chapters are ticked to start.{charFinder.missed?` I couldn't read ${charFinder.missed} chapter${charFinder.missed===1?"":"s"}, so someone may be missing.`:""}</div>
-        <div style={{display:"flex",gap:12,marginBottom:10}}><span onClick={()=>setAll(true)} style={link}>Tick all</span><span onClick={()=>setAll(false)} style={link}>Clear all</span></div>
-        <div style={{maxHeight:420,overflowY:"auto",marginBottom:12}}>
-          {items.map((it,i)=><label key={i} style={{display:"flex",gap:10,alignItems:"flex-start",padding:"8px 0",borderBottom:"1px solid var(--border)",cursor:"pointer"}}>
-            <input type="checkbox" checked={!!sel[i]} onChange={()=>toggle(i)} style={{marginTop:4,accentColor:"var(--agnes,#7A6A8A)"}}/>
-            <div style={{flex:1}}>
+    if(st.status==="running")return <div style={box}><div style={label}>Agnes</div><div style={{...body,fontStyle:"italic"}}>Reading for characters, {st.done||0} of {st.total} chapters...</div><div style={{fontSize:11,color:"var(--text-dim)",marginTop:4,fontFamily:"'DM Sans',sans-serif"}}>I read one chapter at a time so none get skipped. Keep this tab open; it takes a few minutes.</div></div>;
+    if(st.status==="error")return <div style={box}><div style={label}>Agnes</div><div style={{...body,fontStyle:"italic",marginBottom:6}}>That didn't come through.</div><span onClick={()=>{saveCharFinder(null);findCharactersAcrossManuscript();}} style={link}>Try again</span></div>;
+    if(st.status==="empty")return <div style={box}><div style={label}>Agnes</div><div style={{...body,marginBottom:6}}>I didn't find anyone new beyond the cards you already have.</div><span onClick={()=>saveCharFinder(null)} style={link}>Close</span></div>;
+    if(st.status==="added")return <div style={box}><div style={label}>Agnes</div><div style={{...body,marginBottom:6}}>Added {st.count} character{st.count===1?"":"s"}. Your notes are saved on their cards.</div><span onClick={()=>saveCharFinder(null)} style={link}>Close</span></div>;
+    if(st.status!=="review")return null;
+    const items=applyFinderEdits(st.perChapter,finderExclude(),st.edits);
+    const count=items.filter(it=>it.selected).length;
+    const missed=st.failedChapters||[];
+    const names=items.map(it=>it.name).sort((a,b)=>a.localeCompare(b));
+    return <div style={box}>
+      <div style={label}>Agnes found {items.length} character{items.length===1?"":"s"}</div>
+      <div style={{...body,marginBottom:8}}>Tick who should get a card. If two names are the same person, use "Same person as" and I'll combine them. Any note you add is saved on the card, so Finn and I will know it too.</div>
+      {missed.length>0&&<div style={{...body,fontSize:13,marginBottom:8}}>I couldn't read chapter{missed.length===1?"":"s"} {missed.join(", ")}. <span onClick={()=>findCharactersAcrossManuscript({onlyChapters:missed})} style={link}>Read {missed.length===1?"it":"them"} again</span></div>}
+      {st.legacy&&<div style={{...body,fontSize:13,marginBottom:8}}>This list came from an earlier version that skipped some chapters. <span onClick={()=>{saveCharFinder(null);findCharactersAcrossManuscript();}} style={link}>Read the whole manuscript again</span></div>}
+      <div style={{display:"flex",gap:12,marginBottom:10}}>
+        <span onClick={()=>updateFinderEdits(e=>{items.forEach(it=>{e.selected[it.name]=true;});return e;})} style={link}>Tick all</span>
+        <span onClick={()=>updateFinderEdits(e=>{items.forEach(it=>{e.selected[it.name]=false;});return e;})} style={link}>Clear all</span>
+      </div>
+      <div style={{maxHeight:480,overflowY:"auto",marginBottom:12}}>
+        {items.map(it=>{
+          const noteOpen=finderNoteOpen[it.name]||!!it.note;
+          return <div key={it.name} style={{display:"flex",gap:10,alignItems:"flex-start",padding:"9px 0",borderBottom:"1px solid var(--border)"}}>
+            <input type="checkbox" checked={!!it.selected} onChange={()=>updateFinderEdits(e=>{e.selected[it.name]=!it.selected;return e;})} style={{marginTop:5,accentColor:"var(--agnes,#7A6A8A)",cursor:"pointer"}}/>
+            <div style={{flex:1,minWidth:0}}>
               <div style={{display:"flex",alignItems:"center",gap:8,flexWrap:"wrap"}}>
                 <span style={{fontFamily:"'Cormorant Garamond',serif",fontSize:15,color:"var(--text-primary)"}}>{it.name}</span>
                 {it.role&&<span style={{fontSize:9,fontWeight:500,color:"var(--agnes,#7A6A8A)",background:"var(--agnes-15,rgba(122,106,138,0.1))",padding:"1px 8px",borderRadius:8}}>{it.role}</span>}
-                <span style={{fontSize:10,color:"var(--text-dim)",fontFamily:"'DM Sans',sans-serif"}}>Ch. {it.chapters.join(", ")}</span>
+                <span style={small}>Ch. {it.chapters.join(", ")}</span>
               </div>
-              {it.aliases&&it.aliases.length>0&&<div style={{fontSize:10,color:"var(--text-dim)",fontFamily:"'DM Sans',sans-serif"}}>Also called {it.aliases.join(", ")}</div>}
+              {it.aliases&&it.aliases.length>0&&<div style={small}>Also called {it.aliases.join(", ")}</div>}
+              {it.mergedFrom.length>0&&<div style={small}>Combined with {it.mergedFrom.map((m,mi)=><span key={mi}>{mi>0?", ":""}{m.name} <span onClick={()=>updateFinderEdits(e=>{delete e.merges[m.name];return e;})} style={{...link,fontSize:10}}>undo</span></span>)}</div>}
               {it.description&&<div style={{fontSize:12,color:"var(--text-muted)",marginTop:2,fontFamily:"'DM Sans',sans-serif"}}>{it.description}</div>}
+              <div style={{display:"flex",gap:14,alignItems:"center",marginTop:6,flexWrap:"wrap"}}>
+                <select value="" onChange={e=>{const to=e.target.value;if(!to)return;updateFinderEdits(ed=>{ed.merges[it.name]=to;return ed;});}} style={{fontSize:10,fontFamily:"'DM Sans',sans-serif",color:"var(--text-dim)",background:"transparent",border:"1px solid var(--border)",borderRadius:5,padding:"2px 6px",maxWidth:200}}>
+                  <option value="">Same person as...</option>
+                  {names.filter(n=>n!==it.name).map(n=><option key={n} value={n}>{n}</option>)}
+                </select>
+                {!noteOpen&&<span onClick={()=>setFinderNoteOpen(prev=>({...prev,[it.name]:true}))} style={{...link,fontSize:10}}>Add a note</span>}
+              </div>
+              {noteOpen&&<textarea value={it.note||""} onChange={e=>{const v=e.target.value;setFinderNoteOpen(prev=>({...prev,[it.name]:true}));updateFinderEdits(ed=>{ed.notes[it.name]=v;return ed;});}} placeholder="A note for this card, e.g. renamed in a later draft, same person as..." rows={2} style={{width:"100%",marginTop:6,fontFamily:"'DM Sans',sans-serif",fontSize:12,background:"var(--bg-card)",border:"1px solid var(--border)",borderRadius:6,padding:"6px 8px",color:"var(--text-primary)",resize:"vertical",boxSizing:"border-box"}}/>}
             </div>
-          </label>)}
-        </div>
-        <div style={{display:"flex",gap:10,alignItems:"center"}}>
-          <span onClick={()=>{if(count>0)addFoundCharacters();}} style={{...btn,opacity:count>0?1:0.5,cursor:count>0?"pointer":"default"}}>Add {count} character{count===1?"":"s"}</span>
-          <span onClick={()=>saveCharFinder(null)} style={link}>Not now</span>
-        </div>
-      </div>;
-    }
-    return null;
+          </div>;
+        })}
+      </div>
+      <div style={{display:"flex",gap:10,alignItems:"center"}}>
+        <span onClick={()=>{if(count>0)addFoundCharacters();}} style={{...btn,opacity:count>0?1:0.5,cursor:count>0?"pointer":"default"}}>Add {count} character{count===1?"":"s"}</span>
+        <span onClick={()=>saveCharFinder(null)} style={link}>Not now</span>
+      </div>
+    </div>;
   };
   const runFullReadPhase1=async(chaptersToCapture,onProgress)=>{
     let liveProject=project;
