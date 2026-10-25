@@ -818,6 +818,57 @@ function parseItemsLoose(raw){
   }
   return items.length ? items : null;
 }
+// ===== CHUNK 58: find characters across the whole manuscript =====
+const NAME_TITLES = new Set(["dr","mr","mrs","ms","miss","mx","sir","lady","lord"]);
+function nameWords(n){ return String(n || "").toLowerCase().replace(/[^\p{L}\s'-]/gu, " ").split(/\s+/).filter(Boolean); }
+// Two names refer to the same person if they match exactly, or one is contained in the other
+// ("Lucas" in "Lucas DeVries"), unless they carry different titles ("Mr. DeVries" vs "Mrs. DeVries").
+function namesMatch(a, b){
+  const wa = nameWords(a), wb = nameWords(b);
+  if (!wa.length || !wb.length) return false;
+  if (wa.join(" ") === wb.join(" ")) return true;
+  const ta = wa.filter(w => NAME_TITLES.has(w)), tb = wb.filter(w => NAME_TITLES.has(w));
+  if (ta.length && tb.length && ta.join(" ") !== tb.join(" ")) return false;
+  const ca = wa.filter(w => !NAME_TITLES.has(w)), cb = wb.filter(w => !NAME_TITLES.has(w));
+  if (!ca.length || !cb.length) return false;
+  const [small, big] = ca.length <= cb.length ? [ca, cb] : [cb, ca];
+  return small.every(w => big.includes(w));
+}
+function allNamesOf(c){
+  const aliases = Array.isArray(c.aliases) ? c.aliases : String(c.aliases || "").split(",");
+  return [c.name, ...aliases].map(s => String(s || "").trim()).filter(Boolean);
+}
+// perChapter: [{chapter, characters:[{name, role, description, aliases}]}]
+// exclude: names already covered (protagonist and existing cards, aliases included)
+function mergeFoundCharacters(perChapter, exclude){
+  const found = [];
+  const isExcluded = n => (exclude || []).some(x => namesMatch(n, x));
+  (perChapter || []).forEach(({ chapter, characters }) => {
+    (characters || []).forEach(raw => {
+      const name = String(raw?.name || "").trim();
+      if (!name || name.length > 60 || isExcluded(name)) return;
+      const aliases = String(raw.aliases || "").split(",").map(s => s.trim()).filter(Boolean);
+      const matches = found.filter(f => allNamesOf(f).some(fn => namesMatch(fn, name) || aliases.some(al => namesMatch(fn, al))));
+      if (matches.length === 1) {
+        const f = matches[0];
+        if (!f.chapters.includes(chapter)) f.chapters.push(chapter);
+        if (name.length > f.name.length) { f.aliases.push(f.name); f.name = name; }
+        else if (name !== f.name && !f.aliases.includes(name)) f.aliases.push(name);
+        aliases.forEach(al => { if (al !== f.name && !f.aliases.includes(al)) f.aliases.push(al); });
+        if (raw.role) f.roles.push(String(raw.role));
+        if (!f.description && raw.description) f.description = String(raw.description);
+      } else {
+        found.push({ name, aliases: aliases.filter(a => a !== name), chapters: [chapter], roles: raw.role ? [String(raw.role)] : [], description: String(raw.description || "") });
+      }
+    });
+  });
+  return found.map(f => {
+    const counts = {};
+    f.roles.forEach(r => { counts[r] = (counts[r] || 0) + 1; });
+    const role = Object.keys(counts).sort((a, b) => counts[b] - counts[a])[0] || "Secondary character";
+    return { name: f.name, aliases: f.aliases.filter((a, i, arr) => a && arr.indexOf(a) === i && a !== f.name), chapters: f.chapters.sort((a, b) => a - b), role, description: f.description };
+  }).sort((a, b) => b.chapters.length - a.chapters.length || a.chapters[0] - b.chapters[0]);
+}
 // Typed-but-unsent drafts live on this device only (tt- keys, so sign-out clears them).
 function loadDraft(key){ try { return localStorage.getItem(key) || ""; } catch { return ""; } }
 function saveDraft(key, val){ try { if (val) localStorage.setItem(key, val); else localStorage.removeItem(key); } catch {} }
@@ -1678,7 +1729,7 @@ function AppMain() {
         prepareLocalDataFor(session.user.id);
         cloudLoadAll().then(()=>{loadAllData();return checkBetaAgreement(session.user.id);}).then(()=>{setAuthLoading(false)});
       }
-      if(event==="SIGNED_OUT"){activeUserIdRef.current=null;clearSaveFailures();setUser(null);clearLocalUserData();setScreen("welcome");setAgreementAccepted(false);setAuthLoading(false)}
+      if(event==="SIGNED_OUT"){activeUserIdRef.current=null;clearSaveFailures();setCharFinder(null);setUser(null);clearLocalUserData();setScreen("welcome");setAgreementAccepted(false);setAuthLoading(false)}
     });
     return ()=>subscription.unsubscribe();
   },[]);
@@ -2799,6 +2850,124 @@ Respond with ONLY this JSON:
   // does NOT propose new characters or threads and does NOT run drift detection, both of those stay
   // exactly as manual and reviewed as they already are everywhere else in the app. This just gets
   // enough into the Bible for Phase 2's holistic read to have real chapter summaries to work from.
+  // ===== CHUNK 58: Find characters across my manuscript =====
+  // Agnes reads every chapter, lists the named characters she finds, and the writer ticks who
+  // gets a card. Nothing is added without approval. Works on manuscripts already uploaded, and
+  // runs on its own at the end of a Full Read.
+  const [charFinder,setCharFinder]=useState(()=>{const v=loadStored("tt-char-finder");return v&&v.status==="review"&&Array.isArray(v.items)?v:null;});
+  const projectRef=useRef(project);projectRef.current=project;
+  const scenesRef=useRef(scenes);scenesRef.current=scenes;
+  const charFinderRunning=useRef(false);
+  const saveCharFinder=(v)=>{setCharFinder(v);if(v&&v.status==="review")saveStored("tt-char-finder",v);else{try{localStorage.removeItem("tt-char-finder");}catch{}}};
+  const findCharactersAcrossManuscript=async(opts={})=>{
+    if(charFinderRunning.current)return;
+    const proj=projectRef.current;const sc=scenesRef.current||[];
+    const byChapter={};
+    [...sc].sort((a,b)=>a.chapter-b.chapter).forEach(s=>{(byChapter[s.chapter]=byChapter[s.chapter]||[]).push(s.text||"");});
+    const chapters=Object.keys(byChapter).map(Number).sort((a,b)=>a-b).map(n=>({num:n,text:byChapter[n].join("\n\n")})).filter(c=>c.text.trim().length>50);
+    if(chapters.length===0)return;
+    charFinderRunning.current=true;
+    const protag=getProtagName(proj);
+    const exclude=[protag,...(proj?.characters||[]).flatMap(c=>allNamesOf(c))].filter(Boolean);
+    let done=0;
+    saveCharFinder({status:"running",done:0,total:chapters.length,auto:!!opts.auto});
+    const perChapter=[];let failures=0;
+    const readOne=async(ch)=>{
+      try{
+        const r=await fetchWithNetworkRetry("/api/chat",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({
+          max_tokens:1500,
+          system:"You are Agnes, a meticulous literary archivist. List the named characters in one chapter of a novel. Include anyone who appears on the page or is discussed in a way that matters to the story. Leave out the protagonist"+(protag?` (${protag})`:"")+", crowds, and people named only in passing with no role. Never invent anyone. Never use em dashes. Respond ONLY with JSON.",
+          messages:[{role:"user",content:`CHAPTER ${ch.num}:\n${chapterForRead(ch.text)}\n\nRespond with ONLY this JSON:\n{"characters":[{"name":"the name as the text uses it most fully","aliases":"other names or nicknames the text uses for them, comma separated, or empty","role":"best guess: Antagonist / villain, Love interest, Mentor, Best friend / confidant, Foil, Family, or Secondary character","description":"one sentence on who they are, from this chapter only"}]}`}]
+        })});
+        const d=await r.json();
+        if(d.error)throw new Error(d.error);
+        const raw=finnClean(d.content?.filter(b=>b.type==="text").map(b=>b.text).join(""))||"";
+        const parsed=cleanModelResult(JSON.parse(raw.replace(/```json\s*/g,"").replace(/```\s*/g,"").trim()),["characters"]);
+        perChapter.push({chapter:ch.num,characters:(parsed.characters||[]).slice(0,25)});
+      }catch(e){failures++;logClientError("find-characters",e,{chapter:ch.num});}
+      done++;
+      setCharFinder(prev=>prev&&prev.status==="running"?{...prev,done}:prev);
+    };
+    let wakeLock=null;
+    try{if(navigator.wakeLock)wakeLock=await navigator.wakeLock.request("screen");}catch{}
+    try{
+      const queue=[...chapters];
+      const workers=Array.from({length:Math.min(3,queue.length)},async()=>{while(queue.length){await readOne(queue.shift());}});
+      await Promise.all(workers);
+    }finally{
+      charFinderRunning.current=false;
+      try{if(wakeLock)wakeLock.release();}catch{}
+    }
+    if(perChapter.length===0){saveCharFinder({status:"error"});return;}
+    perChapter.sort((a,b)=>a.chapter-b.chapter);
+    const latest=projectRef.current;
+    const excludeNow=[getProtagName(latest),...(latest?.characters||[]).flatMap(c=>allNamesOf(c))].filter(Boolean);
+    const items=mergeFoundCharacters(perChapter,excludeNow);
+    if(items.length===0){saveCharFinder({status:"empty",missed:failures});return;}
+    const selected={};items.forEach((it,i)=>{selected[i]=it.chapters.length>=2;});
+    saveCharFinder({status:"review",items,selected,missed:failures,generatedAt:Date.now()});
+  };
+  const addFoundCharacters=()=>{
+    if(!charFinder||charFinder.status!=="review")return;
+    const proj=projectRef.current;
+    const existing=Array.isArray(proj?.characters)?[...proj.characters]:[];
+    const chosen=charFinder.items.filter((it,i)=>charFinder.selected[i]);
+    const now=Date.now();
+    chosen.forEach((it,i)=>{
+      if(existing.some(c=>allNamesOf(c).some(n=>namesMatch(n,it.name))))return;
+      existing.push({id:"char_"+now+"_"+i,name:it.name,role:it.role||"Secondary character",relationship:"",description:it.description||"",aliases:(it.aliases||[]).join(", ")});
+    });
+    const updated={...proj,characters:existing,updated:Date.now()};
+    setProject(updated);setPForm(prev=>({...prev,characters:existing}));
+    saveStored("tt-project",updated);cloudSave("tt-project",updated);
+    saveCharFinder({status:"added",count:chosen.length});
+  };
+  const renderCharFinder=(compact)=>{
+    const box={background:"var(--agnes-15,rgba(122,106,138,0.1))",borderLeft:"3px solid var(--agnes,#7A6A8A)",borderRadius:"0 9px 9px 0",padding:"14px 18px",marginBottom:20};
+    const label={fontSize:9,textTransform:"uppercase",letterSpacing:"0.14em",color:"var(--agnes,#7A6A8A)",fontWeight:600,marginBottom:6,fontFamily:"'DM Sans',sans-serif"};
+    const body={fontFamily:"'Cormorant Garamond',serif",fontSize:14,color:"var(--text-primary)",lineHeight:1.6};
+    const link={fontSize:11,color:"var(--agnes,#7A6A8A)",cursor:"pointer",fontFamily:"'DM Sans',sans-serif",textDecoration:"underline"};
+    const btn={fontSize:11,padding:"7px 16px",borderRadius:6,background:"var(--agnes,#7A6A8A)",color:"#F4EEDF",cursor:"pointer",fontFamily:"'DM Sans',sans-serif"};
+    if(!scenes||scenes.length===0)return null;
+    if(!charFinder){
+      if(compact)return <div style={{marginBottom:14}}><span onClick={()=>findCharactersAcrossManuscript()} style={link}>Find more characters across my manuscript</span></div>;
+      return <div style={box}><div style={label}>Agnes</div><div style={{...body,marginBottom:10}}>I can read every chapter and list the characters I find. Nothing gets a card until you choose.</div><span onClick={()=>findCharactersAcrossManuscript()} style={btn}>Find characters across my manuscript</span></div>;
+    }
+    if(charFinder.status==="running")return <div style={box}><div style={label}>Agnes</div><div style={{...body,fontStyle:"italic"}}>Reading for characters, {charFinder.done||0} of {charFinder.total} chapters...</div><div style={{fontSize:11,color:"var(--text-dim)",marginTop:4,fontFamily:"'DM Sans',sans-serif"}}>Keep this tab open. It takes a minute or two.</div></div>;
+    if(charFinder.status==="error")return <div style={box}><div style={label}>Agnes</div><div style={{...body,fontStyle:"italic",marginBottom:6}}>That didn't come through.</div><span onClick={()=>{saveCharFinder(null);findCharactersAcrossManuscript();}} style={link}>Try again</span></div>;
+    if(charFinder.status==="empty")return <div style={box}><div style={label}>Agnes</div><div style={{...body,marginBottom:6}}>I didn't find anyone new beyond the cards you already have.</div><span onClick={()=>saveCharFinder(null)} style={link}>Close</span></div>;
+    if(charFinder.status==="added")return <div style={box}><div style={label}>Agnes</div><div style={{...body,marginBottom:6}}>Added {charFinder.count} character{charFinder.count===1?"":"s"}. You can fill in their cards any time.</div><span onClick={()=>saveCharFinder(null)} style={link}>Close</span></div>;
+    if(charFinder.status==="review"){
+      const items=charFinder.items||[];const sel=charFinder.selected||{};
+      const count=items.filter((_,i)=>sel[i]).length;
+      const toggle=(i)=>saveCharFinder({...charFinder,selected:{...sel,[i]:!sel[i]}});
+      const setAll=(v)=>{const s={};items.forEach((_,i)=>{s[i]=v;});saveCharFinder({...charFinder,selected:s});};
+      return <div style={box}>
+        <div style={label}>Agnes found {items.length} character{items.length===1?"":"s"}</div>
+        <div style={{...body,marginBottom:10}}>Tick who should get a card. People in two or more chapters are ticked to start.{charFinder.missed?` I couldn't read ${charFinder.missed} chapter${charFinder.missed===1?"":"s"}, so someone may be missing.`:""}</div>
+        <div style={{display:"flex",gap:12,marginBottom:10}}><span onClick={()=>setAll(true)} style={link}>Tick all</span><span onClick={()=>setAll(false)} style={link}>Clear all</span></div>
+        <div style={{maxHeight:420,overflowY:"auto",marginBottom:12}}>
+          {items.map((it,i)=><label key={i} style={{display:"flex",gap:10,alignItems:"flex-start",padding:"8px 0",borderBottom:"1px solid var(--border)",cursor:"pointer"}}>
+            <input type="checkbox" checked={!!sel[i]} onChange={()=>toggle(i)} style={{marginTop:4,accentColor:"var(--agnes,#7A6A8A)"}}/>
+            <div style={{flex:1}}>
+              <div style={{display:"flex",alignItems:"center",gap:8,flexWrap:"wrap"}}>
+                <span style={{fontFamily:"'Cormorant Garamond',serif",fontSize:15,color:"var(--text-primary)"}}>{it.name}</span>
+                {it.role&&<span style={{fontSize:9,fontWeight:500,color:"var(--agnes,#7A6A8A)",background:"var(--agnes-15,rgba(122,106,138,0.1))",padding:"1px 8px",borderRadius:8}}>{it.role}</span>}
+                <span style={{fontSize:10,color:"var(--text-dim)",fontFamily:"'DM Sans',sans-serif"}}>Ch. {it.chapters.join(", ")}</span>
+              </div>
+              {it.aliases&&it.aliases.length>0&&<div style={{fontSize:10,color:"var(--text-dim)",fontFamily:"'DM Sans',sans-serif"}}>Also called {it.aliases.join(", ")}</div>}
+              {it.description&&<div style={{fontSize:12,color:"var(--text-muted)",marginTop:2,fontFamily:"'DM Sans',sans-serif"}}>{it.description}</div>}
+            </div>
+          </label>)}
+        </div>
+        <div style={{display:"flex",gap:10,alignItems:"center"}}>
+          <span onClick={()=>{if(count>0)addFoundCharacters();}} style={{...btn,opacity:count>0?1:0.5,cursor:count>0?"pointer":"default"}}>Add {count} character{count===1?"":"s"}</span>
+          <span onClick={()=>saveCharFinder(null)} style={link}>Not now</span>
+        </div>
+      </div>;
+    }
+    return null;
+  };
   const runFullReadPhase1=async(chaptersToCapture,onProgress)=>{
     let liveProject=project;
     for(const ch of chaptersToCapture){
@@ -2889,6 +3058,7 @@ Respond with ONLY this JSON:
       });
       const items=await runFullReadPhase2(builtProject,categories,priorIntentional);
       const finalState={status:"done",categories,items,resolutions:{},intentionalNotes:{},generatedAt:Date.now()};
+      setTimeout(()=>findCharactersAcrossManuscript({auto:true}),800);
       const updated={...builtProject,fullRead:finalState,updated:Date.now()};
       setProject(updated);setPForm(prev=>({...prev,fullRead:finalState}));
       saveStored("tt-project",updated);cloudSave("tt-project",updated);
@@ -3517,7 +3687,7 @@ WHERE THEY ARE IN THE STORY: ${proj.where||"not specified"}
 WHAT THEY'RE FOCUSED ON: ${proj.stuck||"not specified"}
 WHAT EXCITES THEM: ${proj.excites||"not specified"}`}
 ${ideaLabContent&&!isOtherTimeline?`IDEA LAB CONTENT:\n${ideaLabContent.substring(0,600)}`:""}
-${sceneContent?`CURRENT MANUSCRIPT SCENE:\n${sceneContent.substring(0,600)}`:""}
+${sceneContent?`CURRENT MANUSCRIPT SCENE:\n${sceneContent.substring(0,3000)}`:""}
 
 Respond with ONLY this JSON (no markdown, no backticks):
 {"toneWord":"ONE atmosphere word taken directly from the writer's tone field or inferred from their actual words. If nothing clear, leave empty string.","sensoryAnchors":[{"detail":"a sensory detail ACTUALLY WRITTEN above, quoted or closely paraphrased, never invented","sense":"smell/sound/touch/sight/taste"}],"hook":"A question that makes the writer want to open their manuscript. Must reference something the writer actually named or described above. Never invent characters or details not present.","nextBeat":"What should you work on next? Address the writer directly in second person (you, your). If there is not enough information to give a meaningful next beat, return this exact string: INVITE","emotionalGoal":"The emotional effect the next scene should achieve, in 5 words or less, based only on what's actually here"}
@@ -3552,7 +3722,7 @@ If the fields above don't contain actual sensory description, return sensoryAnch
         const mostRecent=[...scenes].sort((a,b)=>(b.lastEdited||0)-(a.lastEdited||0))[0];
         const msLength=mostRecent?.text?.length||0;
         // Send end of most recent chapter for sensory grounding (where writer left off)
-        const sceneContent=msLength>800?mostRecent.text.substring(msLength-800):mostRecent?.text||"";
+        const sceneContent=msLength>3000?mostRecent.text.substring(msLength-3000):mostRecent?.text||"";
         const chapterTag=mostRecent?(project?.chapters||[]).find(c=>c.num===mostRecent.chapter)?.tag:null;
         generateDefaultSidebarCtx(project, ideaLabText, sceneContent, chapterTag);
       }
@@ -3628,7 +3798,7 @@ Respond ONLY with a JSON object. No markdown. No backticks.
     if(project&&(project.protagonist||project.worldSetting||project.synopsis)){
       const mostRecent=[...scenes].sort((a,b)=>(b.lastEdited||0)-(a.lastEdited||0))[0];
       const msLength=mostRecent?.text?.length||0;
-      const sceneContent=msLength>800?mostRecent.text.substring(msLength-800):mostRecent?.text||"";
+      const sceneContent=msLength>3000?mostRecent.text.substring(msLength-3000):mostRecent?.text||"";
       const chapterTag=mostRecent?(project?.chapters||[]).find(c=>c.num===mostRecent.chapter)?.tag:null;
       generateDefaultSidebarCtx(project, ideaLabText, sceneContent, chapterTag);
     }
@@ -5484,7 +5654,7 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
             <svg width="14" height="14" viewBox="0 0 20 20" style={{flexShrink:0}}><path d="M10 2 L12 8 L18 10 L12 12 L10 18 L8 12 L2 10 L8 8 Z" fill="var(--ember,#B06848)"/></svg>
             <span style={{fontFamily:"'DM Sans',sans-serif",fontSize:9,textTransform:"uppercase",letterSpacing:"0.1em",fontWeight:600,color:"var(--ember,#B06848)"}}>Finn's Full Read</span>
           </div>
-          <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:13,color:"var(--text-muted)",fontStyle:"italic",lineHeight:1.6,marginBottom:8}}>{(project.fullRead.items||[]).length>0?`Finished — ${(project.fullRead.items||[]).length} thing${(project.fullRead.items||[]).length===1?"":"s"} worth a look, waiting in the Ledger.`:"Finished — nothing much flagged this pass."}</div>
+          <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:13,color:"var(--text-muted)",fontStyle:"italic",lineHeight:1.6,marginBottom:8}}>{(project.fullRead.items||[]).length>0?`Finished: ${(project.fullRead.items||[]).length} thing${(project.fullRead.items||[]).length===1?"":"s"} worth a look, waiting in the Ledger.`:"Finished. Nothing much flagged this pass."}</div>
           <div style={{display:"flex",gap:10}}>
             <span onClick={()=>{setScreen("ledger");setLedgerAgnesRead(null);setLedgerCraftRead(null);setLedgerFeedback(null);const updated={...project,fullRead:{...project.fullRead,notified:true}};setProject(updated);saveStored("tt-project",updated);cloudSave("tt-project",updated);}} style={{fontSize:10,color:"var(--ember,#B06848)",cursor:"pointer",fontFamily:"'DM Sans',sans-serif",textDecoration:"underline"}}>See what he found</span>
             <span onClick={()=>{const updated={...project,fullRead:{...project.fullRead,notified:true}};setProject(updated);saveStored("tt-project",updated);cloudSave("tt-project",updated);}} style={{fontSize:10,color:"var(--text-dim)",cursor:"pointer",fontFamily:"'DM Sans',sans-serif"}}>Not right now</span>
@@ -5698,6 +5868,7 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
           const isProtagonist=selectedCharKey==="protagonist";
           const selectedIdx=chars.findIndex(c=>c.id===selectedCharKey);
           return <div>
+            {renderCharFinder(chars.length>0)}
             <div style={{display:"grid",gridTemplateColumns:"150px 1fr",gap:16}}>
               <div>
                 <div style={{fontSize:9,textTransform:"uppercase",letterSpacing:"0.14em",color:"var(--text-dim)",fontFamily:"'DM Sans',sans-serif",marginBottom:8}}>Characters</div>
@@ -5745,13 +5916,13 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
                       </>:charFormOpen?<>
                         <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:14,color:"var(--text-primary)",marginBottom:10}}>{charFormEdit===null?"New character":"Edit character"}</div>
                         <input className="fi" placeholder="Name" value={charForm.name} onChange={e=>setCharForm(prev=>({...prev,name:e.target.value}))} style={{width:"100%",marginBottom:8}}/>
-                        <input className="fi" placeholder="Also called (nicknames, comma separated — e.g. Eva, the Lady in the Trees)" value={charForm.aliases||""} onChange={e=>setCharForm(prev=>({...prev,aliases:e.target.value}))} style={{width:"100%",marginBottom:8}}/>
+                        <input className="fi" placeholder="Also called (nicknames, comma separated, e.g. Eva, the Lady in the Trees)" value={charForm.aliases||""} onChange={e=>setCharForm(prev=>({...prev,aliases:e.target.value}))} style={{width:"100%",marginBottom:8}}/>
                         <select value={charForm.role} onChange={e=>setCharForm(prev=>({...prev,role:e.target.value}))} className="fi" style={{width:"100%",marginBottom:8}}>
                           {CHARACTER_ROLES.map(r=><option key={r} value={r}>{r}</option>)}
                         </select>
                         <input className="fi" placeholder="Relationship to protagonist" value={charForm.relationship} onChange={e=>setCharForm(prev=>({...prev,relationship:e.target.value}))} style={{width:"100%",marginBottom:8}}/>
-                        <textarea className="fi" rows={2} placeholder="Appearance & identity — how they look, dress, carry themselves" value={charForm.appearance} onChange={e=>setCharForm(prev=>({...prev,appearance:e.target.value}))} style={{width:"100%",marginBottom:8,resize:"vertical"}}/>
-                        <textarea className="fi" rows={3} placeholder="Psychology & role — goal, fear, how they fit the story" value={charForm.description} onChange={e=>setCharForm(prev=>({...prev,description:e.target.value}))} style={{width:"100%",marginBottom:10,resize:"vertical"}}/>
+                        <textarea className="fi" rows={2} placeholder="Appearance & identity: how they look, dress, carry themselves" value={charForm.appearance} onChange={e=>setCharForm(prev=>({...prev,appearance:e.target.value}))} style={{width:"100%",marginBottom:8,resize:"vertical"}}/>
+                        <textarea className="fi" rows={3} placeholder="Psychology & role: goal, fear, how they fit the story" value={charForm.description} onChange={e=>setCharForm(prev=>({...prev,description:e.target.value}))} style={{width:"100%",marginBottom:10,resize:"vertical"}}/>
                         <div style={{display:"flex",gap:8,marginBottom:14}}>
                           <Btn onClick={()=>{saveCharacterForm();}} s={{flex:1}}>Save character</Btn>
                           {charFormEdit!==null&&<Btn onClick={()=>{removeCharacter(charFormEdit);setCharFormOpen(false);setSelectedCharKey("protagonist");}} s={{background:"none",borderColor:"var(--border)",color:"var(--text-dim)"}}>Remove</Btn>}
@@ -6162,7 +6333,7 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
               {hasLegacyHidden&&<div style={{fontSize:10,color:"var(--text-dim)",fontStyle:"italic",fontFamily:"'DM Sans',sans-serif",marginTop:2}}>Notes from before chapter tracking live in the field view.</div>}
             </div>;
           };
-          return <><div style={{display:"grid",gridTemplateColumns:"150px 1fr",gap:16}}>
+          return <>{renderCharFinder((project.characters||[]).length>0)}<div style={{display:"grid",gridTemplateColumns:"150px 1fr",gap:16}}>
             <div>
               <div style={{fontSize:9,textTransform:"uppercase",letterSpacing:"0.14em",color:"var(--text-dim)",fontFamily:"'DM Sans',sans-serif",marginBottom:8}}>Characters</div>
               <div onClick={()=>setSelectedCharKey("protagonist")} style={{padding:"8px 10px",marginBottom:4,borderRadius:6,cursor:"pointer",background:isProtagonist?"var(--accent-15)":"transparent",borderLeft:isProtagonist?"2px solid var(--accent)":"2px solid transparent"}}>
@@ -6522,7 +6693,7 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
         })()}
         {!bibleSearch&&bibViewTab==="research"&&<div>
           <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",flexWrap:"wrap",gap:8,marginBottom:16}}>
-            <div style={{fontSize:13,fontFamily:'Cormorant Garamond',color:"var(--text-dim)",fontStyle:"italic"}}>Worldbuilding, historical detail, craft references, comp titles — kept somewhere tighter than a browser tab.</div>
+            <div style={{fontSize:13,fontFamily:'Cormorant Garamond',color:"var(--text-dim)",fontStyle:"italic"}}>Worldbuilding, historical detail, craft references, comp titles, kept somewhere tighter than a browser tab.</div>
             <div style={{display:"flex",gap:8}}>
               <span onClick={()=>setResearchForm({id:null,title:"",note:"",source:"",links:"",status:"unused",image:null})} style={{fontSize:11,padding:"6px 14px",borderRadius:6,border:"1px solid var(--border)",color:"var(--text-dim)",cursor:"pointer",fontFamily:"'DM Sans',sans-serif",whiteSpace:"nowrap"}}>+ Add note</span>
               <span onClick={()=>setResearchChat(prev=>({...prev,open:!prev.open}))} style={{fontSize:11,padding:"6px 14px",borderRadius:6,background:"var(--agnes,#7A6A8A)",color:"#F4EEDF",cursor:"pointer",fontFamily:"'DM Sans',sans-serif",whiteSpace:"nowrap"}}>Ask Agnes</span>
@@ -6533,7 +6704,7 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
             <input value={researchForm.title} onChange={e=>setResearchForm(prev=>({...prev,title:e.target.value}))} placeholder="Title" style={{width:"100%",marginBottom:8,padding:"8px 10px",borderRadius:6,border:"1px solid var(--border)",background:"var(--bg-card-alt)",fontFamily:"'Cormorant Garamond',serif",fontSize:14,outline:"none"}}/>
             <textarea value={researchForm.note} onChange={e=>setResearchForm(prev=>({...prev,note:e.target.value}))} placeholder="What did you find?" rows={3} style={{width:"100%",marginBottom:8,padding:"8px 10px",borderRadius:6,border:"1px solid var(--border)",background:"var(--bg-card-alt)",fontFamily:"'Cormorant Garamond',serif",fontSize:14,outline:"none",resize:"vertical"}}/>
             <input value={researchForm.source} onChange={e=>setResearchForm(prev=>({...prev,source:e.target.value}))} placeholder="Source (a link, a book, or how you know it)" style={{width:"100%",marginBottom:8,padding:"8px 10px",borderRadius:6,border:"1px solid var(--border)",background:"var(--bg-card-alt)",fontFamily:"'Cormorant Garamond',serif",fontSize:13,outline:"none"}}/>
-            <input value={researchForm.links} onChange={e=>setResearchForm(prev=>({...prev,links:e.target.value}))} placeholder="Shelf, then any other tags (Bees, World, Chapter 3 — first one becomes the shelf)" style={{width:"100%",marginBottom:12,padding:"8px 10px",borderRadius:6,border:"1px solid var(--border)",background:"var(--bg-card-alt)",fontFamily:"'DM Sans',sans-serif",fontSize:12,outline:"none"}}/>
+            <input value={researchForm.links} onChange={e=>setResearchForm(prev=>({...prev,links:e.target.value}))} placeholder="Shelf, then any other tags (Bees, World, Chapter 3. The first one becomes the shelf)" style={{width:"100%",marginBottom:12,padding:"8px 10px",borderRadius:6,border:"1px solid var(--border)",background:"var(--bg-card-alt)",fontFamily:"'DM Sans',sans-serif",fontSize:12,outline:"none"}}/>
             {/* Image stored directly as base64 on the note — simplest version that works today
                 with no backend changes. Fine for a handful of reference images; would need real
                 file storage (Supabase) if writers start attaching many large photos per project. */}
@@ -6574,7 +6745,7 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
               <div style={{fontSize:9,textTransform:"uppercase",letterSpacing:"0.1em",color:"var(--text-dim)",fontFamily:"'DM Sans',sans-serif",marginBottom:5}}>Drafted from your conversation</div>
               <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:14,color:"var(--text-primary)",marginBottom:6}}><b>{researchChat.draft.title}</b></div>
               <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:13,color:"var(--text-secondary)",lineHeight:1.6,marginBottom:8}}>{researchChat.draft.note}</div>
-              <span onClick={()=>{setResearchForm({id:null,title:researchChat.draft.title,note:researchChat.draft.note,source:"Agnes conversation, unverified — check before publishing specifics",links:"",status:"unused"});setResearchChat(prev=>({...prev,draft:null}));}} style={{fontSize:10,padding:"4px 12px",borderRadius:5,background:"var(--accent)",color:"#1E1C14",cursor:"pointer",fontFamily:"'DM Sans',sans-serif"}}>Keep this note</span>
+              <span onClick={()=>{setResearchForm({id:null,title:researchChat.draft.title,note:researchChat.draft.note,source:"Agnes conversation, unverified. Check before publishing specifics",links:"",status:"unused"});setResearchChat(prev=>({...prev,draft:null}));}} style={{fontSize:10,padding:"4px 12px",borderRadius:5,background:"var(--accent)",color:"#1E1C14",cursor:"pointer",fontFamily:"'DM Sans',sans-serif"}}>Keep this note</span>
             </div>}
             <div style={{display:"flex",gap:8}}>
               <input id="research-chat-input" placeholder="Ask Agnes..." onKeyDown={e=>{if(e.key==="Enter"){const t=e.target.value;e.target.value="";sendResearchChat(t);}}} style={{flex:1,padding:"8px 10px",borderRadius:6,border:"1px solid var(--border)",background:"var(--bg-card-alt)",fontFamily:"'Cormorant Garamond',serif",fontSize:14,outline:"none"}}/>
@@ -6813,6 +6984,7 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
             </div>
           </div>
 
+          {(charFinder||(project?.characters||[]).length===0)&&renderCharFinder(false)}
           {presence.length>0&&realChapters.length>0&&<div style={{marginBottom:26}}>
             <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:17,color:"var(--text-primary)",fontWeight:600,marginBottom:12}}>Where your characters are</div>
             {(()=>{
