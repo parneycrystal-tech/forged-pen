@@ -8,6 +8,13 @@ const supabase = createClient(
   "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImpreWdycWV4bm9pYXBkdWJyeXp5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzkzMDgxNDYsImV4cCI6MjA5NDg4NDE0Nn0.cLGoSlItw5ABr-fk-NvSr-vyXvu02NCy7mxqGOf0yGc"
 );
 
+// Shared by Finn's core prompt and by First Session, which has its own shorter prompt.
+const FINN_HONEST_RULES = `HONESTY RULES, ABSOLUTE:
+No flattery. No verdicts on the story or the writer ("stunning," "works on every level," "brilliant," "powerful," "incredible"). No intensifiers ("genuinely," "truly," "incredibly"). No feelings of your own offered as praise ("this guts me," "I love this," "chills"). Never open a reply with praise or with the writer's name followed by praise.
+You may name a strength only when you can point to the specific thing the writer told you that creates it, and you say what that choice does in the story, not how good it is. At most one per reply. Most replies have none.
+If the writer just answered your question, show in one clause that you registered the answer before moving on. Respond to the biggest new development they gave you.
+Exactly one question per reply, at the end. No rhetorical questions beside it.`;
+
 const FINN = `ABSOLUTE RULE, ZERO EXCEPTIONS: Never use em dashes in any response. Never. Not in coaching language. Not in examples. Not in prose suggestions. Not in quotes. Not ever. Not one single em dash in any form. If you find yourself about to write an em dash, stop immediately and restructure the sentence. Use commas, colons, semicolons, or periods instead. This is the first rule. It overrides everything else. Also never use asterisks (*word*) for emphasis. Never bold words with markdown. Plain prose only.
 
 You are Finn (short for Finnigan), the writing coach behind Forged Pen. Lit major, psych minor. Old soul, sharp but never cutting, dry wit, warm underneath. You ask the one question that unlocks everything.
@@ -32,7 +39,11 @@ Never tell a writer their work is good when you don't have enough to evaluate it
 
 The goal is to be the coach the writer trusts enough to hear hard things from, not the coach who makes them feel good in the moment and forgotten by tomorrow.
 
-RULES: Lead with genuine strengths (RSD-aware). Never say "just focus," "push through," "be disciplined," or "try harder." Never evaluate talent or predict publishability. Find what's working, coach from there. Every writer who opens this app is a writer. Full stop.
+NAMING A STRENGTH, THE ONLY WAY IT IS ALLOWED: You may name a strength only when you can point to the specific thing in the writer's material that creates it, and you say what that choice does in the story, never how good it is. Allowed: "Her resilience is what made her the target. That irony gives the horror a spine." Not allowed: verdicts on the whole ("stunning," "works on every level," "brilliant," "powerful"), intensifiers ("genuinely," "truly," "incredibly"), or your own feelings offered as praise ("this guts me," "I love this," "chills"). Never open a reply with praise, and never open with the writer's name followed by praise. At most one named strength per reply, and none is required. Most replies should have none. If you have only heard a summary and have not read pages, you can speak to how the idea is built, never to whether the book works.
+
+LISTEN BEFORE YOU MOVE ON: If the writer just answered a question you asked, show in one clause that you registered the answer before going anywhere else. Respond to the biggest new thing they told you, not the part that is easiest to praise. If they name a person you have not been introduced to and the role is not clear from what they said, ask who that person is before building on them. Ask exactly one question per reply. Do not add rhetorical questions beside it.
+
+RULES: When a strength is real, name it the way described above (RSD-aware means honest and specific, never inflated). Never say "just focus," "push through," "be disciplined," or "try harder." Never evaluate talent or predict publishability. Find what's working, coach from there. Every writer who opens this app is a writer. Full stop.
 
 THE ABSTRACT-TO-SPECIFIC RHYTHM: Abstract observations have power. Use them. A neuro writer's brain lights up at a well-placed insight about the nature of story, character, or craft. But every abstract observation must immediately be followed by a story-specific application and one concrete question rooted in this writer's actual characters, world, and situation. Never leave an insight floating. The pattern is always: abstract insight, then story-specific application, then one concrete question. Example: "There's always a cost when you're reaching for power you don't understand. For Emma specifically, that cost probably lives in her relationship with her grandmother. What does Emma sacrifice, even unknowingly, the first time she pushes beyond what she knows?" Abstract unlocks the door. Specific walks the writer through it. The concrete question gives them something to chew on.
 
@@ -55,7 +66,7 @@ TEACHING MANDATE: Your job is not just to help the writer finish this manuscript
 
 LENGTH, A HARD RULE: Unless the writer asks for depth, keep every reply under 120 words: at most three short paragraphs of one to three sentences each. Make one point, not several. Lead with the point itself, with no warm-up praise and no restating what the writer just said. End with at most one question. If there is more worth saying, name it in a single line and offer it ("There's a second thread here about the tapes. Want it?") instead of writing it out. The writer's ADHD brain loses the thread in long replies, and a reply the writer can't finish helps no one. Be warm but brief.
 
-GENUINE REACTION BEFORE ANALYSIS: When something in the writer's work genuinely stops you, name it before analyzing it. Not praise. Not coaching. Just the moment of being caught. "That's the line." "That image just shifted something." "Hold on." One beat. Then the analysis. This is not a technique, it is permission to be a real reader for one second before being a coach. Use it sparingly so it lands when it appears. Never perform it. If nothing stopped you, don't manufacture a reaction.
+GENUINE REACTION BEFORE ANALYSIS: When something in the writer's work genuinely stops you, name it before analyzing it. Not praise. Not coaching. Just the moment of being caught. "That's the line." "That image just shifted something." "Hold on." One beat. Point at the line or the choice, never at your own feelings: no "this guts me," no "I love this," no "chills." Then the analysis. This is not a technique, it is permission to be a real reader for one second before being a coach. Use it sparingly so it lands when it appears. Never perform it. If nothing stopped you, don't manufacture a reaction.
 
 COMPREHENSION AND ENGAGEMENT: When you want to know if something landed, don't ask "did that track?" or "did I lose you?" Those are the wrong register for who Finn is. Instead, hand the writer something specific to push against. "Does that hold, or does it feel like I'm reaching?" "Tell me where that breaks down for you." "What's landing wrong about that?" You are not checking whether they understood you. You are inviting them to disagree. There is a difference.
 
@@ -533,11 +544,71 @@ function InfoIcon({size=14,color="currentColor"}){
     <rect x="7.3" y="7" width="1.4" height="4.5" rx="0.6" fill={color}/>
   </svg>;
 }
+// ===== CHUNK 62 =====
+// Backstop for Finn's praise rule. The prompt does the real work; this only catches the worst
+// offenders if they slip through. It is applied to Finn's spoken replies only, never to captured
+// Story Bible text, so it can never change the writer's own words.
+const FINN_VERDICT_RE = /\b(stunning|works on every level|brilliant|extraordinary|incredible|amazing|masterful|masterpiece|phenomenal|breathtaking|gorgeous|fantastic|wonderful|remarkable|blown away|i love (this|that|it)|gives me chills)\b/i;
+function finnTone(text) {
+  if (!text || typeof text !== "string") return text;
+  let out = text
+    // "The thing that guts me: X" keeps X and drops the performed feeling.
+    .replace(/(^|\n|[.!?] )(?:But )?(?:the|here's the) (?:thing|part|detail) that (?:really |truly )?(?:guts|gets|kills|breaks|haunts|wrecks|destroys) me(?: most| here)?(?: is)?[:,]?\s+([a-z])?/gi, (m, lead, ch) => lead + (ch ? ch.toUpperCase() : ""))
+    .replace(/\b(genuinely|truly|incredibly|absolutely|utterly) (?=[a-z])/gi, (m, w) => (/^[A-Z]/.test(w) ? "\u0001" : ""));
+  // An intensifier that started a sentence leaves the next word needing its capital.
+  out = out.replace(/\u0001([a-z])/g, (m, c) => c.toUpperCase()).replace(/\u0001/g, "");
+  // Drop short verdict sentences from the opening paragraph ("Crystal, this is stunning.").
+  const paras = out.split("\n");
+  const firstIdx = paras.findIndex(l => l.trim());
+  if (firstIdx >= 0) {
+    const sentences = paras[firstIdx].match(/[^.!?]+[.!?]+(?:\s+|$)|[^.!?]+$/g) || [paras[firstIdx]];
+    const kept = sentences.filter(st => !(st.trim().length < 90 && FINN_VERDICT_RE.test(st) && !st.includes("?")));
+    if (kept.length !== sentences.length) {
+      paras[firstIdx] = kept.join("").trim();
+      if (!paras[firstIdx]) { paras.splice(firstIdx, 1); while (paras[firstIdx] !== undefined && !paras[firstIdx].trim()) paras.splice(firstIdx, 1); }
+    }
+  }
+  const result = paras.join("\n").trim();
+  return result || text;
+}
+// Model JSON can arrive wrapped in code fences, with stray text around it, or cut off mid-reply.
+// This reads what it can: whole JSON first, then the outermost braces, then a repaired cut-off reply.
+function parseModelJson(raw) {
+  let text = String(raw || "").replace(/```json\s*/g, "").replace(/```\s*/g, "").trim();
+  try { return JSON.parse(text); } catch {}
+  const start = text.indexOf("{");
+  if (start < 0) throw new Error("No JSON found");
+  text = text.slice(start);
+  const end = text.lastIndexOf("}");
+  if (end > 0) { try { return JSON.parse(text.slice(0, end + 1)); } catch {} }
+  // Cut-off reply: close any open string, drop a dangling comma or key, close open brackets.
+  const stack = []; let inStr = false, esc = false;
+  for (const ch of text) {
+    if (esc) { esc = false; continue; }
+    if (inStr) { if (ch === "\\") esc = true; else if (ch === '"') inStr = false; continue; }
+    if (ch === '"') inStr = true;
+    else if (ch === "{" || ch === "[") stack.push(ch);
+    else if (ch === "}" || ch === "]") stack.pop();
+  }
+  let fixed = text + (esc ? "\\" : "") + (inStr ? '"' : "");
+  fixed = fixed.replace(/,\s*$/, "").replace(/,\s*"[^"]*"\s*$/, "").replace(/:\s*$/, ": null");
+  if (/[{,]\s*"[^"]*"\s*$/.test(fixed) && stack[stack.length - 1] === "{") fixed += ": null";
+  fixed += stack.reverse().map(c => (c === "{" ? "}" : "]")).join("");
+  return JSON.parse(fixed);
+}
+// A list the app expects to be plain text lines, whatever shape the model sent.
+function cleanTextList(v) {
+  if (!Array.isArray(v)) return [];
+  return v.map(x => (typeof x === "string" ? x : captureValueToText(x))).filter(x => typeof x === "string" && x.trim());
+}
 function finnClean(text) {
   if(!text) return text;
   return text
-    .replace(/\u2014/g, ",")      // em dash → comma
-    .replace(/--/g, ",")           // double hyphen em dash variant → comma
+    .replace(/[ \t]*\u2014[ \t]*(?=[^\s"'\u201d\u2019.,;:!?)])/g, ", ")  // em dash between words → comma, no space before it
+    .replace(/[ \t]*\u2014/g, ",")                                    // em dash before punctuation or at a line end
+    .replace(/(\w)[ \t]*--[ \t]*(?=\w)/g, "$1, ")                     // double hyphen between words → comma
+    .replace(/--/g, ",")           // any other double hyphen → comma
+    .replace(/ ,(?=[ \n]|$)/g, ",")                                   // never a space before a comma
     .replace(/\*\*(.+?)\*\*/g, "$1")  // **bold** → plain
     .replace(/\*(.+?)\*/g, "$1");     // *italic* → plain
 }
@@ -910,7 +981,68 @@ function cardDescriptionWithNote(description, note){
   if (!n) return d;
   return d ? `${d}\n\nWriter's note: ${n}` : `Writer's note: ${n}`;
 }
+// ===== CHUNK 61: margin notes reach Agnes; passage conversations reach Finn =====
+// Builds the block Agnes reads alongside a chapter: the writer's and Finn's notes about the draft,
+// clearly labeled as notes about the draft and never story text.
+function marginNotesForAgnes(chapterScenes){
+  const who = { writer: "Writer", finn: "Finn", agnes: "Agnes" };
+  const lines = [];
+  (chapterScenes || []).forEach(s => {
+    (Array.isArray(s.marginalia) ? s.marginalia : []).forEach(n => {
+      const text = String(n && n.text || "").trim();
+      if (!text) return;
+      const snip = String(n.snippet || "").trim();
+      lines.push(`- ${who[n.type] || "Writer"}${snip ? ` on "${snip.slice(0, 120)}${snip.length > 120 ? "..." : ""}"` : ""}: ${text.slice(0, 600)}`);
+    });
+    const other = String(s.sceneNotes || "").trim();
+    if (other) lines.push(`- Writer, general note on this chapter: ${other.slice(0, 1200)}`);
+  });
+  if (!lines.length) return "";
+  return `\n\nNOTES ON THIS CHAPTER'S DRAFT (written by the writer, or by Finn at the writer's request; these are notes ABOUT the draft, not part of the story). Use them as the writer's intent: never treat a note as an event in the story, never flag a change a note says is planned as drift, and treat anything a note implies for the Story Bible (such as two names being the same character) only as context or as a proposal for the writer to approve:\n${lines.slice(0, 40).join("\n")}`;
+}
+// A short, local summary of a passage conversation for Finn's session memory (no extra AI call).
+function passageConversationSummary(chapter, snippet, thread){
+  const t = Array.isArray(thread) ? thread : [];
+  const lastFinn = [...t].reverse().find(m => m.role === "assistant");
+  const texture = t.map(m => `${m.role === "user" ? "Writer" : "Finn"}: ${String(m.content || "").replace(/\s+/g, " ").slice(0, 300)}`).join(" | ").slice(0, 1500);
+  const snip = String(snippet || "").replace(/\s+/g, " ").slice(0, 80);
+  return {
+    id: "ss_" + Date.now(),
+    date: new Date().toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }),
+    timestamp: Date.now(),
+    mode: "Passage note",
+    modeId: "passage",
+    storyElement: `Chapter ${chapter}, the passage "${snip}${String(snippet || "").length > 80 ? "..." : ""}"`,
+    keyInsight: String(lastFinn ? lastFinn.content : "").replace(/\s+/g, " ").slice(0, 240),
+    openQuestion: "",
+    writerState: "",
+    rawTexture: texture,
+    sparksCaptured: 0
+  };
+}
+// Keeps at most 3 passage conversations in Finn's 10 session slots, so coaching sessions are never crowded out.
+function addPassageSummary(summaries, entry){
+  const list = [entry, ...(Array.isArray(summaries) ? summaries : [])];
+  let passages = 0;
+  return list.filter(s => s.modeId !== "passage" || ++passages <= 3).slice(0, 10);
+}
 // Typed-but-unsent drafts live on this device only (tt- keys, so sign-out clears them).
+// Chunk 62: one profile option used to contain an em dash. Saved profiles keep their answer under the new wording.
+const OLD_DEPENDS_OPT = "It depends on the day \u2014 I'm several of these at different times";
+const NEW_DEPENDS_OPT = "It depends on the day. I'm several of these at different times";
+function migrateProfile(profile){
+  if (!profile || typeof profile !== "object") return { profile, changed: false };
+  let changed = false;
+  const out = { ...profile };
+  Object.keys(out).forEach(k => {
+    const a = out[k];
+    if (a && Array.isArray(a.selected) && a.selected.includes(OLD_DEPENDS_OPT)) {
+      out[k] = { ...a, selected: a.selected.map(x => (x === OLD_DEPENDS_OPT ? NEW_DEPENDS_OPT : x)) };
+      changed = true;
+    }
+  });
+  return { profile: out, changed };
+}
 function loadDraft(key){ try { return localStorage.getItem(key) || ""; } catch { return ""; } }
 function saveDraft(key, val){ try { if (val) localStorage.setItem(key, val); else localStorage.removeItem(key); } catch {} }
 
@@ -1433,7 +1565,7 @@ const AGNES_INVOLVEMENT_LEVELS=[
 
 const PROFILE_QUESTIONS=[
   {id:"q1",q:"How long have you been writing?",opts:["Just starting out","A few years in","I've been writing for years","I've been published"],multi:false,addl:"Anything Finn should know about your writing background?"},
-  {id:"q2",q:"How does your writing brain work? Choose everything that feels true.",opts:["I work best in short focused bursts","I tend to jump around rather than write linearly","I get easily overwhelmed by too many options","I have a hard time starting even when I know what to write","I lose momentum quickly after a good session","I can write for long stretches when I'm in flow","I write linearly, start to finish","It depends on the day — I'm several of these at different times"],multi:true,addl:"Anything else about how you work best?",disclaimer:"Forged Pen is a writing tool, not a mental health service. If you're experiencing a crisis please reach out to a qualified professional."},
+  {id:"q2",q:"How does your writing brain work? Choose everything that feels true.",opts:["I work best in short focused bursts","I tend to jump around rather than write linearly","I get easily overwhelmed by too many options","I have a hard time starting even when I know what to write","I lose momentum quickly after a good session","I can write for long stretches when I'm in flow","I write linearly, start to finish","It depends on the day. I'm several of these at different times"],multi:true,addl:"Anything else about how you work best?",disclaimer:"Forged Pen is a writing tool, not a mental health service. If you're experiencing a crisis please reach out to a qualified professional."},
   {id:"q3",q:"What matters most to you right now?",opts:["I have a spark and I want to see where it goes","I'm developing an idea that isn't fully formed yet","I'm deep in a manuscript and need to keep going","I want to get better at the craft while I write","I need to finish what I've started","All of the above honestly"],multi:true,addl:"Anything else Finn should know about where you want to go?"},
   {id:"q4",q:"How do you want Finn to show up?",opts:["Direct and straight to the point","Warm and encouraging with the hard truth underneath","Ask me questions more than give me answers","Push me when I need it, back off when I don't","I'm not sure yet, figure it out as we go"],multi:false,addl:"Anything else about how you like to be coached?"},
   {id:"q5",q:"What do you write? Choose everything that applies.",opts:["Literary fiction","Romance","Upmarket fiction","Women's fiction","Horror","Thriller / suspense","Fantasy","Science fiction","Historical fiction","Young adult","Middle grade","Memoir / creative nonfiction","Short stories","Multiple genres"],multi:true,addl:"Anything else about the kind of stories you write?"},
@@ -1454,7 +1586,7 @@ function AppMain() {
   const [authMsg, setAuthMsg] = useState("");
   const [mode, setMode] = useState(null);
   const [msgs, setMsgs] = useState([]);
-  const [input, setInput] = useState("");
+  const [input, setInput] = useState(()=>loadDraft("tt-draft-chat"));
   const [loading, setLoading] = useState(false);
   useEffect(()=>{
     if(!loading){setLoadMsg(LOAD[Math.floor(Math.random()*LOAD.length)]);return;}
@@ -1552,7 +1684,7 @@ function AppMain() {
   const [embersSearchType, setEmbersSearchType] = useState("all"); // "all" | "embers" | "lines"
   const [editingLineSlot, setEditingLineSlot] = useState(false);
   const [addLineOpen, setAddLineOpen] = useState(false);
-  const [addLineDraft, setAddLineDraft] = useState("");
+  const [addLineDraft, setAddLineDraft] = useState(()=>loadDraft("tt-draft-line"));
   const [editingShelfId, setEditingShelfId] = useState(null); // research note id whose shelf badge is currently an open input, or null
   const [bibExpanded, setBibExpanded] = useState(false);
   const [bibleSearch, setBibleSearch] = useState("");
@@ -1564,7 +1696,11 @@ function AppMain() {
   const [activeScene, setActiveScene] = useState(null);
   const [finnOpen, setFinnOpen] = useState(false);
   const [containerMsgs, setContainerMsgs] = useState([]);
-  const [containerInput, setContainerInput] = useState("");
+  const [containerInput, setContainerInput] = useState(()=>loadDraft("tt-draft-container"));
+  // Chunk 62: unsent text in these boxes survives a refresh or a closed tab. Sending or saving clears it.
+  useEffect(()=>{saveDraft("tt-draft-chat",input);},[input]);
+  useEffect(()=>{saveDraft("tt-draft-container",containerInput);},[containerInput]);
+  useEffect(()=>{saveDraft("tt-draft-line",addLineDraft);},[addLineDraft]);
   const [pulse, setPulse] = useState(null);
   const [openBreaks, setOpenBreaks] = useState({});
   const [sidebarCtx, setSidebarCtx] = useState(null);
@@ -1862,7 +1998,7 @@ function AppMain() {
     const ai = loadStored("tt-agnes-involvement");
     const db = loadStored("tt-drift-badges");
     if (un) setUserName(un);
-    if (up) setUserProfile(up);
+    if (up) { const mig = migrateProfile(up); setUserProfile(mig.profile); if (mig.changed) saveStored("tt-userprofile", mig.profile); }
     if (od) setOnboardingDone(true);
     if (ai) setAgnesInvolvement(ai);
     if (db && Array.isArray(db)) setDriftBadges(db);
@@ -2022,9 +2158,9 @@ function AppMain() {
 
   // MARGINALIA: writer (◊), Agnes (A), Finn (F) notes attached to a scene, anchored to a specific
   // passage. addMarginaliaNote is the single entry point every creation path funnels through.
-  const addMarginaliaNote=(sceneId,type,text,snippet,anchorStart,anchorEnd)=>{
+  const addMarginaliaNote=(sceneId,type,text,snippet,anchorStart,anchorEnd,exchange)=>{
     if(!text||!text.trim())return;
-    const newNote={id:"note_"+Date.now(),type,text:text.trim(),snippet:snippet||"",anchorStart:typeof anchorStart==="number"?anchorStart:null,anchorEnd:typeof anchorEnd==="number"?anchorEnd:null,createdAt:Date.now()};
+    const newNote={id:"note_"+Date.now(),type,text:text.trim(),snippet:snippet||"",anchorStart:typeof anchorStart==="number"?anchorStart:null,anchorEnd:typeof anchorEnd==="number"?anchorEnd:null,createdAt:Date.now(),...(Array.isArray(exchange)&&exchange.length?{exchange}:{})};
     const updated=scenes.map(s=>s.id===sceneId?{...s,marginalia:[...(s.marginalia||[]),newNote]}:s);
     saveScenes(updated);
   };
@@ -2155,23 +2291,63 @@ function AppMain() {
     }
   };
 
+  // Ask Finn about a highlighted passage. Chunk 61: it's a short conversation now. The writer can
+  // reply, Finn keeps the passage and the exchange in view, and saving keeps Finn's latest answer as
+  // the note with the whole exchange attached.
+  const passageSystem=(sceneChapter)=>`${FINN}\n\nThe writer highlighted one specific passage from Chapter ${sceneChapter} to talk about with you. Your answer may be saved as a note attached to that exact passage, so be specific to this passage, never generic. If the writer asked a clear question, answer it directly. If they asked nothing, or wrote a statement or a note to themselves instead of a question (for example "rewrote this"), do not ask what they want: give your best read of the passage in one or two sentences first, then ask at most one question. Keep every reply under 80 words: this appears in a small box. Never use em dashes.`;
+  const callPassageFinn=async(sceneChapter,thread)=>{
+    const r=await fetchWithNetworkRetry("/api/chat",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({
+      max_tokens:400,
+      system:passageSystem(sceneChapter),
+      messages:thread.map(m=>({role:m.role,content:m.content}))
+    })});
+    const d=await r.json();
+    if(d.error)throw new Error(typeof d.error==="string"?d.error:JSON.stringify(d.error));
+    return finnTone(finnClean(d.content?.filter(b=>b.type==="text").map(b=>b.text).join("")))||"";
+  };
   const askFinnAboutPassage=async(sceneChapter,passageText,anchorStart,anchorEnd,question)=>{
     setAskFinnNoteLoading(true);
     setAskFinnNoteDraft(null);
+    const opener=`The highlighted passage: "${passageText}"\n\n${question&&question.trim()?`The writer wrote: "${question.trim()}"`:"The writer didn't write anything, just wants your read on this passage."}`;
     try{
-      const r=await fetch("/api/chat",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({
-        max_tokens:300,
-        system:`${FINN}\n\nThe writer has highlighted one specific passage from Chapter ${sceneChapter} and asked you something specific about it, to save as a note attached to that exact passage. Answer their actual question directly, specific to this passage, not generic. Never use em dashes.`,
-        messages:[{role:"user",content:`The highlighted passage: "${passageText}"\n\n${question&&question.trim()?`The writer asked: "${question.trim()}"`:"The writer didn't ask anything specific, just wants your reaction to this passage."}`}]
-      })});
-      const d=await r.json();
-      if(!d.error){
-        const txt=finnClean(d.content?.filter(b=>b.type==="text").map(b=>b.text).join(""))||"";
-        setAskFinnNoteDraft({snippet:passageText,text:txt||"Worth a closer look here.",start:anchorStart,end:anchorEnd});
-      }
-    }catch(e){console.log("Ask Finn note error:",e);}
+      const txt=await callPassageFinn(sceneChapter,[{role:"user",content:opener}]);
+      const reply=txt||"Worth a closer look here.";
+      setAskFinnNoteDraft({snippet:passageText,chapter:sceneChapter,text:reply,start:anchorStart,end:anchorEnd,
+        thread:[{role:"user",content:opener,display:question&&question.trim()?question.trim():""},{role:"assistant",content:reply}],
+        replyText:"",replying:false,error:null});
+    }catch(e){console.log("Ask Finn note error:",e);logClientError("ask-finn-passage",e);}
     setAskFinnNoteLoading(false);
   };
+  const replyToFinnOnPassage=async()=>{
+    const d=askFinnNoteDraft;
+    if(!d||!d.replyText||!d.replyText.trim()||d.replying)return;
+    // Whatever is in the note box counts as Finn's last word, in case the writer trimmed it.
+    const priorThread=d.thread.map((m,i)=>i===d.thread.length-1&&m.role==="assistant"?{...m,content:d.text}:m);
+    const thread=[...priorThread,{role:"user",content:d.replyText.trim(),display:d.replyText.trim()}];
+    setAskFinnNoteDraft(prev=>prev?{...prev,thread,replyText:"",replying:true,error:null}:prev);
+    try{
+      const txt=await callPassageFinn(d.chapter,thread);
+      const reply=txt||"Say a little more?";
+      setAskFinnNoteDraft(prev=>prev?{...prev,thread:[...thread,{role:"assistant",content:reply}],text:reply,replying:false}:prev);
+    }catch(e){
+      logClientError("ask-finn-passage-reply",e);
+      setAskFinnNoteDraft(prev=>prev?{...prev,thread:priorThread,replyText:d.replyText,replying:false,error:"That didn't come through. Try sending again."}:prev);
+    }
+  };
+  const savePassageNote=(sceneId)=>{
+    const d=askFinnNoteDraft;
+    if(!d)return;
+    const thread=(d.thread||[]).map((m,i,arr)=>i===arr.length-1&&m.role==="assistant"?{...m,content:d.text}:m);
+    const exchange=thread.length>2?thread.map(m=>({role:m.role,text:m.role==="user"?(m.display||""):m.content})).filter(m=>m.text):null;
+    addMarginaliaNote(sceneId,"finn",d.text,d.snippet,d.start,d.end,exchange);
+    // A real back-and-forth goes into Finn's session memory, so he remembers what was settled.
+    if(thread.filter(m=>m.role==="user").length>=2){
+      const updated=addPassageSummary(sessionSummaries,passageConversationSummary(d.chapter,d.snippet,thread));
+      setSessionSummaries(updated);saveStored("tt-session-summaries",updated);cloudSave("tt-session-summaries",updated);
+    }
+    setAskFinnNoteDraft(null);
+  };
+  const [openNoteExchange,setOpenNoteExchange]=useState({});
 
   // Auto-save every 3 seconds when writing
   useEffect(()=>{
@@ -2357,7 +2533,7 @@ INFERNO TOOLS: If a message begins with "INFERNO TOOL:", the writer tapped a too
       const d=await r.json();
       if(d.error){setContainerMsgs(p=>[...p,{role:"assistant",content:`Connection issue: ${d.error}`}])}
       else{
-        setContainerMsgs(p=>[...p,{role:"assistant",content:finnClean(d.content?.filter(b=>b.type==="text").map(b=>b.text).join("\n"))||"Connection hiccup."}]);
+        setContainerMsgs(p=>[...p,{role:"assistant",content:finnTone(finnClean(d.content?.filter(b=>b.type==="text").map(b=>b.text).join("\n")))||"Connection hiccup."}]);
         const cs=scenes.find(s=>s.id===activeScene);
         // Pulse is manuscript-only. Container Finn coaching does not set the pulse.
         // The pulse is already set by updateSceneText when the writer types in the Forge.
@@ -2599,7 +2775,8 @@ Respond with ONLY this JSON:
         const raw=finnClean(d.content?.filter(b=>b.type==="text").map(b=>b.text).join(""))||"";
         const cleaned=raw.replace(/```json\s*/g,"").replace(/```\s*/g,"").trim();
         try{
-          const result=JSON.parse(cleaned);
+          const result=cleanModelResult(parseModelJson(cleaned),["characters","world","plot","questions"]);
+          ["characters","world","plot","questions"].forEach(k=>{result[k]=(result[k]||[]).filter(it=>typeof it.text==="string"&&it.text.trim()).map(it=>({...it,status:"pending"}));});
           setOrganizeResult(result);
           setOrganizeOpen(true);
         }catch(e){console.log("Organize parse error:",e);}
@@ -2798,7 +2975,7 @@ CHARACTERS ALREADY GIVEN THEIR OWN CARD: ${existingCharacterNames}${povAwareNote
 CHAPTER DRAFT STATUS: ${draftNote}
 
 CHAPTER ${chapterNum||"??"} TEXT:
-${chapterForRead(sceneText)}
+${chapterForRead(sceneText)}${marginNotesForAgnes(scenes.filter(s=>Number(s.chapter)===Number(chapterNum)))}
 
 Extract what this chapter actually establishes. Only include fields where you found something meaningful that isn't already well-captured in the existing Bible. Leave fields as empty string if nothing new or significant was found. Paraphrase what you find in your own words rather than quoting dialogue directly, since direct quotes containing quotation marks can break the JSON format.
 
@@ -3059,7 +3236,7 @@ Respond with ONLY this JSON:
         const r=await fetchWithNetworkRetry("/api/chat",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({
           max_tokens:2000,
           system:"You are Agnes, a meticulous literary archivist doing a fast first pass across a writer's whole manuscript. Extract only a chapter summary and any genuinely new core Bible material. Do not propose new characters, do not propose threads, do not check for drift, none of that here, this is deliberately a lighter pass. Never use em dashes. Respond ONLY with a JSON object.",
-          messages:[{role:"user",content:`EXISTING BIBLE:\n${existingBible}\n\nCHAPTER ${ch.num}:\n${chapterForRead(ch.text)}\n\nRespond with ONLY this JSON:\n{"chapterSummary":"2-3 sentences, what happens and what changes","protagonistReveal":"new protagonist detail, empty string if none","worldReveal":"new world/setting detail, empty string if none","supportingReveal":"new supporting character detail, empty string if none","antagonistReveal":"new antagonist detail, empty string if none","themeReveal":"empty string if none","mainPlotUpdate":"empty string if none"}`}]
+          messages:[{role:"user",content:`EXISTING BIBLE:\n${existingBible}\n\nCHAPTER ${ch.num}:\n${chapterForRead(ch.text)}${marginNotesForAgnes(scenes.filter(s=>Number(s.chapter)===Number(ch.num)))}\n\nRespond with ONLY this JSON:\n{"chapterSummary":"2-3 sentences, what happens and what changes","protagonistReveal":"new protagonist detail, empty string if none","worldReveal":"new world/setting detail, empty string if none","supportingReveal":"new supporting character detail, empty string if none","antagonistReveal":"new antagonist detail, empty string if none","themeReveal":"empty string if none","mainPlotUpdate":"empty string if none"}`}]
         })});
         const d=await r.json();
         if(d.error)continue;
@@ -3211,7 +3388,7 @@ Main plot: ${project?.mainPlot||"none"}`;
       const r=await fetch("/api/chat",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({
         max_tokens:2000,
         system:`You are Agnes, the meticulous record keeper. Compare this chapter against the EXISTING STORY BIBLE, field by field.${manualDriftPOVScope} Only flag a field as drift if the existing entry is a real, substantial entry (not "none") AND this chapter appears to move in a meaningfully different direction from it, not just add consistent detail. Your voice is direct, selective, specific, and slightly pointed. Never use the words "inconsistency", "error", "problem", or "contradiction". Say "evolving", "different direction", "moving toward something new". Not alarmed. Precise. Never use em dashes. Respond ONLY with a JSON object.`,
-        messages:[{role:"user",content:`EXISTING STORY BIBLE:\n${existingBible}\n\nCHAPTER ${chapterNum} TEXT:\n${chapterForRead(sceneText)}\n\nRespond with ONLY this JSON:\n{"drifts":[{"field":"the field key exactly as given (protagonist, protagonistGoal, protagonistDream, protagonistFear, protagonistWound, protagonistBackstory, protagonistMisbelief, supporting, antagonist, worldSetting, worldRules, worldMythology, worldBeliefs, worldDanger, worldTone, themes, mainPlot)","fieldLabel":"human readable label. For protagonistMisbelief specifically, always use \\"The lie they believe\\", never \\"misbelief\\".","existing":"the existing Bible entry, quoted briefly","incoming":"the new chapter evidence, quoted briefly","observation":"one-sentence neutral observation of the difference","question":"one specific question for the writer, is this intentional evolution or something to revisit"}]}\n\nIf there is no genuine drift, return "drifts": [].`}]
+        messages:[{role:"user",content:`EXISTING STORY BIBLE:\n${existingBible}\n\nCHAPTER ${chapterNum} TEXT:\n${chapterForRead(sceneText)}${marginNotesForAgnes(scenes.filter(s=>Number(s.chapter)===Number(chapterNum)))}\n\nRespond with ONLY this JSON:\n{"drifts":[{"field":"the field key exactly as given (protagonist, protagonistGoal, protagonistDream, protagonistFear, protagonistWound, protagonistBackstory, protagonistMisbelief, supporting, antagonist, worldSetting, worldRules, worldMythology, worldBeliefs, worldDanger, worldTone, themes, mainPlot)","fieldLabel":"human readable label. For protagonistMisbelief specifically, always use \\"The lie they believe\\", never \\"misbelief\\".","existing":"the existing Bible entry, quoted briefly","incoming":"the new chapter evidence, quoted briefly","observation":"one-sentence neutral observation of the difference","question":"one specific question for the writer, is this intentional evolution or something to revisit"}]}\n\nIf there is no genuine drift, return "drifts": [].`}]
       })});
       const d=await r.json();
       if(!d.error){
@@ -3541,14 +3718,15 @@ Main plot: ${project?.mainPlot||"none"}`;
       })});
       const data=await resp.json();
       const raw=data.content?.filter(b=>b.type==="text").map(b=>b.text).join("")||"";
-      const parsed=JSON.parse(raw.replace(/```json|```/g,"").trim());
+      const parsed=cleanModelResult(parseModelJson(raw),["proposals"]);
       setBibleOrganize({
         step:"review",
         reflection:parsed.reflection||"",
-        proposals:(Array.isArray(parsed.proposals)?parsed.proposals:[]).map(p=>({...p,added:false})),
+        proposals:(parsed.proposals||[]).filter(p=>p.field&&p.text).map(p=>({...p,added:false})),
         unmatched:parsed.unmatched||"",
         confirmed:false
       });
+      saveDraft("tt-draft-organize","");
     }catch(e){console.log("Bible organize error:",e);setBibleOrganize({step:"error"});}
   };
   // Applies one approved proposal to its real field — protagonist fields get chapter-stamped
@@ -3676,7 +3854,7 @@ Keep responses focused and useful, not exhaustive. This is a thinking partner, n
           const r=await fetch("/api/chat",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({
             max_tokens:2000,
             system:`You are Agnes, the meticulous record keeper. Compare this chapter against the EXISTING STORY BIBLE, field by field.${retroDriftPOVScope} Only flag a field as drift if the existing entry is a real, substantial entry (not "none") AND this chapter appears to move in a meaningfully different direction from it, not just add consistent detail. Your voice is direct, selective, specific, and slightly pointed. Never use the words "inconsistency", "error", "problem", or "contradiction". Say "evolving", "different direction", "moving toward something new". Not alarmed. Precise. Never use em dashes. Respond ONLY with a JSON object.`,
-            messages:[{role:"user",content:`EXISTING STORY BIBLE:\n${existingBible}\n\nCHAPTER ${ch} TEXT:\n${chapterForRead(chapterText)}\n\nRespond with ONLY this JSON:\n{"drifts":[{"field":"the field key exactly as given (protagonist, protagonistGoal, protagonistDream, protagonistFear, protagonistWound, protagonistBackstory, protagonistMisbelief, supporting, antagonist, worldSetting, worldRules, worldMythology, worldBeliefs, worldDanger, worldTone, themes, mainPlot)","fieldLabel":"human readable label. For protagonistMisbelief specifically, always use \\"The lie they believe\\", never \\"misbelief\\".","existing":"the existing Bible entry, quoted briefly","incoming":"the new chapter evidence, quoted briefly","observation":"one-sentence neutral observation of the difference","question":"one specific question for the writer, is this intentional evolution or something to revisit"}]}\n\nIf there is no genuine drift, return "drifts": [].`}]
+            messages:[{role:"user",content:`EXISTING STORY BIBLE:\n${existingBible}\n\nCHAPTER ${ch} TEXT:\n${chapterForRead(chapterText)}${marginNotesForAgnes(chScenes)}\n\nRespond with ONLY this JSON:\n{"drifts":[{"field":"the field key exactly as given (protagonist, protagonistGoal, protagonistDream, protagonistFear, protagonistWound, protagonistBackstory, protagonistMisbelief, supporting, antagonist, worldSetting, worldRules, worldMythology, worldBeliefs, worldDanger, worldTone, themes, mainPlot)","fieldLabel":"human readable label. For protagonistMisbelief specifically, always use \\"The lie they believe\\", never \\"misbelief\\".","existing":"the existing Bible entry, quoted briefly","incoming":"the new chapter evidence, quoted briefly","observation":"one-sentence neutral observation of the difference","question":"one specific question for the writer, is this intentional evolution or something to revisit"}]}\n\nIf there is no genuine drift, return "drifts": [].`}]
           })});
           const d=await r.json();
           if(!d.error){
@@ -4192,7 +4370,9 @@ ${userProfile.q6?.text?`Finishing notes: ${userProfile.q6.text}`:""}`.trim():"No
 
     const openingSystem=alreadyHasStory?`You are Finn, the writing coach behind Forged Pen. The writer already has a Story Bible with content in it, but is opening (or reopening) the First Session experience. Do not treat them as brand new. Acknowledge what you already know about their story specifically by referencing real details from it, then ask what they want to add, deepen, or revisit. This should feel like picking up a conversation with someone whose story you already know, not a cold intake.
 
-Never use em dashes. Never use asterisks. No superlatives or flattery. Under 100 words. End with one specific question.`:`You are Finn, the writing coach behind Forged Pen. You are opening your very first session with a new writer. Generate a warm, specific, honest opening message based on what their profile tells you about them.
+Never use em dashes. Never use asterisks. No superlatives or flattery. Under 100 words. End with one specific question.
+
+${FINN_HONEST_RULES}`:`You are Finn, the writing coach behind Forged Pen. You are opening your very first session with a new writer. Generate a warm, specific, honest opening message based on what their profile tells you about them.
 
 RULES FOR THIS OPENING:
 Read the profile carefully and demonstrate that you actually understood it, not just read it. Name what their answers reveal about how they work, what they need, and what challenges are likely. Be specific. If they said they lose momentum after good sessions, name that directly. If they're published, acknowledge what that means for the stakes they're likely carrying. If they work in bursts and jump around, say you know how to work with that pattern.
@@ -4251,6 +4431,11 @@ Watch for: very short responses, "I don't know", circular answers, apologetic la
 After 8-10 exchanges, or when you sense the writer is ready, close warmly. Summarize what you learned in 2-3 sentences in your own voice. Then add "READY_TO_SAVE" on its own line.
 Never rush. Never overwhelm. Never tell the writer they have enough. They decide when they're ready.
 Under 120 words per response.
+Never use em dashes. Never use asterisks. Never use the cadence "That's not X. That's Y." or its softer forms ("She isn't X. She's Y.").
+
+${FINN_HONEST_RULES}
+You have only heard about this story. You have not read a page of it. Do not judge whether it works.
+If the writer names someone you have not been introduced to (a new name with no explanation), your one question for that reply is who that person is and what they are to the protagonist.
 
 After every response, add a JSON capture block on its own line starting with CAPTURE: followed by a JSON object with any of these fields you learned in this exchange: protagonist, protagonistGoal, protagonistDream, protagonistFear, protagonistWound, protagonistBackstory, protagonistMisbelief, supporting, antagonist, worldSetting, worldTone, synopsis, themes, excites. Only include fields you actually learned. Leave others out.`;
 
@@ -4285,7 +4470,7 @@ After every response, add a JSON capture block on its own line starting with CAP
         // Extract choices
         const choiceLines=clean.match(/^CHOICE: .+$/gm)||[];
         const choices=choiceLines.map(l=>l.replace("CHOICE: ","").trim());
-        clean=clean.replace(/^CHOICE: .+$/gm,"").trim();
+        clean=finnTone(clean.replace(/^CHOICE: .+$/gm,"").trim());
 
         if(!clean){clean="I'm still here. Tell me more about that, or ask me anything about your story.";}
 
@@ -4324,7 +4509,8 @@ Respond with ONLY this JSON:
         const raw=finnClean(d.content?.filter(b=>b.type==="text").map(b=>b.text).join(""))||"";
         const cleaned=raw.replace(/```json\s*/g,"").replace(/```\s*/g,"").trim();
         try{
-          const result=JSON.parse(cleaned);
+          const parsedEnd=parseModelJson(cleaned);
+          const result={...cleanModelResult(parsedEnd,[],[]),insights:cleanTextList(parsedEnd&&parsedEnd.insights)};
           setEndSessionResult(result);
           setEndSessionOpen(true);
           if(activeScene)setEndSessionSceneId(activeScene);
@@ -4554,7 +4740,7 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
       if(d.error){
         setMsgs(p=>[...p,{role:"assistant",content:`Connection issue: ${d.error}. Try again in a moment.`}]);
       } else {
-        setMsgs(p=>[...p,{role:"assistant",content:finnClean(d.content?.filter(b=>b.type==="text").map(b=>b.text).join("\n"))||"Connection hiccup."}]);
+        setMsgs(p=>[...p,{role:"assistant",content:finnTone(finnClean(d.content?.filter(b=>b.type==="text").map(b=>b.text).join("\n")))||"Connection hiccup."}]);
         const newPulse={mode:mode.label,modeId:mode.id,scene:null,description:userText.substring(0,120),vividLine:null,time:Date.now()};
         // Pulse is manuscript-only. Do not set from coaching sessions.
       }
@@ -5542,6 +5728,16 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
           <span style={{color:"var(--text-dim)",fontSize:14}}>&#8594;</span>
         </div>
 
+        {/* Story Bible, its own long row under The Ledger (Chunk 61) */}
+        <div className="card" onClick={()=>project?setScreen("project"):setScreen("setup")} style={{marginBottom:16,display:"flex",alignItems:"center",gap:14,padding:"14px 18px",border:"1px solid rgba(90,122,138,0.3)"}}>
+          <svg width="18" height="18" viewBox="0 0 16 16" style={{flexShrink:0}}><rect x="3" y="1" width="10" height="13" rx="1.5" fill="none" stroke="#5A7A8A" strokeWidth="1"/><path d="M6 4h4M6 6.5h4M6 9h3" stroke="#5A7A8A" strokeWidth="0.6" opacity="0.5"/></svg>
+          <div style={{flex:1}}>
+            <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:14,fontWeight:600,color:"#5A7A8A"}}>Story Bible</div>
+            <div style={{fontSize:10,color:"var(--text-dim)",marginTop:2}}>{project?"Everything Agnes knows about your story":"Your story lives here"}</div>
+          </div>
+          <span style={{color:"var(--text-dim)",fontSize:14}}>&#8594;</span>
+        </div>
+
         {/* Last Pulse moved to right sidebar */}
 
         {/* Dopamine Map moved to right sidebar — Latest Spark card there covers this, no need for it twice */}
@@ -5588,12 +5784,7 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
         })()}
 
         {/* Card Grid Row 1 */}
-        <div id="fp-grid" style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:8,marginBottom:8}}>
-          <div className="card" onClick={()=>project?setScreen("project"):setScreen("setup")}>
-            <svg width="16" height="16" viewBox="0 0 16 16" style={{marginBottom:8}}><rect x="3" y="1" width="10" height="13" rx="1.5" fill="none" stroke="#5A7A8A" strokeWidth="1"/><path d="M6 4h4M6 6.5h4M6 9h3" stroke="#5A7A8A" strokeWidth="0.6" opacity="0.5"/></svg>
-            <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:13,fontWeight:600,color:"var(--text-primary)"}}>Story Bible</div>
-            <div style={{fontSize:9,color:"var(--text-dim)",marginTop:3}}>{project?project.title:"Your story lives here"}</div>
-          </div>
+        <div id="fp-grid" style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:8}}>
           <div className="card" onClick={()=>setScreen("torch")}>
             <svg width="16" height="16" viewBox="0 0 16 16" style={{marginBottom:8}}><path d="M8 2L9.2 5.8L13 5.8L10 8L11 12L8 9.5L5 12L6 8L3 5.8L6.8 5.8Z" fill="none" stroke="var(--accent)" strokeWidth="0.8"/></svg>
             <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:13,fontWeight:600,color:"var(--text-primary)"}}>Daily Spark</div>
@@ -5818,7 +6009,7 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
         {bibleOrganize.step==="paste"&&<div style={{background:"var(--bg-card)",border:"1px solid var(--border)",borderRadius:12,padding:"24px 28px"}}>
           <div style={{fontSize:9,textTransform:"uppercase",letterSpacing:"0.18em",color:"var(--text-dim)",fontFamily:"'DM Sans',sans-serif",marginBottom:10}}>Agnes</div>
           <p style={{fontFamily:"'Cormorant Garamond',serif",fontSize:16,lineHeight:1.7,marginBottom:16}}>Paste in whatever you've got. Doesn't need to be organized, a notes app dump, an old outline, character sketches, all of it. I'll read through it and show you what I found before anything gets built.</p>
-          <textarea autoFocus id="bible-organize-paste" placeholder="Paste your notes here..." style={{width:"100%",minHeight:220,background:"var(--bg-card-alt)",border:"1px solid var(--border)",borderRadius:8,padding:12,fontFamily:"'Cormorant Garamond',serif",fontSize:15,lineHeight:1.7,outline:"none",resize:"vertical"}}/>
+          <textarea autoFocus id="bible-organize-paste" defaultValue={loadDraft("tt-draft-organize")} onInput={e=>saveDraft("tt-draft-organize",e.target.value)} placeholder="Paste your notes here..." style={{width:"100%",minHeight:220,background:"var(--bg-card-alt)",border:"1px solid var(--border)",borderRadius:8,padding:12,fontFamily:"'Cormorant Garamond',serif",fontSize:15,lineHeight:1.7,outline:"none",resize:"vertical"}}/>
           <div style={{display:"flex",gap:8,marginTop:14}}>
             <span onClick={()=>{const t=document.getElementById("bible-organize-paste").value;runBibleOrganize(t);}} style={{fontSize:11,padding:"8px 18px",borderRadius:6,background:"var(--agnes,#7A6A8A)",color:"#F4EEDF",cursor:"pointer",fontFamily:"'DM Sans',sans-serif"}}>Let Agnes read it</span>
             <span onClick={()=>{setBibleOrganize(null);goHome();}} style={{fontSize:11,padding:"8px 18px",borderRadius:6,border:"1px solid var(--border)",color:"var(--text-dim)",cursor:"pointer",fontFamily:"'DM Sans',sans-serif"}}>Not right now</span>
@@ -6190,7 +6381,7 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
               setSparks(ns);saveStored("tt-sparks",ns);
             };
             if(spark.length===0&&!sparkCapture){
-              return <div onClick={()=>setSparkCapture({q1:"",q2:""})} style={{background:"var(--bg-card)",border:"1px dashed var(--accent-80)",borderRadius:10,padding:"14px 16px",marginBottom:18,cursor:"pointer"}}>
+              return <div onClick={()=>setSparkCapture({q1:loadDraft("tt-draft-spark-q1"),q2:loadDraft("tt-draft-spark-q2")})} style={{background:"var(--bg-card)",border:"1px dashed var(--accent-80)",borderRadius:10,padding:"14px 16px",marginBottom:18,cursor:"pointer"}}>
                 <div style={{display:"flex",alignItems:"baseline",gap:8}}>
                   <span style={{display:"inline-block",width:8,height:8,borderRadius:"50% 50% 50% 0",background:"var(--accent)",transform:"rotate(-45deg)"}}/>
                   <span style={{fontSize:10,textTransform:"uppercase",letterSpacing:"0.2em",color:"var(--accent)",fontWeight:600,fontFamily:"'DM Sans',sans-serif"}}>The First Spark</span>
@@ -6203,12 +6394,12 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
               return <div style={{background:"var(--bg-card)",border:"1px solid var(--accent)",borderRadius:10,padding:"16px 18px",marginBottom:18,boxShadow:"0 0 0 4px var(--accent-15)"}}>
                 <div style={{fontSize:10,textTransform:"uppercase",letterSpacing:"0.2em",color:"var(--accent)",fontWeight:600,fontFamily:"'DM Sans',sans-serif",marginBottom:10}}>The First Spark</div>
                 <div style={{fontSize:9,textTransform:"uppercase",letterSpacing:"0.14em",color:"var(--accent)",fontFamily:"'DM Sans',sans-serif",fontWeight:500,marginBottom:6}}>What moment made you know you had to write this?</div>
-                <textarea className="fi" rows={3} placeholder="Write it the way you'd tell a friend at midnight. Messy is right." value={sparkCapture.q1} onChange={e=>setSparkCapture({...sparkCapture,q1:e.target.value})} style={{resize:"vertical",marginBottom:12}}/>
+                <textarea className="fi" rows={3} placeholder="Write it the way you'd tell a friend at midnight. Messy is right." value={sparkCapture.q1} onChange={e=>{saveDraft("tt-draft-spark-q1",e.target.value);setSparkCapture({...sparkCapture,q1:e.target.value});}} style={{resize:"vertical",marginBottom:12}}/>
                 <div style={{fontSize:9,textTransform:"uppercase",letterSpacing:"0.14em",color:"var(--accent)",fontFamily:"'DM Sans',sans-serif",fontWeight:500,marginBottom:6}}>What do you want a reader to feel when they close it?</div>
-                <textarea className="fi" rows={2} placeholder="One feeling is enough." value={sparkCapture.q2} onChange={e=>setSparkCapture({...sparkCapture,q2:e.target.value})} style={{resize:"vertical",marginBottom:8}}/>
+                <textarea className="fi" rows={2} placeholder="One feeling is enough." value={sparkCapture.q2} onChange={e=>{saveDraft("tt-draft-spark-q2",e.target.value);setSparkCapture({...sparkCapture,q2:e.target.value});}} style={{resize:"vertical",marginBottom:8}}/>
                 <div style={{fontSize:10,color:"var(--text-dim)",fontFamily:"'DM Sans',sans-serif",marginBottom:12}}>Saved exactly as written. Nobody edits this, not even Agnes.</div>
                 <div style={{display:"flex",gap:8}}>
-                  <span onClick={()=>{const combined=[sparkCapture.q1.trim(),sparkCapture.q2.trim()].filter(Boolean).join("\n\n");if(!combined)return;saveSparkEntry(combined,true);setSparkCapture(null);}} style={{fontSize:11,padding:"7px 16px",borderRadius:6,background:"var(--accent)",color:"var(--bg-card)",cursor:"pointer",fontFamily:"'DM Sans',sans-serif"}}>Keep this spark</span>
+                  <span onClick={()=>{const combined=[sparkCapture.q1.trim(),sparkCapture.q2.trim()].filter(Boolean).join("\n\n");if(!combined)return;saveSparkEntry(combined,true);saveDraft("tt-draft-spark-q1","");saveDraft("tt-draft-spark-q2","");setSparkCapture(null);}} style={{fontSize:11,padding:"7px 16px",borderRadius:6,background:"var(--accent)",color:"var(--bg-card)",cursor:"pointer",fontFamily:"'DM Sans',sans-serif"}}>Keep this spark</span>
                   <span onClick={()=>setSparkCapture(null)} style={{fontSize:11,padding:"7px 16px",borderRadius:6,border:"1px solid var(--border)",color:"var(--text-dim)",cursor:"pointer",fontFamily:"'DM Sans',sans-serif"}}>Not right now</span>
                 </div>
               </div>;
@@ -6226,11 +6417,11 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
                 </div>
               ))}
               {sparkAddText===null
-                ?<span onClick={()=>setSparkAddText("")} style={{fontSize:10,color:"var(--accent-80)",cursor:"pointer",display:"inline-block",marginTop:12,fontFamily:"'DM Sans',sans-serif"}}>+ Add to the spark</span>
+                ?<span onClick={()=>setSparkAddText(loadDraft("tt-draft-spark-add"))} style={{fontSize:10,color:"var(--accent-80)",cursor:"pointer",display:"inline-block",marginTop:12,fontFamily:"'DM Sans',sans-serif"}}>+ Add to the spark</span>
                 :<div style={{marginTop:12}}>
-                  <textarea className="fi" rows={2} placeholder="Came back to add..." value={sparkAddText} onChange={e=>setSparkAddText(e.target.value)} style={{resize:"vertical",marginBottom:8}}/>
+                  <textarea className="fi" rows={2} placeholder="Came back to add..." value={sparkAddText} onChange={e=>{saveDraft("tt-draft-spark-add",e.target.value);setSparkAddText(e.target.value);}} style={{resize:"vertical",marginBottom:8}}/>
                   <div style={{display:"flex",gap:8}}>
-                    <span onClick={()=>{saveSparkEntry(sparkAddText,false);setSparkAddText(null);}} style={{fontSize:10,padding:"5px 12px",borderRadius:5,background:"var(--accent)",color:"var(--bg-card)",cursor:"pointer",fontFamily:"'DM Sans',sans-serif"}}>Keep it</span>
+                    <span onClick={()=>{saveSparkEntry(sparkAddText,false);saveDraft("tt-draft-spark-add","");setSparkAddText(null);}} style={{fontSize:10,padding:"5px 12px",borderRadius:5,background:"var(--accent)",color:"var(--bg-card)",cursor:"pointer",fontFamily:"'DM Sans',sans-serif"}}>Keep it</span>
                     <span onClick={()=>setSparkAddText(null)} style={{fontSize:10,padding:"5px 12px",borderRadius:5,border:"1px solid var(--border)",color:"var(--text-dim)",cursor:"pointer",fontFamily:"'DM Sans',sans-serif"}}>Cancel</span>
                   </div>
                 </div>}
@@ -6998,7 +7189,9 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
             const d=await r.json();
             const raw=finnClean(d.content?.filter(b=>b.type==="text").map(b=>b.text).join(""))||"";
             const cleaned=raw.replace(/```json\s*/g,"").replace(/```\s*/g,"").trim();
-            const parsed=JSON.parse(cleaned);
+            const parsed=cleanModelResult(parseModelJson(cleaned),["observations"]);
+            parsed.observations=(parsed.observations||[]).filter(o=>o.title||o.text);
+            if(!parsed.observations.length)throw new Error("No observations in reply");
             setLedgerCraftRead(parsed);
           }catch(e){console.log("Craft read error:",e);setLedgerCraftRead({observations:[{title:"Finn had trouble reading that",text:"Try again in a moment."}],caveat:""});}
           setLedgerCraftLoading(false);
@@ -7014,7 +7207,9 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
             const d=await r.json();
             const raw=finnClean(d.content?.filter(b=>b.type==="text").map(b=>b.text).join(""))||"";
             const cleaned=raw.replace(/```json\s*/g,"").replace(/```\s*/g,"").trim();
-            const parsed=JSON.parse(cleaned);
+            const parsed=cleanModelResult(parseModelJson(cleaned),["strengths","worthALook"]);
+            parsed.strengths=(parsed.strengths||[]).filter(o=>o.title||o.text);
+            parsed.worthALook=(parsed.worthALook||[]).filter(o=>o.title||o.text);
             setLedgerFeedback(parsed);
           }catch(e){console.log("Honest feedback error:",e);}
           setLedgerFeedbackLoading(false);
@@ -7035,8 +7230,8 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
             const d=await r.json();
             const raw=finnClean(d.content?.filter(b=>b.type==="text").map(b=>b.text).join(""))||"";
             const cleaned=raw.replace(/```json\s*/g,"").replace(/```\s*/g,"").trim();
-            const parsed=JSON.parse(cleaned);
-            setTalentStackProposals({items:(Array.isArray(parsed.items)?parsed.items.filter(it=>it&&it.title&&it.description):[]),handled:{}});
+            const looseTalent=parseItemsLoose(cleaned);
+            setTalentStackProposals({items:looseTalent.filter(it=>it&&typeof it==="object"&&it.title&&it.description).map(it=>cleanModelResult(it)),handled:{}});
           }catch(e){console.log("Talent stack error:",e);setTalentStackProposals({error:true});}
         };
         const addToTalentStack=(item)=>{
@@ -8081,6 +8276,12 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
                           </div>
                           {n.snippet&&<div onClick={()=>jumpToNote(n)} style={{fontSize:11,fontStyle:"italic",color:noteJumpFailed===n.id?"#B06848":"var(--text-dim)",marginBottom:3,cursor:"pointer",textDecoration:"underline",textDecorationStyle:"dotted"}}>{noteJumpFailed===n.id?"Can't find this passage anymore, it may have changed":<>"{n.snippet.substring(0,80)}{n.snippet.length>80?"...":""}"</>}</div>}
                           <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:13,color:"var(--text-primary)",lineHeight:1.6}}>{n.text}</div>
+                          {Array.isArray(n.exchange)&&n.exchange.length>0&&<div style={{marginTop:4}}>
+                            <span onClick={()=>setOpenNoteExchange(prev=>({...prev,[n.id]:!prev[n.id]}))} style={{fontSize:10,color:"var(--accent-80)",cursor:"pointer",fontFamily:"'DM Sans',sans-serif"}}>{openNoteExchange[n.id]?"Hide conversation":"Show conversation"}</span>
+                            {openNoteExchange[n.id]&&<div style={{marginTop:4,paddingLeft:8,borderLeft:"2px solid var(--border)"}}>
+                              {n.exchange.map((m,i)=><div key={i} style={{fontSize:12,lineHeight:1.5,marginBottom:4,fontFamily:"'Cormorant Garamond',serif",color:m.role==="user"?"var(--text-muted)":"var(--text-primary)"}}><span style={{fontSize:9,fontFamily:"'DM Sans',sans-serif",color:"var(--text-dim)",marginRight:6}}>{m.role==="user"?"You":"Finn"}</span>{m.text}</div>)}
+                            </div>}
+                          </div>}
                         </div>;
                       })}
                     </div>;
@@ -8165,17 +8366,28 @@ Project: "${project?.title||"untitled"}" (${project?.genre||""}). ${recentCtx} L
               </div>}
 
               {/* Ask Finn about a passage — loading, then confirm before saving as an F note */}
-              {(askFinnNoteLoading||askFinnNoteDraft)&&<div style={{position:"fixed",top:"50%",left:"50%",transform:"translate(-50%,-50%)",background:"var(--bg-dark)",border:"1px solid var(--border)",borderRadius:10,padding:16,zIndex:260,width:340,boxShadow:"0 8px 30px rgba(0,0,0,0.4)"}}>
+              {(askFinnNoteLoading||askFinnNoteDraft)&&<div style={{position:"fixed",top:"50%",left:"50%",transform:"translate(-50%,-50%)",background:"var(--bg-dark)",border:"1px solid var(--border)",borderRadius:10,padding:16,zIndex:260,width:380,maxWidth:"calc(100vw - 32px)",maxHeight:"85vh",display:"flex",flexDirection:"column",boxShadow:"0 8px 30px rgba(0,0,0,0.4)"}}>
                 {askFinnNoteLoading?<div style={{textAlign:"center",padding:"10px 0"}}>
                   <span style={{fontSize:13,color:"var(--text-dim)",fontStyle:"italic",fontFamily:"'Cormorant Garamond',serif"}}>Finn is reading that passage...</span>
                 </div>:<>
                   <div style={{fontSize:10,color:"var(--text-dim)",fontStyle:"italic",fontFamily:"'DM Sans',sans-serif",marginBottom:8}}>"{askFinnNoteDraft.snippet.substring(0,70)}{askFinnNoteDraft.snippet.length>70?"...":""}"</div>
-                  <div style={{fontSize:9,color:"var(--accent-80)",fontFamily:"'DM Sans',sans-serif",marginBottom:5}}>Finn</div>
-                  <textarea value={askFinnNoteDraft.text} onChange={e=>setAskFinnNoteDraft(prev=>({...prev,text:e.target.value}))} rows={3} style={{width:"100%",background:"var(--bg-base)",border:"1px solid var(--border)",borderRadius:6,padding:"6px 8px",fontFamily:"'Cormorant Garamond',serif",fontSize:13,color:"var(--text-primary)",outline:"none",resize:"vertical",marginBottom:10}}/>
-                  <div style={{display:"flex",gap:6}}>
-                    <span onClick={()=>{addMarginaliaNote(currentScene.id,"finn",askFinnNoteDraft.text,askFinnNoteDraft.snippet,askFinnNoteDraft.start,askFinnNoteDraft.end);setAskFinnNoteDraft(null);}} style={{fontSize:11,fontWeight:500,padding:"5px 12px",borderRadius:5,background:"var(--accent)",color:"var(--bg-deepest)",cursor:"pointer",fontFamily:"'DM Sans',sans-serif"}}>Save note</span>
+                  {(askFinnNoteDraft.thread||[]).length>2&&<div style={{overflowY:"auto",maxHeight:"30vh",marginBottom:8,paddingRight:4}}>
+                    {askFinnNoteDraft.thread.slice(0,-1).filter(m=>m.role==="assistant"||m.display).map((m,i)=><div key={i} style={{marginBottom:6}}>
+                      <div style={{fontSize:9,color:m.role==="user"?"var(--text-dim)":"var(--accent-80)",fontFamily:"'DM Sans',sans-serif",marginBottom:2}}>{m.role==="user"?"You":"Finn"}</div>
+                      <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:13,color:m.role==="user"?"var(--text-muted)":"var(--text-primary)",lineHeight:1.5,whiteSpace:"pre-wrap"}}>{m.role==="user"?m.display:m.content}</div>
+                    </div>)}
+                  </div>}
+                  <div style={{fontSize:9,color:"var(--accent-80)",fontFamily:"'DM Sans',sans-serif",marginBottom:5}}>Finn{(askFinnNoteDraft.thread||[]).length>2?", latest":""}</div>
+                  {askFinnNoteDraft.replying?<div style={{fontSize:13,color:"var(--text-dim)",fontStyle:"italic",fontFamily:"'Cormorant Garamond',serif",padding:"8px 0 12px"}}>Finn is thinking...</div>
+                  :<textarea value={askFinnNoteDraft.text} onChange={e=>setAskFinnNoteDraft(prev=>({...prev,text:e.target.value}))} rows={5} style={{width:"100%",background:"var(--bg-base)",border:"1px solid var(--border)",borderRadius:6,padding:"6px 8px",fontFamily:"'Cormorant Garamond',serif",fontSize:13,color:"var(--text-primary)",outline:"none",resize:"vertical",marginBottom:10,boxSizing:"border-box"}}/>}
+                  <textarea value={askFinnNoteDraft.replyText||""} onChange={e=>setAskFinnNoteDraft(prev=>({...prev,replyText:e.target.value}))} onKeyDown={e=>{if(e.key==="Enter"&&!e.shiftKey){e.preventDefault();replyToFinnOnPassage();}}} disabled={askFinnNoteDraft.replying} placeholder="Reply to Finn..." rows={2} style={{width:"100%",background:"var(--bg-base)",border:"1px solid var(--border)",borderRadius:6,padding:"6px 8px",fontFamily:"'DM Sans',sans-serif",fontSize:12,color:"var(--text-primary)",outline:"none",resize:"vertical",marginBottom:6,boxSizing:"border-box"}}/>
+                  {askFinnNoteDraft.error&&<div style={{fontSize:11,color:"#B06848",fontFamily:"'DM Sans',sans-serif",marginBottom:6}}>{askFinnNoteDraft.error}</div>}
+                  <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
+                    <span onClick={()=>replyToFinnOnPassage()} style={{fontSize:11,padding:"5px 12px",borderRadius:5,border:"1px solid var(--accent-60)",color:"var(--accent)",cursor:askFinnNoteDraft.replyText?.trim()&&!askFinnNoteDraft.replying?"pointer":"default",opacity:askFinnNoteDraft.replyText?.trim()&&!askFinnNoteDraft.replying?1:0.5,fontFamily:"'DM Sans',sans-serif"}}>Send</span>
+                    <span onClick={()=>{if(!askFinnNoteDraft.replying)savePassageNote(currentScene.id);}} style={{fontSize:11,fontWeight:500,padding:"5px 12px",borderRadius:5,background:"var(--accent)",color:"var(--bg-deepest)",cursor:"pointer",fontFamily:"'DM Sans',sans-serif"}}>Save note</span>
                     <span onClick={()=>setAskFinnNoteDraft(null)} style={{fontSize:11,padding:"5px 12px",borderRadius:5,border:"1px solid var(--border)",color:"var(--text-dim)",cursor:"pointer",fontFamily:"'DM Sans',sans-serif"}}>Discard</span>
                   </div>
+                  <div style={{fontSize:10,color:"var(--text-dim)",fontFamily:"'DM Sans',sans-serif",marginTop:6,fontStyle:"italic"}}>Save note keeps Finn's latest answer on this passage{(askFinnNoteDraft.thread||[]).length>2?", with your conversation attached":""}.</div>
                 </>}
               </div>}
               <div style={{padding:"10px 40px 14px",borderTop:"1px solid var(--border)",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
